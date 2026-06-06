@@ -1,0 +1,15 @@
+title: ECIWise
+description: Documentación del proyecto ECIWise
+baseurl: ""
+url: "https://eciwise.github.io"
+
+wiki_label: "ECIWise"
+github_username: eciwise
+
+markdown: kramdown
+plugins:
+  - jekyll-relative-links
+
+relative_links:
+  enabled: true
+  collections: true

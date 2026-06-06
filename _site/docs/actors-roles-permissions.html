@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Actors, Roles & Permissions — ECIWise</title>
+	<link rel="stylesheet" href="/wiki.css">
+	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
+</head>
+<body>
+	<!-- ── Sidebar ── -->
+	<aside id="sidebar">
+		<div class="sidebar-header">
+			<div class="wiki-title">ECIWise</div>
+			<div class="wiki-subtitle">ECIWise</div>
+		</div>
+		<nav class="sidebar-nav">
+			<div class="nav-section">
+				<div class="nav-section-title">General</div>
+				<a href="/" >Home</a>
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">Docs</div>
+				<a href="/docs/" >Overview</a>
+				
+					
+						<a href="/docs/actors-roles-permissions.html" class="active">Actors, Roles & Permissions</a>
+					
+				
+					
+				
+					
+				
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">How</div>
+				<a href="/how/" >Overview</a>
+				
+					
+				
+					
+				
+					
+				
+			</div>
+		</nav>
+		<div class="sidebar-footer">
+			Last updated: Jun 2026 ·
+			<a href="https://github.com/eciwise">GitHub</a>
+		</div>
+	</aside>
+	<!-- ── Main ── -->
+	<div id="content">
+		<div id="topbar">
+			<button id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰ Menu</button>
+			<div class="breadcrumb">
+				<a href="/">Home</a>
+				
+				
+					
+				
+					
+						<span>/</span>
+						<a href="/docs/">Docs</a>
+					
+				
+					
+						<span>/</span>
+						<span>Actors, Roles & Permissions</span>
+					
+				
+			</div>
+			<div class="topbar-meta">
+				
+			</div>
+		</div>
+		<article>
+			<h1 id="actors-roles--permissions">Actors, Roles &amp; Permissions</h1>
+
+<p>Actors represent the external entities that interact with the ECIWise system. Each actor performs specific actions within the platform according to their role and permissions.</p>
+
+<h2 id="table-of-actors">Table of Actors</h2>
+
+<p>The following actors interact with the ECIWise web application:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Student</td>
+      <td>User who registers in the system to access academic support tools such as tutoring, study resources, forums, and gamification.</td>
+    </tr>
+    <tr>
+      <td>Monitor</td>
+      <td>Authorized user who offers academic tutoring sessions to students.</td>
+    </tr>
+    <tr>
+      <td>Administrator</td>
+      <td>User responsible for system administration, content management, and institutional statistics.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="description-of-the-actors">Description of the Actors</h2>
+
+<h3 id="student">Student</h3>
+<p>A user who registers in the platform to access academic support tools. Students can search and book tutoring sessions, practice with study tools, participate in forums, send messages, join video calls, and receive personalized AI-based recommendations.</p>
+
+<h3 id="monitor">Monitor</h3>
+<p>A student authorized by the institution to offer academic tutoring sessions. Monitors can publish and manage their availability, conduct tutoring sessions, register attendance and observations, and evaluate student participation.</p>
+
+<h3 id="administrator">Administrator</h3>
+<p>The administrator manages system-level operations such as user management, authorized monitor management, institutional statistics, question collection management, and audit monitoring.</p>
+
+<hr />
+
+<h2 id="roles--permissions-matrix">Roles &amp; Permissions Matrix</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Functionality</th>
+      <th style="text-align: center">Student</th>
+      <th style="text-align: center">Monitor</th>
+      <th style="text-align: center">Administrator</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Search available tutoring sessions</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Book a tutoring session</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Cancel a reservation</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Reschedule a tutoring session</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Rate a tutoring session</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>View tutoring history</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>View monitor reputation</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Practice with FlashCards</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Participate in Kahoot-style quizzes</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Send chat messages</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Join a video call</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Create a forum post</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Reply to a forum post</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>View leaderboard</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Receive personalized recommendations</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Publish availability</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Modify availability</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Cancel availability</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>View scheduled tutoring sessions</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Register attendance</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Register observations</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Evaluate student participation</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>View student reputation</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>View institutional statistics</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Manage users</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Generate reports</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Upload question collections</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Modify question collections</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Delete question collections</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>View system tutoring history</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Manage authorized monitors</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Send messages to monitors</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h3 id="use-case-student">Use Case Student</h3>
+
+<p><img src="/assets/usecase-student.png" alt="Use Case Student" /></p>
+
+<h3 id="use-case-monitor">Use Case Monitor</h3>
+
+<p><img src="/assets/usecase-monitor.png" alt="Use Case Monitor" /></p>
+
+<h3 id="use-case-administrator">Use Case Administrator</h3>
+
+<p><img src="/assets/usecase-admin.png" alt="Use Case Administrator" /></p>
+
+			<div class="page-footer">
+				<span>ECIWise Wiki</span>
+				<div>
+				
+				
+				</div>
+			</div>
+		</article>
+	</div>
+</body>
+</html>

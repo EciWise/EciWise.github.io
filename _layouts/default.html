@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>{{ page.title }} — {{ site.title }}</title>
+	<link rel="stylesheet" href="/wiki.css">
+	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
+</head>
+<body>
+	<!-- ── Sidebar ── -->
+	<aside id="sidebar">
+		<div class="sidebar-header">
+			<div class="wiki-title">{{ site.wiki_label | default: "ECIWise" }}</div>
+			<div class="wiki-subtitle">{{ site.title }}</div>
+		</div>
+		<nav class="sidebar-nav">
+			<div class="nav-section">
+				<div class="nav-section-title">General</div>
+				<a href="/" {% if page.url == "/" %}class="active"{% endif %}>Home</a>
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">Docs</div>
+				<a href="/docs/" {% if page.url == "/docs/" %}class="active"{% endif %}>Overview</a>
+				{% for p in site.pages %}
+					{% if p.url contains "/docs/" and p.url != "/docs/" %}
+						<a href="{{ p.url }}" {% if page.url == p.url %}class="active"{% endif %}>{{ p.title }}</a>
+					{% endif %}
+				{% endfor %}
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">How</div>
+				<a href="/how/" {% if page.url == "/how/" %}class="active"{% endif %}>Overview</a>
+				{% for p in site.pages %}
+					{% if p.url contains "/how/" and p.url != "/how/" %}
+						<a href="{{ p.url }}" {% if page.url == p.url %}class="active"{% endif %}>{{ p.title }}</a>
+					{% endif %}
+				{% endfor %}
+			</div>
+		</nav>
+		<div class="sidebar-footer">
+			Last updated: {{ site.time | date: "%b %Y" }} ·
+			<a href="https://github.com/{{ site.github_username }}">GitHub</a>
+		</div>
+	</aside>
+	<!-- ── Main ── -->
+	<div id="content">
+		<div id="topbar">
+			<button id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰ Menu</button>
+			<div class="breadcrumb">
+				<a href="/">Home</a>
+				{% assign parts = page.url | split: "/" %}
+				{% for part in parts %}
+					{% if part != "" and forloop.last == false %}
+						<span>/</span>
+						<a href="/{{ part }}/">{{ part | capitalize }}</a>
+					{% elsif part != "" %}
+						<span>/</span>
+						<span>{{ page.title }}</span>
+					{% endif %}
+				{% endfor %}
+			</div>
+			<div class="topbar-meta">
+				{% if page.date %}{{ page.date | date: "%b %d, %Y" }}{% endif %}
+			</div>
+		</div>
+		<article>
+			{{ content }}
+			<div class="page-footer">
+				<span>{{ site.title }} Wiki</span>
+				<div>
+				{% if page.previous %}
+					<a href="{{ page.previous.url }}">← {{ page.previous.title }}</a>
+				{% endif %}
+				{% if page.next %}
+					&nbsp;&nbsp;
+					<a href="{{ page.next.url }}">{{ page.next.title }} →</a>
+				{% endif %}
+				</div>
+			</div>
+		</article>
+	</div>
+</body>
+</html>
