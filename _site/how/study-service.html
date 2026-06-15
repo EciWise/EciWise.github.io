@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Study Service — ECIWise</title>
+	<link rel="stylesheet" href="/wiki.css">
+	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
+</head>
+<body>
+	<!-- ── Sidebar ── -->
+	<aside id="sidebar">
+		<div class="sidebar-header">
+			<div class="wiki-title">ECIWise</div>
+			<div class="wiki-subtitle">ECIWise</div>
+		</div>
+		<nav class="sidebar-nav">
+			<div class="nav-section">
+				<div class="nav-section-title">General</div>
+				<a href="/" >Home</a>
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">Docs</div>
+				<a href="/docs/" >Overview</a>
+				
+					
+						<a href="/docs/actors-roles-permissions.html" >Actors, Roles & Permissions</a>
+					
+				
+					
+				
+					
+				
+					
+				
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">How</div>
+				<a href="/how/" >Overview</a>
+				
+					
+				
+					
+				
+					
+				
+					
+						<a href="/how/study-service.html" class="active">Study Service</a>
+					
+				
+			</div>
+		</nav>
+		<div class="sidebar-footer">
+			Last updated: Jun 2026 ·
+			<a href="https://github.com/eciwise">GitHub</a>
+		</div>
+	</aside>
+	<!-- ── Main ── -->
+	<div id="content">
+		<div id="topbar">
+			<button id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰ Menu</button>
+			<div class="breadcrumb">
+				<a href="/">Home</a>
+				
+				
+					
+				
+					
+						<span>/</span>
+						<a href="/how/">How</a>
+					
+				
+					
+						<span>/</span>
+						<span>Study Service</span>
+					
+				
+			</div>
+			<div class="topbar-meta">
+				
+			</div>
+		</div>
+		<article>
+			<h1 id="study-service">Study Service</h1>
+
+<h2 id="overview">Overview</h2>
+
+<p><code class="language-plaintext highlighter-rouge">eciwise-study</code> is the microservice responsible for managing the academic study experience within the ECIWise platform. It provides students with structured tools to prepare for exams and practice course content, while giving monitors and admins the ability to create and organize study material.</p>
+
+<p>The service handles two core domains:</p>
+
+<ul>
+  <li><strong>Content management</strong>: monitors and admins can create subjects, flashcard collections, and formal questions (True/False, Open, and Closed). Students can create their own private flashcard collections for personal study.</li>
+  <li><strong>Study sessions</strong>: students can start a study session for a specific subject and semester period (corte) in one of two modes: <strong>Parcial</strong>, which simulates an exam with a dynamically calculated question set based on days remaining and target grade; and <strong>Repaso</strong>, which allows free practice by choosing a specific question type.</li>
+</ul>
+
+<hr />
+
+<h2 id="study-module-flow">Study Module Flow</h2>
+<p>Click on the image to zoom in</p>
+
+<p><a href="img_7.png"><img src="img_7.png" alt="img_7.png" /></a>
+<a href="img_8.png"><img src="img_8.png" alt="img_8.png" /></a>
+The study module supports two distinct user roles with different capabilities.</p>
+
+<p><strong>Students</strong> can start study sessions by selecting a subject and a semester period (corte), then choosing between two modes:</p>
+
+<ul>
+  <li><strong>Parcial</strong> — simulates an exam by calculating the number of questions based on days remaining and target grade (minimum 20, maximum 35), presenting True/False, Open, and Closed questions.</li>
+  <li><strong>Repaso</strong> — allows free practice by selecting a specific question type (True/False, Flashcard, Open, or Closed).</li>
+</ul>
+
+<p>Both modes produce a score out of 5.0 at the end of the session, which is registered in the student’s history.</p>
+
+<p>Students can also create flashcard collections by grouping flashcards with a question/description and an answer, associated to a subject and corte.</p>
+
+<p><strong>Monitors and admins</strong> have full CRUD access to collections and can create and edit formal questions (True/False, Closed, Open) within collections, specifying the subject, corte, visibility (public or private), and other metadata.</p>
+
+<hr />
+
+<h2 id="architecture">Architecture</h2>
+<p><a href="img_14.png"><img src="img_14.png" alt="img_14.png" /></a>
+The service follows a layered architecture. Every request passes through the Security Layer, where JwtAuthenticationFilter validates the Bearer JWT and loads the authenticated user before reaching any controller. The Presentation Layer contains the REST controllers grouped by domain. The Business Layer holds the services and domain logic, with CurrentUserService handling just-in-time user provisioning shared across all services. The Persistence Layer uses Spring Data JPA with Hibernate, Flyway for schema migrations, and connects to a PostgreSQL 16 database via JDBC on port 5432</p>
+<h3 id="runtime-environment"><strong>Runtime Environment</strong></h3>
+<p>The service is built with <strong>Spring Boot 3.3.13</strong> and <strong>Java 21</strong>, backed by a <strong>PostgreSQL 16</strong> database running in Docker. Database schema changes are managed exclusively through Flyway migrations.</p>
+
+<h3 id="package-structure">Package Structure</h3>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>com.eciwise.study
+├── auth/          JWT filter and security configuration
+├── config/        CORS and Spring Security setup
+├── exception/     Global exception handler and custom exceptions
+├── flashcard/     Flashcard collections, flashcards, usage and review
+├── user/          AppUser entity and CurrentUserService
+└── study/
+    ├── subject/   Subject entity, CRUD
+    └── (root)     Questions, study sessions, session questions
+</code></pre></div></div>
+
+<h3 id="runtime-dependencies">Runtime Dependencies</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Dependency</th>
+      <th>Version</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>spring-boot-starter-parent</td>
+      <td>3.3.13</td>
+    </tr>
+    <tr>
+      <td>spring-boot-starter-web</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>spring-boot-starter-security</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>spring-boot-starter-data-jpa</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>spring-boot-starter-validation</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>flyway-core</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>flyway-database-postgresql</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>jjwt-api</td>
+      <td>0.12.6</td>
+    </tr>
+    <tr>
+      <td>postgresql</td>
+      <td>runtime</td>
+    </tr>
+    <tr>
+      <td>lombok</td>
+      <td>optional</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="database-migrations">Database Migrations</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Version</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>V1</td>
+      <td>Create core tables</td>
+    </tr>
+    <tr>
+      <td>V2</td>
+      <td>Create flashcards and users</td>
+    </tr>
+    <tr>
+      <td>V3</td>
+      <td>Create flashcard reviews</td>
+    </tr>
+    <tr>
+      <td>V4</td>
+      <td>Study module — subjects, questions, study sessions, session questions</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="jwt-based-identity">JWT-based Identity</h2>
+
+<p>On every request, the service reads the JWT token and extracts the following claims:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Claim</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>sub</td>
+      <td>Identifies the user (stored as external_id in app_users)</td>
+    </tr>
+    <tr>
+      <td>email</td>
+      <td>User email</td>
+    </tr>
+    <tr>
+      <td>nombre</td>
+      <td>User first name</td>
+    </tr>
+    <tr>
+      <td>apellido</td>
+      <td>User last name</td>
+    </tr>
+    <tr>
+      <td>rol</td>
+      <td>User role: estudiante, monitor, admin</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+<h2 id="data-model">Data Model</h2>
+
+<h3 id="appuser">AppUser</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT PK</code></td>
+      <td>Auto-generated</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">external_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>User ID from eciwise-auth (from JWT <code class="language-plaintext highlighter-rouge">sub</code> claim)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">email</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>From JWT <code class="language-plaintext highlighter-rouge">email</code> claim</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">first_name</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>From JWT <code class="language-plaintext highlighter-rouge">nombre</code> claim</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">last_name</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>From JWT <code class="language-plaintext highlighter-rouge">apellido</code> claim</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">role</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>From JWT <code class="language-plaintext highlighter-rouge">rol</code> claim: <code class="language-plaintext highlighter-rouge">estudiante</code>, <code class="language-plaintext highlighter-rouge">monitor</code>, <code class="language-plaintext highlighter-rouge">admin</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">created_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">updated_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="subject">Subject</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT PK</code></td>
+      <td>Auto-generated</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">name</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Unique subject name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">code</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Subject code (optional)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">created_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">updated_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="flashcardcollection">FlashcardCollection</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT PK</code></td>
+      <td>Auto-generated</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">name</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Collection name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">author_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">app_users.id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">subject_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">subjects.id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">corte</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Semester period (<code class="language-plaintext highlighter-rouge">1</code>, <code class="language-plaintext highlighter-rouge">2</code> or <code class="language-plaintext highlighter-rouge">3</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">visibility</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td><code class="language-plaintext highlighter-rouge">PUBLIC</code> or <code class="language-plaintext highlighter-rouge">PRIVATE</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">created_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">updated_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="flashcard">Flashcard</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT PK</code></td>
+      <td>Auto-generated</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">collection_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">flashcard_collections.id</code>, <code class="language-plaintext highlighter-rouge">ON DELETE CASCADE</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">title</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Flashcard title</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">description</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TEXT</code></td>
+      <td>Optional description</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">question</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TEXT</code></td>
+      <td>Flashcard question</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">answer</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TEXT</code></td>
+      <td>Flashcard answer</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">created_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">updated_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="question">Question</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT PK</code></td>
+      <td>Auto-generated</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">collection_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">flashcard_collections.id</code>, <code class="language-plaintext highlighter-rouge">ON DELETE CASCADE</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">question_type</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TRUE_FALSE</code>, <code class="language-plaintext highlighter-rouge">OPEN</code> or <code class="language-plaintext highlighter-rouge">CLOSED</code> — SINGLE_TABLE inheritance discriminator</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">question_text</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TEXT</code></td>
+      <td>Question statement</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">correct_answer</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TEXT</code></td>
+      <td>Correct answer</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tf_correct_value</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BOOLEAN</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TRUE_FALSE</code> only: correct boolean value</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">open_hint</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TEXT</code></td>
+      <td><code class="language-plaintext highlighter-rouge">OPEN</code> only: optional hint</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">created_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="questionoptions">QuestionOptions</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">question_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">questions.id</code>, <code class="language-plaintext highlighter-rouge">ON DELETE CASCADE</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">option_text</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td><code class="language-plaintext highlighter-rouge">CLOSED</code> only: text for each answer option</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="flashcardreview">FlashcardReview</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT PK</code></td>
+      <td>Auto-generated</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">app_users.id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">flashcard_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">flashcards.id</code>, <code class="language-plaintext highlighter-rouge">ON DELETE CASCADE</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">state</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Spaced repetition state</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">repetitions</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Number of repetitions completed</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">interval_days</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Days until next review</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ease_factor</code></td>
+      <td><code class="language-plaintext highlighter-rouge">DOUBLE</code></td>
+      <td>SM-2 algorithm ease factor</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">lapses</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Number of times forgotten</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">due_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Scheduled date for next review</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">last_reviewed_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Last time the card was reviewed</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">created_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">updated_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="studysession">StudySession</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT PK</code></td>
+      <td>Auto-generated</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">app_users.id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">subject_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">subjects.id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">corte</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Semester period being studied</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">mode</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td><code class="language-plaintext highlighter-rouge">PARCIAL</code> or <code class="language-plaintext highlighter-rouge">REPASO</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">status</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td><code class="language-plaintext highlighter-rouge">IN_PROGRESS</code> or <code class="language-plaintext highlighter-rouge">COMPLETED</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">exam_date</code></td>
+      <td><code class="language-plaintext highlighter-rouge">DATE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">PARCIAL</code> only: exam date</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">target_grade</code></td>
+      <td><code class="language-plaintext highlighter-rouge">DOUBLE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">PARCIAL</code> only: target grade (<code class="language-plaintext highlighter-rouge">0.0</code>–<code class="language-plaintext highlighter-rouge">5.0</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">question_count</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td><code class="language-plaintext highlighter-rouge">PARCIAL</code> only: question count calculated by algorithm</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">repaso_type</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td><code class="language-plaintext highlighter-rouge">REPASO</code> only: question type (<code class="language-plaintext highlighter-rouge">TRUE_FALSE</code>, <code class="language-plaintext highlighter-rouge">OPEN</code>, <code class="language-plaintext highlighter-rouge">CLOSED</code>, <code class="language-plaintext highlighter-rouge">FLASHCARD</code>, <code class="language-plaintext highlighter-rouge">null</code> = ALL)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">score</code></td>
+      <td><code class="language-plaintext highlighter-rouge">DOUBLE</code></td>
+      <td>Final score out of <code class="language-plaintext highlighter-rouge">5.0</code>, <code class="language-plaintext highlighter-rouge">null</code> while <code class="language-plaintext highlighter-rouge">IN_PROGRESS</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">created_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">updated_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="sessionquestion">SessionQuestion</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT PK</code></td>
+      <td>Auto-generated</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">session_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">study_sessions.id</code>, <code class="language-plaintext highlighter-rouge">ON DELETE CASCADE</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">question_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">questions.id</code> — nullable, exclusive with <code class="language-plaintext highlighter-rouge">flashcard_id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">flashcard_id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BIGINT FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">flashcards.id</code> — nullable, exclusive with <code class="language-plaintext highlighter-rouge">question_id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">order_index</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Question order within the session</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_answer</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TEXT</code></td>
+      <td>Student’s answer</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">is_correct</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BOOLEAN</code></td>
+      <td>Whether the answer was correct</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">created_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">updated_at</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Defaults to <code class="language-plaintext highlighter-rouge">NOW()</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="entity-relationship-diagram">Entity Relationship Diagram</h2>
+
+<p><a href="img_12.png"><img src="img_12.png" alt="img_12.png" /></a>
+The diagram reflects the full database schema of the eciwise-study microservice, composed of 10 tables. <code class="language-plaintext highlighter-rouge">app_users</code> is the central table, connecting to collections, reviews, usage and sessions. <code class="language-plaintext highlighter-rouge">subjects</code> connects to collections and sessions. <code class="language-plaintext highlighter-rouge">flashcard_collections</code> groups content under a subject and corte, containing both flashcards and questions. <code class="language-plaintext highlighter-rouge">study_sessions</code> records each session started by a student, containing multiple <code class="language-plaintext highlighter-rouge">session_questions</code> which reference either a formal question or a flashcard — never both at the same time.</p>
+
+<h2 id="jpa-class-diagram">JPA Class Diagram</h2>
+
+<p><a href="img_11.png"><img src="img_11.png" alt="img_11.png" /></a>
+The diagram reflects the Java entity model of the eciwise-study microservice, composed of 11 classes and 4 enums.
+AppUser is the central entity, referenced by FlashcardCollection, FlashcardReview, FlashcardUsage and StudySession. Subject connects to FlashcardCollection and StudySession. FlashcardCollection is the main content container, owning both Flashcard and Question collections.
+Question is abstract and uses @Inheritance(SINGLE_TABLE), with three subclasses: TrueFalseQuestion, OpenQuestion and ClosedQuestion. StudySession owns a collection of SessionQuestion entities, each referencing either a Question or a Flashcard  never both.
+Four enums support the domain: Visibility, QuestionType, SessionMode and SessionStatus
+—</p>
+
+<h2 id="endpoints">Endpoints</h2>
+
+<h3 id="subjects">Subjects</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/subjects</code></td>
+      <td>Yes</td>
+      <td>List all subjects</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/subjects/{id}</code></td>
+      <td>Yes</td>
+      <td>Get a subject by ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/subjects</code></td>
+      <td><code class="language-plaintext highlighter-rouge">admin</code>, <code class="language-plaintext highlighter-rouge">monitor</code></td>
+      <td>Create a new subject</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PUT</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/subjects/{id}</code></td>
+      <td><code class="language-plaintext highlighter-rouge">admin</code>, <code class="language-plaintext highlighter-rouge">monitor</code></td>
+      <td>Update a subject</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/subjects/{id}</code></td>
+      <td><code class="language-plaintext highlighter-rouge">admin</code>, <code class="language-plaintext highlighter-rouge">monitor</code></td>
+      <td>Delete a subject</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="collections">Collections</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/collections</code></td>
+      <td>Yes</td>
+      <td>List all visible collections (public + own)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/collections/mine</code></td>
+      <td>Yes</td>
+      <td>List current user’s own collections</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/collections/public</code></td>
+      <td>Yes</td>
+      <td>List public collections from other users</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/collections/{id}</code></td>
+      <td>Yes</td>
+      <td>Get a collection by ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/collections</code></td>
+      <td>Yes</td>
+      <td>Create a new collection</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PUT</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/collections/{id}</code></td>
+      <td>Yes</td>
+      <td>Update a collection</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/collections/{id}</code></td>
+      <td>Yes</td>
+      <td>Delete a collection</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="flashcards">Flashcards</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/collections/{collectionId}/flashcards</code></td>
+      <td>Yes</td>
+      <td>List flashcards in a collection</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/collections/{collectionId}/flashcards</code></td>
+      <td>Yes</td>
+      <td>Create a flashcard in a collection</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/flashcards/{id}</code></td>
+      <td>Yes</td>
+      <td>Get a flashcard by ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PUT</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/flashcards/{id}</code></td>
+      <td>Yes</td>
+      <td>Update a flashcard</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/flashcards/{id}</code></td>
+      <td>Yes</td>
+      <td>Delete a flashcard</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/flashcards/{id}/use</code></td>
+      <td>Yes</td>
+      <td>Register flashcard usage</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="flashcard-review">Flashcard Review</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/flashcards/{id}/review</code></td>
+      <td>Yes</td>
+      <td>Get review state for a flashcard</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/flashcards/{id}/review</code></td>
+      <td>Yes</td>
+      <td>Submit a review result for a flashcard</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/review/due</code></td>
+      <td>Yes</td>
+      <td>List flashcards due for review today</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="flashcard-usage">Flashcard Usage</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/usage/me</code></td>
+      <td>Yes</td>
+      <td>Get usage history for the current user</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="questions">Questions</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/collections/{collectionId}/questions</code></td>
+      <td>Yes</td>
+      <td>List questions in a collection</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/collections/{collectionId}/questions</code></td>
+      <td><code class="language-plaintext highlighter-rouge">admin</code>, <code class="language-plaintext highlighter-rouge">monitor</code></td>
+      <td>Create a question in a collection</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/questions/{id}</code></td>
+      <td>Yes</td>
+      <td>Get a question by ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PUT</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/questions/{id}</code></td>
+      <td><code class="language-plaintext highlighter-rouge">admin</code>, <code class="language-plaintext highlighter-rouge">monitor</code></td>
+      <td>Update a question</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/questions/{id}</code></td>
+      <td><code class="language-plaintext highlighter-rouge">admin</code>, <code class="language-plaintext highlighter-rouge">monitor</code></td>
+      <td>Delete a question</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="study-sessions">Study Sessions</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/study/parcial</code></td>
+      <td>Yes</td>
+      <td>Start a Parcial study session</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/study/repaso</code></td>
+      <td>Yes</td>
+      <td>Start a Repaso study session</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/study/sessions/{id}</code></td>
+      <td>Yes</td>
+      <td>Get a study session by ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/study/sessions/{id}/answer</code></td>
+      <td>Yes</td>
+      <td>Submit an answer for a session question</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/study/sessions/{id}/complete</code></td>
+      <td>Yes</td>
+      <td>Complete a study session and calculate score</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/study/history</code></td>
+      <td>Yes</td>
+      <td>Get completed session history for current user</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="service-communication">Service Communication</h2>
+
+<p>This service operates as a self-contained service that relies exclusively on the JWT token for user identity and authorization.</p>
+
+<h3 id="just-in-time-user-provisioning">Just-in-time User Provisioning</h3>
+
+<p>The first time a user makes any request, the service automatically creates a local snapshot of their identity in the <code class="language-plaintext highlighter-rouge">app_users</code> table using the JWT claims. This snapshot is updated on subsequent requests if any claim has changed.</p>
+
+<h3 id="authorization">Authorization</h3>
+
+<p>All role checks and ownership validation are performed locally using the JWT claims and the data stored in this service’s own database.</p>
+
+<h2 id="container-diagram">Container Diagram</h2>
+<p><a href="img_15.png"><img src="img_15.png" alt="img_15.png" /></a></p>
+
+
+			<div class="page-footer">
+				<span>ECIWise Wiki</span>
+				<div>
+				
+				
+				</div>
+			</div>
+		</article>
+	</div>
+</body>
+</html>
