@@ -424,22 +424,89 @@ All inbound messages must include a JWT token in the `x-jwt-token` header for se
 
 #### Event Message Structure
 
-All events follow this JSON structure:
+Each event type has its own structure depending on the source service, but all include a common envelope. The Gamification Service extracts the necessary fields from each event type's unique payload.
 
+**Common Envelope** (All Events):
+```json
+{
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "userId": "user-123-uuid",
+  "eventType": "EventTypeName"
+}
+```
+
+**LessonCompleted** (from Study Service):
 ```json
 {
   "eventId": "550e8400-e29b-41d4-a716-446655440000",
   "userId": "user-123-uuid",
   "eventType": "LessonCompleted",
-  "rating": 4
+  "lessonId": "lesson-456",
+  "subject": "Mathematics",
+  "score": 4.5,
+  "completedAt": "2026-06-16T14:30:00Z"
 }
 ```
 
-**Field Descriptions**:
-- `eventId` (GUID): Unique identifier for the event — used for idempotency tracking
-- `userId` (string/UUID): Identifier of the user performing the action
-- `eventType` (string): One of the supported event types listed above
-- `rating` (int, optional): Only for `TutorshipRated` events (scale 1–5)
+**TutorshipDictated** (from Tutoring Service):
+```json
+{
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "userId": "tutor-789-uuid",
+  "eventType": "TutorshipDictated",
+  "studentId": "student-123",
+  "duration": 60,
+  "subject": "Physics",
+  "startedAt": "2026-06-16T14:00:00Z"
+}
+```
+
+**QuizPassed** (from Assessment Service):
+```json
+{
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "userId": "user-123-uuid",
+  "eventType": "QuizPassed",
+  "quizId": "quiz-789",
+  "score": 4.8,
+  "passingScore": 3.0,
+  "subject": "History",
+  "completedAt": "2026-06-16T15:45:00Z"
+}
+```
+
+**TutorshipRated** (from Tutoring Service):
+```json
+{
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "userId": "tutor-789-uuid",
+  "eventType": "TutorshipRated",
+  "studentId": "student-123",
+  "rating": 5,
+  "comment": "Excelente explicación",
+  "ratedAt": "2026-06-16T15:30:00Z"
+}
+```
+
+**ForumPostCreated** (from Forum Service):
+```json
+{
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "userId": "user-123-uuid",
+  "eventType": "ForumPostCreated",
+  "postId": "post-999",
+  "title": "¿Cómo resolver ecuaciones cuadráticas?",
+  "categoryId": "math-101",
+  "isReply": false,
+  "createdAt": "2026-06-16T16:00:00Z"
+}
+```
+
+**Field Extraction**:
+- All events must include `eventId`, `userId`, and `eventType` (envelope)
+- Each event type has additional fields specific to that service
+- The Gamification Service extracts relevant fields using `TryGetProperty()` to handle optional fields
+- Missing optional fields default to reasonable values
 
 **Message Headers**:
 ```
@@ -489,7 +556,7 @@ To publish events to the Gamification Service, external services must:
 
 3. **Publish to RabbitMQ** with the JWT in the `x-jwt-token` header
 
-**C# Example** (using RabbitMQ.Client):
+**C# Example** (Study Service publishing LessonCompleted):
 
 ```csharp
 using System;
@@ -504,17 +571,24 @@ using var channel = await connection.CreateChannelAsync();
 var eventPayload = new
 {
     eventId = Guid.NewGuid().ToString(),
-    userId = "user-uuid-123",
-    eventType = "LessonCompleted"
+    userId = "student-uuid-123",
+    eventType = "LessonCompleted",
+    lessonId = "lesson-456",
+    subject = "Mathematics",
+    score = 4.5,
+    completedAt = DateTime.UtcNow
 };
+
+var jwtToken = "eyJhbGc...YOUR_JWT_TOKEN...";
 
 var props = new BasicProperties 
 { 
     Headers = new Dictionary<string, object>
     {
-        { "x-jwt-token", Encoding.UTF8.GetBytes("eyJhbGc...YOUR_JWT_TOKEN...") }
+        { "x-jwt-token", Encoding.UTF8.GetBytes(jwtToken) }
     },
-    Persistent = true
+    Persistent = true,
+    Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds())
 };
 
 var jsonBody = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(eventPayload));
@@ -527,24 +601,29 @@ await channel.BasicPublishAsync(
 );
 ```
 
-**Java Example** (using RabbitTemplate from Spring):
+**Java Example** (Tutoring Service publishing TutorshipRated):
 
 ```java
-import com.rabbitmq.client.BasicProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
+import java.util.UUID;
 
 @Service
-public class GamificationEventPublisher {
+public class TutorshipEventPublisher {
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
     
-    public void publishLessonCompleted(UUID userId) throws Exception {
+    public void publishTutorshipRated(UUID tutorId, UUID studentId, int rating, String comment) throws Exception {
         Map<String, Object> event = Map.of(
             "eventId", UUID.randomUUID().toString(),
-            "userId", userId.toString(),
-            "eventType", "LessonCompleted"
+            "userId", tutorId.toString(),  // tutor receives the points
+            "eventType", "TutorshipRated",
+            "studentId", studentId.toString(),
+            "rating", rating,
+            "comment", comment,
+            "ratedAt", Instant.now()
         );
         
         String jwtToken = obtainJwtToken(); // Implement JWT retrieval
@@ -560,12 +639,13 @@ public class GamificationEventPublisher {
 }
 ```
 
-**Python Example** (using pika):
+**Python Example** (Forum Service publishing ForumPostCreated):
 
 ```python
 import pika
 import json
 import uuid
+from datetime import datetime
 
 connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
 channel = connection.channel()
@@ -573,7 +653,12 @@ channel = connection.channel()
 event = {
     "eventId": str(uuid.uuid4()),
     "userId": "user-uuid-123",
-    "eventType": "QuizPassed"
+    "eventType": "ForumPostCreated",
+    "postId": "post-999",
+    "title": "¿Cómo resolver ecuaciones cuadráticas?",
+    "categoryId": "math-101",
+    "isReply": False,
+    "createdAt": datetime.utcnow().isoformat() + "Z"
 }
 
 jwt_token = "eyJhbGc...YOUR_JWT_TOKEN..."
