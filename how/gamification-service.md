@@ -406,29 +406,192 @@ This allows adding new achievement types without modifying domain logic.
 
 This service is **event-driven and asynchronous**, receiving user action events from RabbitMQ and publishing domain events for consumption by other services.
 
-### Inbound Messages (RabbitMQ Queue: `gamification_events_queue`)
+### Inbound RabbitMQ Events
 
-External services publish user action events with a JWT token in the `x-jwt-token` header:
+The Gamification Service listens to a single RabbitMQ queue: **`gamification_events_queue`** (durable, exclusive: false, auto-delete: false).
+
+All inbound messages must include a JWT token in the `x-jwt-token` header for security validation. The token is validated with HMAC-SHA256 signature verification before message processing begins.
+
+#### Supported Event Types
+
+| Event Type | Points | Action Type | Description | Example Scenario |
+|---|---|---|---|---|
+| `LessonCompleted` | 10 | TutoriaCompletada | User completes a tutorial/lesson | Student finishes a study material |
+| `TutorshipDictated` | 15 | TutoriaDictada | Tutor provides a tutoring session | Mentor teaches another student |
+| `QuizPassed` | 20 | MaterialAprobado | User passes an assessment/quiz | Student achieves passing grade |
+| `TutorshipRated` | 10–25 | TutoriaCalificada | User receives rating on tutoring (10 if rating < 4, 25 if rating ≥ 4) | Student rates tutor's performance |
+| `ForumPostCreated` | 5 | ForoPublicado | User creates a forum post | Student asks question in forum |
+
+#### Event Message Structure
+
+All events follow this JSON structure:
 
 ```json
 {
   "eventId": "550e8400-e29b-41d4-a716-446655440000",
-  "userId": "user-123",
-  "eventType": "LessonCompleted"
+  "userId": "user-123-uuid",
+  "eventType": "LessonCompleted",
+  "rating": 4
 }
 ```
 
-**Processing Flow**:
-1. RabbitMqConsumer receives message
+**Field Descriptions**:
+- `eventId` (GUID): Unique identifier for the event — used for idempotency tracking
+- `userId` (string/UUID): Identifier of the user performing the action
+- `eventType` (string): One of the supported event types listed above
+- `rating` (int, optional): Only for `TutorshipRated` events (scale 1–5)
+
+**Message Headers**:
+```
+x-jwt-token: <JWT_TOKEN_WITH_BEARER_TOKEN_FORMAT>
+```
+
+The JWT must be a valid token signed with the service's secret key, containing `iss` (issuer) and `aud` (audience) claims matching the configured values.
+
+#### Processing Flow
+
+1. **RabbitMqConsumer** receives message from queue
 2. Extract JWT from `x-jwt-token` header
-3. JwtValidator validates signature, expiration, issuer, audience
-4. Extract `eventId` and check `processed_events` table (idempotency)
-5. Create `AssignPointsCommand` with action type and points
-6. Send command via MediatR to AssignPointsCommandHandler
-7. Handler loads UserGamification aggregate, calls `AddPoints(transaction)`
-8. Domain logic raises `PointsAddedEvent`, added to outbox table
-9. Record event in `processed_events` for idempotency
-10. BasicAck message (remove from queue)
+3. **JwtValidator** validates:
+   - Signature (HMAC-SHA256)
+   - Expiration (no tolerance)
+   - Issuer and Audience claims
+4. Extract `eventId` and query `processed_events` table for idempotency check
+   - If already processed, ACK and skip
+5. Route event to appropriate handler based on `eventType`
+   - `LessonCompleted` → HandleLessonCompletedAsync
+   - `TutorshipDictated` → HandleTutorshipDictatedAsync
+   - `QuizPassed` → HandleQuizPassedAsync
+   - `TutorshipRated` → HandleTutorshipRatedAsync
+   - `ForumPostCreated` → HandleForumPostCreatedAsync
+6. Create **AssignPointsCommand** with calculated points and action type
+7. Send command via **MediatR** to **AssignPointsCommandHandler**
+8. Handler:
+   - Loads **UserGamification** aggregate from repository
+   - Calls `AddPoints(transaction)` on aggregate
+   - Domain logic creates **PointTransaction** and raises **PointsAddedEvent**
+   - Persists aggregate and adds event to outbox table (atomic transaction)
+9. Record event in `processed_events` table with eventId, eventType, and processedAt timestamp
+10. **BasicAck** message (remove from queue, acknowledging successful processing)
+11. On error: **BasicNack** without requeue (dead-letter to DLQ or discard)
+
+#### Publishing Events from External Services
+
+To publish events to the Gamification Service, external services must:
+
+1. **Obtain a JWT token** from the authentication service with claims:
+   - `sub`: User ID
+   - `iss`: Issuer (configured as `gamification-service`)
+   - `aud`: Audience (configured as `gamification-api`)
+   - `exp`: Expiration time
+
+2. **Create the event payload** as JSON with required fields
+
+3. **Publish to RabbitMQ** with the JWT in the `x-jwt-token` header
+
+**C# Example** (using RabbitMQ.Client):
+
+```csharp
+using System;
+using RabbitMQ.Client;
+using System.Text;
+using System.Text.Json;
+
+var factory = new ConnectionFactory { HostName = "rabbitmq-host" };
+using var connection = await factory.CreateConnectionAsync();
+using var channel = await connection.CreateChannelAsync();
+
+var eventPayload = new
+{
+    eventId = Guid.NewGuid().ToString(),
+    userId = "user-uuid-123",
+    eventType = "LessonCompleted"
+};
+
+var props = new BasicProperties 
+{ 
+    Headers = new Dictionary<string, object>
+    {
+        { "x-jwt-token", Encoding.UTF8.GetBytes("eyJhbGc...YOUR_JWT_TOKEN...") }
+    },
+    Persistent = true
+};
+
+var jsonBody = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(eventPayload));
+await channel.BasicPublishAsync(
+    exchange: "",
+    routingKey: "gamification_events_queue",
+    mandatory: false,
+    basicProperties: props,
+    body: jsonBody
+);
+```
+
+**Java Example** (using RabbitTemplate from Spring):
+
+```java
+import com.rabbitmq.client.BasicProperties;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.stereotype.Service;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+@Service
+public class GamificationEventPublisher {
+    private final RabbitTemplate rabbitTemplate;
+    private final ObjectMapper objectMapper;
+    
+    public void publishLessonCompleted(UUID userId) throws Exception {
+        Map<String, Object> event = Map.of(
+            "eventId", UUID.randomUUID().toString(),
+            "userId", userId.toString(),
+            "eventType", "LessonCompleted"
+        );
+        
+        String jwtToken = obtainJwtToken(); // Implement JWT retrieval
+        
+        rabbitTemplate.convertAndSend("gamification_events_queue", 
+            objectMapper.writeValueAsString(event),
+            message -> {
+                message.getMessageProperties().setHeader("x-jwt-token", jwtToken);
+                return message;
+            }
+        );
+    }
+}
+```
+
+**Python Example** (using pika):
+
+```python
+import pika
+import json
+import uuid
+
+connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+channel = connection.channel()
+
+event = {
+    "eventId": str(uuid.uuid4()),
+    "userId": "user-uuid-123",
+    "eventType": "QuizPassed"
+}
+
+jwt_token = "eyJhbGc...YOUR_JWT_TOKEN..."
+
+properties = pika.BasicProperties(
+    headers={"x-jwt-token": jwt_token},
+    delivery_mode=pika.spec.PERSISTENT_DELIVERY_MODE
+)
+
+channel.basic_publish(
+    exchange='',
+    routing_key='gamification_events_queue',
+    body=json.dumps(event),
+    properties=properties
+)
+
+connection.close()
+```
 
 ### Outbound Events (RabbitMQ Publishing)
 
