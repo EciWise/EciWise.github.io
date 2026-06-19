@@ -33,11 +33,17 @@
 				
 					
 				
+					
+				
 			</div>
 			<div class="nav-section">
 				<div class="nav-section-title">How</div>
 				<a href="/how/" >Overview</a>
 				
+					
+				
+					
+						<a href="/how/gamification-service.html" >Gamification Service</a>
 					
 				
 					
@@ -99,8 +105,8 @@
 <h2 id="study-module-flow">Study Module Flow</h2>
 <p>Click on the image to zoom in</p>
 
-<p><a href="img_7.png"><img src="img_7.png" alt="img_7.png" /></a>
-<a href="img_8.png"><img src="img_8.png" alt="img_8.png" /></a>
+<p><a href="study/img_7.png"><img src="/how/study/img_7.png" alt="img_7.png" /></a>
+<a href="study/img_8.png"><img src="/how/study/img_8.png" alt="img_8.png" /></a>
 The study module supports two distinct user roles with different capabilities.</p>
 
 <p><strong>Students</strong> can start study sessions by selecting a subject and a semester period (corte), then choosing between two modes:</p>
@@ -119,7 +125,7 @@ The study module supports two distinct user roles with different capabilities.</
 <hr />
 
 <h2 id="architecture">Architecture</h2>
-<p><a href="img_14.png"><img src="img_14.png" alt="img_14.png" /></a>
+<p><a href="study/img_14.png"><img src="/how/study/img_14.png" alt="img_14.png" /></a>
 The service follows a layered architecture. Every request passes through the Security Layer, where JwtAuthenticationFilter validates the Bearer JWT and loads the authenticated user before reaching any controller. The Presentation Layer contains the REST controllers grouped by domain. The Business Layer holds the services and domain logic, with CurrentUserService handling just-in-time user provisioning shared across all services. The Persistence Layer uses Spring Data JPA with Hibernate, Flyway for schema migrations, and connects to a PostgreSQL 16 database via JDBC on port 5432</p>
 <h3 id="runtime-environment"><strong>Runtime Environment</strong></h3>
 <p>The service is built with <strong>Spring Boot 3.3.13</strong> and <strong>Java 21</strong>, backed by a <strong>PostgreSQL 16</strong> database running in Docker. Database schema changes are managed exclusively through Flyway migrations.</p>
@@ -754,12 +760,12 @@ The service follows a layered architecture. Every request passes through the Sec
 
 <h2 id="entity-relationship-diagram">Entity Relationship Diagram</h2>
 
-<p><a href="img_12.png"><img src="img_12.png" alt="img_12.png" /></a>
+<p><a href="study/img_12.png"><img src="/how/study/img_12.png" alt="img_12.png" /></a>
 The diagram reflects the full database schema of the eciwise-study microservice, composed of 10 tables. <code class="language-plaintext highlighter-rouge">app_users</code> is the central table, connecting to collections, reviews, usage and sessions. <code class="language-plaintext highlighter-rouge">subjects</code> connects to collections and sessions. <code class="language-plaintext highlighter-rouge">flashcard_collections</code> groups content under a subject and corte, containing both flashcards and questions. <code class="language-plaintext highlighter-rouge">study_sessions</code> records each session started by a student, containing multiple <code class="language-plaintext highlighter-rouge">session_questions</code> which reference either a formal question or a flashcard — never both at the same time.</p>
 
 <h2 id="jpa-class-diagram">JPA Class Diagram</h2>
 
-<p><a href="img_11.png"><img src="img_11.png" alt="img_11.png" /></a>
+<p><a href="study/img_11.png"><img src="/how/study/img_11.png" alt="img_11.png" /></a>
 The diagram reflects the Java entity model of the eciwise-study microservice, composed of 11 classes and 4 enums.
 AppUser is the central entity, referenced by FlashcardCollection, FlashcardReview, FlashcardUsage and StudySession. Subject connects to FlashcardCollection and StudySession. FlashcardCollection is the main content container, owning both Flashcard and Question collections.
 Question is abstract and uses @Inheritance(SINGLE_TABLE), with three subclasses: TrueFalseQuestion, OpenQuestion and ClosedQuestion. StudySession owns a collection of SessionQuestion entities, each referencing either a Question or a Flashcard  never both.
@@ -1085,9 +1091,266 @@ Four enums support the domain: Visibility, QuestionType, SessionMode and Session
 
 <p>All role checks and ownership validation are performed locally using the JWT claims and the data stored in this service’s own database.</p>
 
-<h2 id="container-diagram">Container Diagram</h2>
-<p><a href="img_15.png"><img src="img_15.png" alt="img_15.png" /></a></p>
+<h2 id="containers-diagram">Containers Diagram</h2>
+<p><a href="study/img_15.png"><img src="/how/study/img_15.png" alt="img_15.png" /></a></p>
 
+<p>The service is deployed using Docker Compose with two containers. The eciwise-study container uses a multi-stage Dockerfile: the build stage compiles the application with Maven and produces a JAR, and the runtime stage runs it on Eclipse Temurin 21 JRE exposed on port 8080. The eciwise-study-postgres container runs PostgreSQL 16 Alpine with a healthcheck that verifies the database is ready before the app starts. All configuration is injected through environment variables: SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD, JWT_SECRET, FRONTEND_URL and SERVER_PORT. Database data is persisted in a Docker volume named postgres_data.</p>
+
+<h2 id="flow-1--jwt-authentication-and-just-in-time-user-provisioning">Flow 1 — JWT Authentication and Just-in-Time User Provisioning</h2>
+
+<p><img src="/how/study/img16.png" alt="img.png" /></p>
+
+<p>This diagram shows the full authentication flow for every request to <code class="language-plaintext highlighter-rouge">/api/**</code>. The <code class="language-plaintext highlighter-rouge">JwtAuthenticationFilter</code> first checks for a Bearer token in the request header; if missing or malformed, the request continues unauthenticated and the <code class="language-plaintext highlighter-rouge">SecurityFilterChain</code> returns a 403 Forbidden.</p>
+
+<p>If a token is present, <code class="language-plaintext highlighter-rouge">JwtService</code> validates its signature and expiration. An invalid or expired token also results in a 403. If valid, the filter extracts the claims (<code class="language-plaintext highlighter-rouge">sub</code>, <code class="language-plaintext highlighter-rouge">email</code>, <code class="language-plaintext highlighter-rouge">nombre</code>, <code class="language-plaintext highlighter-rouge">apellido</code>, <code class="language-plaintext highlighter-rouge">rol</code>) and builds an <code class="language-plaintext highlighter-rouge">AuthenticatedUser</code> with the corresponding role as a <code class="language-plaintext highlighter-rouge">SimpleGrantedAuthority</code>, then sets the authenticated <code class="language-plaintext highlighter-rouge">SecurityContext</code>.</p>
+
+<p>The request is then dispatched to the matching REST controller, which delegates to <code class="language-plaintext highlighter-rouge">CurrentUserService.getOrCreate()</code>. This service queries <code class="language-plaintext highlighter-rouge">AppUserRepository</code> by <code class="language-plaintext highlighter-rouge">externalId</code> (the JWT <code class="language-plaintext highlighter-rouge">sub</code> claim). If the user already exists in <code class="language-plaintext highlighter-rouge">app_users</code>, it is returned directly. If this is the user’s first action, a new <code class="language-plaintext highlighter-rouge">AppUser</code> is created from the JWT claims and persisted — this is the <strong>just-in-time provisioning</strong> step. The controller then proceeds with the business logic and returns a 200 OK response.</p>
+
+<h2 id="c4--level-1-system-context">C4 — Level 1: System Context</h2>
+
+<p><img src="img.png" alt="img.png" />
+The context diagram shows how Students, Monitors, and Administrators interact with the ECIWise platform, and how the <code class="language-plaintext highlighter-rouge">eciwise-study</code> microservice relates to the frontend and the authentication service.</p>
+
+<h3 id="actors">Actors</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Actor</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Student</code></td>
+      <td>Studies with flashcards (spaced repetition), takes quizzes in <code class="language-plaintext highlighter-rouge">Parcial</code>, <code class="language-plaintext highlighter-rouge">Repaso</code> or <code class="language-plaintext highlighter-rouge">Supervivencia</code> mode, and checks the ranking.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Monitor</code></td>
+      <td>Creates public flashcard collections and quiz questions for students.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Administrator</code></td>
+      <td>Manages all platform content with no authorship restrictions.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="systems">Systems</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>System</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td>Internal</td>
+      <td>Web application (Angular SPA) through which users interact with the platform.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Study</code></td>
+      <td>Internal</td>
+      <td>Study microservice: spaced-repetition flashcards, question bank by subject/corte, quiz sessions, and survival ranking.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td>External</td>
+      <td>Authenticates users (email/password) and issues JWTs signed with claims: <code class="language-plaintext highlighter-rouge">sub</code>, <code class="language-plaintext highlighter-rouge">email</code>, <code class="language-plaintext highlighter-rouge">nombre</code>, <code class="language-plaintext highlighter-rouge">apellido</code>, <code class="language-plaintext highlighter-rouge">rol</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="relationships">Relationships</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>From</th>
+      <th>To</th>
+      <th>Protocol</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Student</code>, <code class="language-plaintext highlighter-rouge">Monitor</code>, <code class="language-plaintext highlighter-rouge">Administrator</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">HTTPS</code></td>
+      <td>All actors use the frontend to access the platform.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Study</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JSON/HTTPS + Bearer JWT</code></td>
+      <td>Consumes the study API.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JSON/HTTPS</code></td>
+      <td>Logs in and obtains the JWT.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Study</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Local signature validation</code></td>
+      <td>Trusts JWTs issued by the auth service (shared signature, <code class="language-plaintext highlighter-rouge">JWT_SECRET</code>).</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<p>Students, monitors, and administrators use the platform through <code class="language-plaintext highlighter-rouge">ECIWISE Front</code> (Angular SPA). <code class="language-plaintext highlighter-rouge">ECIWISE Study</code> does not authenticate users — the authentication microservice issues the JWTs and <code class="language-plaintext highlighter-rouge">ECIWISE Study</code> only validates the signature (shared secret <code class="language-plaintext highlighter-rouge">JWT_SECRET</code>).</p>
+
+<h2 id="c4--level-2-containers">C4 — Level 2: Containers</h2>
+
+<p><img src="study/Sin%20t%C3%ADtulo.png" alt="Sin título.png" /></p>
+
+<h3 id="actor">Actor</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Actor</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Usuario</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Student</code>, <code class="language-plaintext highlighter-rouge">Monitor</code>, or <code class="language-plaintext highlighter-rouge">Administrator</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="containers">Containers</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Container</th>
+      <th>Technology</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Angular SPA</code></td>
+      <td>Study web interface. Served at <code class="language-plaintext highlighter-rouge">http://localhost:4200</code> (CORS-allowed origin).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Study API</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Java 21, Spring Boot 3</code></td>
+      <td>Stateless REST API on port <code class="language-plaintext highlighter-rouge">8080</code>. Validates the JWT on every request, provisions users just-in-time, and exposes its modules: subjects, question bank, quizzes, and flashcards.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Base de datos</code></td>
+      <td><code class="language-plaintext highlighter-rouge">PostgreSQL 16 (alpine)</code></td>
+      <td><code class="language-plaintext highlighter-rouge">eciwise_study</code> schema, versioned with Flyway (migrations <code class="language-plaintext highlighter-rouge">V1</code>…<code class="language-plaintext highlighter-rouge">V6</code>): users, flashcards, repasos, favorites, subjects, questions, sessions, and quiz answers.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="external-system">External System</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>System</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td>Issues JWTs signed (<code class="language-plaintext highlighter-rouge">HS256</code>) with the claims <code class="language-plaintext highlighter-rouge">sub</code>, <code class="language-plaintext highlighter-rouge">email</code>, <code class="language-plaintext highlighter-rouge">nombre</code>, <code class="language-plaintext highlighter-rouge">apellido</code>, and <code class="language-plaintext highlighter-rouge">rol</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="relationships-1">Relationships</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>From</th>
+      <th>To</th>
+      <th>Protocol</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Usuario</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">HTTPS</code></td>
+      <td>Uses the platform.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Study API</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JSON/HTTPS</code></td>
+      <td>Calls <code class="language-plaintext highlighter-rouge">/api/*</code> with <code class="language-plaintext highlighter-rouge">Authorization: Bearer &lt;token&gt;</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JSON/HTTPS</code></td>
+      <td>Login — obtains the JWT.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Study API</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td>Local signature validation</td>
+      <td>Validates the JWT signature locally with the shared secret <code class="language-plaintext highlighter-rouge">JWT_SECRET</code> (no runtime call).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Study API</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Base de datos</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JDBC 5432</code></td>
+      <td>Reads and writes via <code class="language-plaintext highlighter-rouge">Spring Data JPA / Hibernate</code>. Flyway runs on startup.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="design-patterns--best-practices">Design Patterns &amp; Best Practices</h2>
+
+<p><strong>Layered Architecture</strong>
+The service is organized into clearly separated layers: Controller → Service → Repository → Entity. Each layer has a single responsibility and only communicates with the layer directly below it.</p>
+
+<p><strong>DTO Pattern</strong>
+Request and Response objects are separate from JPA entities (<code class="language-plaintext highlighter-rouge">SubjectRequest</code>/<code class="language-plaintext highlighter-rouge">SubjectResponse</code>, <code class="language-plaintext highlighter-rouge">QuestionRequest</code>/<code class="language-plaintext highlighter-rouge">QuestionResponse</code>, etc.), preventing entity internals from leaking into the API contract and avoiding circular serialization issues.</p>
+
+<p><strong>Mapper Pattern</strong>
+Dedicated mapper classes (<code class="language-plaintext highlighter-rouge">SubjectMapper</code>, <code class="language-plaintext highlighter-rouge">FlashcardMapper</code>, <code class="language-plaintext highlighter-rouge">QuestionMapper</code>, <code class="language-plaintext highlighter-rouge">StudySessionMapper</code>) handle the conversion between entities and DTOs, keeping that logic out of services and controllers.</p>
+
+<p><strong>Repository Pattern</strong>
+Data access is abstracted through Spring Data JPA repositories (<code class="language-plaintext highlighter-rouge">SubjectRepository</code>, <code class="language-plaintext highlighter-rouge">QuestionRepository</code>, <code class="language-plaintext highlighter-rouge">StudySessionRepository</code>, etc.), with custom JPQL queries defined declaratively where needed (e.g. <code class="language-plaintext highlighter-rouge">findAccessibleBySubjectAndCorte</code>).</p>
+
+<p><strong>Single Table Inheritance</strong>
+<code class="language-plaintext highlighter-rouge">Question</code> is modeled as an abstract JPA entity with <code class="language-plaintext highlighter-rouge">@Inheritance(strategy = SINGLE_TABLE)</code>, allowing <code class="language-plaintext highlighter-rouge">TrueFalseQuestion</code>, <code class="language-plaintext highlighter-rouge">OpenQuestion</code>, and <code class="language-plaintext highlighter-rouge">ClosedQuestion</code> to share one database table while keeping distinct Java types.</p>
+
+<p><strong>Just-in-Time Provisioning</strong>
+<code class="language-plaintext highlighter-rouge">CurrentUserService</code> lazily creates a local <code class="language-plaintext highlighter-rouge">AppUser</code> record on first use, derived from JWT claims, instead of requiring upfront synchronization with the identity service.</p>
+
+<p><strong>Strategy-like Calculation</strong>
+<code class="language-plaintext highlighter-rouge">ParcialQuestionCalculator</code> and <code class="language-plaintext highlighter-rouge">OpenAnswerEvaluator</code> encapsulate isolated pieces of business logic (question count algorithm and Jaccard similarity scoring) as standalone components, keeping <code class="language-plaintext highlighter-rouge">StudySessionService</code> focused on orchestration.</p>
+
+<p><strong>Centralized Exception Handling</strong>
+A global exception handler maps domain exceptions (<code class="language-plaintext highlighter-rouge">ResourceNotFoundException</code>, <code class="language-plaintext highlighter-rouge">ForbiddenOperationException</code>) to consistent HTTP responses (404, 403) across all controllers.</p>
+
+<p><strong>Role-Based Authorization</strong>
+Permission checks (<code class="language-plaintext highlighter-rouge">isAdmin</code>, <code class="language-plaintext highlighter-rouge">isMonitor</code>, <code class="language-plaintext highlighter-rouge">ensureCanModify</code>, <code class="language-plaintext highlighter-rouge">ensureCanRead</code>) are centralized in service classes rather than scattered across controllers, ensuring consistent enforcement of the student/monitor/admin permission model.</p>
+
+<p><strong>Database Migrations as Code</strong>
+Schema changes are version-controlled through Flyway migration scripts (<code class="language-plaintext highlighter-rouge">V1</code> through <code class="language-plaintext highlighter-rouge">V4</code>), making the database schema reproducible and auditable across environments.</p>
 
 			<div class="page-footer">
 				<span>ECIWise Wiki</span>

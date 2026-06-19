@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Gamification Service — ECIWise</title>
+	<link rel="stylesheet" href="/wiki.css">
+	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
+</head>
+<body>
+	<!-- ── Sidebar ── -->
+	<aside id="sidebar">
+		<div class="sidebar-header">
+			<div class="wiki-title">ECIWise</div>
+			<div class="wiki-subtitle">ECIWise</div>
+		</div>
+		<nav class="sidebar-nav">
+			<div class="nav-section">
+				<div class="nav-section-title">General</div>
+				<a href="/" >Home</a>
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">Docs</div>
+				<a href="/docs/" >Overview</a>
+				
+					
+						<a href="/docs/actors-roles-permissions.html" >Actors, Roles & Permissions</a>
+					
+				
+					
+				
+					
+				
+					
+				
+					
+				
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">How</div>
+				<a href="/how/" >Overview</a>
+				
+					
+				
+					
+						<a href="/how/gamification-service.html" class="active">Gamification Service</a>
+					
+				
+					
+				
+					
+				
+					
+						<a href="/how/study-service.html" >Study Service</a>
+					
+				
+			</div>
+		</nav>
+		<div class="sidebar-footer">
+			Last updated: Jun 2026 ·
+			<a href="https://github.com/eciwise">GitHub</a>
+		</div>
+	</aside>
+	<!-- ── Main ── -->
+	<div id="content">
+		<div id="topbar">
+			<button id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰ Menu</button>
+			<div class="breadcrumb">
+				<a href="/">Home</a>
+				
+				
+					
+				
+					
+						<span>/</span>
+						<a href="/how/">How</a>
+					
+				
+					
+						<span>/</span>
+						<span>Gamification Service</span>
+					
+				
+			</div>
+			<div class="topbar-meta">
+				
+			</div>
+		</div>
+		<article>
+			<h1 id="gamification-service">Gamification Service</h1>
+
+<h2 id="overview">Overview</h2>
+
+<p><code class="language-plaintext highlighter-rouge">gamification-service</code> is a secure, event-driven microservice responsible for managing all gamification elements within the EciWise platform. It provides students with motivation through points, achievements, and rankings, while giving administrators the ability to configure gamification rules and monitor user engagement.</p>
+
+<p>The service handles three core domains:</p>
+
+<ul>
+  <li><strong>Points Management</strong>: Automatically award points to users based on their actions (completed tutorials, taught tutoring sessions, approved materials, rated tutorials, published forum posts) with configurable rules and transactional audit trails.</li>
+  <li><strong>Achievement System</strong>: Unlock digital badges based on user milestones and activity thresholds through pluggable evaluation strategies, allowing easy extension without modifying core logic.</li>
+  <li><strong>Dynamic Rankings</strong>: Calculate and cache global, subject-specific, and monthly leaderboards using specialized algorithms, with instant cache invalidation and pre-calculated periodic updates.</li>
+</ul>
+
+<hr />
+
+<h2 id="gamification-flow">Gamification Flow</h2>
+
+<p>The gamification service operates on an event-driven architecture where external services publish user actions to RabbitMQ, the service validates JWT authentication, processes the event with guaranteed idempotency, and publishes domain events through an Outbox Pattern for reliable eventual consistency.</p>
+
+<p><strong>User Actions</strong> trigger events published to RabbitMQ:</p>
+<ul>
+  <li>Tutorial Completed → <code class="language-plaintext highlighter-rouge">+10 points</code> + increment <code class="language-plaintext highlighter-rouge">TutoriaCompletada</code> stat</li>
+  <li>Tutorial Taught → <code class="language-plaintext highlighter-rouge">+15 points</code> + increment <code class="language-plaintext highlighter-rouge">TutoriaDictada</code> stat</li>
+  <li>Material Approved → <code class="language-plaintext highlighter-rouge">+5 points</code> + increment <code class="language-plaintext highlighter-rouge">MaterialAprobado</code> stat</li>
+  <li>Tutorial Rated → <code class="language-plaintext highlighter-rouge">+8 points</code> + increment <code class="language-plaintext highlighter-rouge">TutoriaCalificada</code> stat</li>
+  <li>Forum Post Published → <code class="language-plaintext highlighter-rouge">+3 points</code> + increment <code class="language-plaintext highlighter-rouge">ForoPublicado</code> stat</li>
+</ul>
+
+<p><strong>Achievement Strategies</strong> evaluate user progress:</p>
+<ul>
+  <li><strong>First Tutoring</strong>: <code class="language-plaintext highlighter-rouge">TutoriaDictada &gt;= 1</code> → “First Tutor” badge</li>
+  <li><strong>Active Collaborator</strong>: <code class="language-plaintext highlighter-rouge">MaterialAprobado &gt;= 5</code> → “Collaborator” badge</li>
+  <li><strong>Outstanding Tutor</strong>: <code class="language-plaintext highlighter-rouge">TutoriaCalificada &gt;= 10</code> → “Expert Tutor” badge</li>
+  <li><strong>Mentor of the Month</strong>: Ranked in top 10 globally → “Monthly Mentor” badge</li>
+</ul>
+
+<p><strong>Ranking Types</strong> serve different leaderboards:</p>
+<ul>
+  <li><strong>GlobalPorPuntos</strong>: All users ranked by total points</li>
+  <li><strong>TutoresMejorCalificados</strong>: Top tutors by average rating</li>
+  <li><strong>TopDelMes</strong>: Highest point earners this month</li>
+  <li><strong>PorMateria</strong>: Rankings within each subject</li>
+</ul>
+
+<hr />
+
+<h2 id="architecture">Architecture</h2>
+
+<p>The Gamification Service follows a <strong>Hexagonal Architecture</strong> (Ports &amp; Adapters) combined with <strong>Domain-Driven Design</strong> and <strong>CQRS</strong>, ensuring clean separation of business logic from infrastructure concerns and allowing the domain layer to remain framework-agnostic.</p>
+
+<p>Every inbound message from RabbitMQ passes through the <strong>Security Layer</strong> where <code class="language-plaintext highlighter-rouge">IJwtValidator</code> validates the JWT signature, expiration, issuer, and audience. Validated messages proceed to the <strong>Application Layer</strong> where <code class="language-plaintext highlighter-rouge">IMediator</code> (MediatR) routes commands to their respective handlers. The <strong>Domain Layer</strong> contains pure business logic with zero external dependencies: aggregates, value objects, domain events, and repository ports. The <strong>Infrastructure Layer</strong> implements repository adapters (EF Core + PostgreSQL), message adapters (RabbitMQ producer/consumer), and cache adapters (Redis).</p>
+
+<h3 id="runtime-environment"><strong>Runtime Environment</strong></h3>
+
+<p>The service is built with <strong>.NET 10</strong> and <strong>C#</strong>, backed by:</p>
+<ul>
+  <li><strong>PostgreSQL 16</strong>: Relational database for persistent state</li>
+  <li><strong>RabbitMQ 3.12</strong>: Asynchronous message broker for event-driven integration</li>
+  <li><strong>Redis 7</strong>: Distributed cache for pre-calculated rankings (10-minute TTL)</li>
+  <li><strong>Entity Framework Core 10</strong>: ORM for database operations</li>
+  <li><strong>MediatR 12</strong>: CQRS pattern implementation</li>
+</ul>
+
+<h3 id="packageproject-structure">Package/Project Structure</h3>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Gamification.slnx (.NET 10 Solution)
+├── Gamification.Domain/              (DDD - pure business logic)
+│   ├── Aggregates/
+│   │   ├── AggregateRoot
+│   │   ├── UserGamification          (main aggregate root)
+│   │   ├── AchievementDefinition
+│   │   └── Ranking
+│   ├── Entities/
+│   │   ├── Entity
+│   │   ├── PointTransaction
+│   │   ├── LevelDefinition
+│   │   ├── UserAchievement
+│   │   ├── UserLevelHistory
+│   │   ├── WeeklyActivity
+│   │   ├── GamificationRule
+│   │   └── RankingEntry
+│   ├── ValueObjects/
+│   │   ├── ValueObject
+│   │   ├── Points
+│   │   ├── UserId
+│   │   ├── ReputationScore
+│   │   ├── UserActionStat
+│   │   ├── DateRange
+│   │   ├── SubjectCode
+│   │   ├── IdempotencyKey
+│   │   └── (7 more...)
+│   ├── Events/
+│   │   ├── DomainEvent
+│   │   ├── PointsAddedEvent
+│   │   ├── AchievementUnlockedEvent
+│   │   ├── LevelUpEvent
+│   │   └── LowRatingAlertEvent
+│   ├── Enums/
+│   │   ├── ActionType
+│   │   └── RankingType
+│   ├── Services/
+│   │   ├── GamificationDomainService
+│   │   ├── IAchievementStrategy (port)
+│   │   └── IAchievementStrategyFactory
+│   └── Repositories/ (ports)
+│       ├── IUserGamificationRepository
+│       ├── IAchievementDefinitionRepository
+│       ├── IGamificationRuleRepository
+│       └── (3 more...)
+│
+├── Gamification.Application/         (CQRS orchestration)
+│   ├── Commands/
+│   │   ├── AssignPointsCommand
+│   │   └── UnlockAchievementCommand
+│   ├── Queries/
+│   │   ├── GetUserRankingQuery
+│   │   ├── GetUserAchievementsQuery
+│   │   └── GetTopRankingQuery
+│   └── Handlers/
+│       ├── AssignPointsCommandHandler
+│       └── RankingQueryHandlers
+│
+├── Gamification.Infrastructure/      (Adapters - persistence, cache, messaging)
+│   ├── Persistence/
+│   │   ├── AppDbContext
+│   │   ├── OutboxEntities / OutboxWorker
+│   │   ├── RankingJob (background service)
+│   │   └── Repositories/
+│   │       ├── UserGamificationRepository
+│   │       ├── AchievementDefinitionRepository
+│   │       └── (4 more...)
+│   ├── Messaging/
+│   │   ├── RabbitMqConsumer (background service)
+│   │   └── RabbitMqProducer
+│   ├── Cache/
+│   │   └── RedisRankingCache
+│   └── Security/
+│       ├── IJwtValidator (port)
+│       └── JwtValidator (adapter)
+│
+├── Gamification.Api/                 (HTTP entry point)
+│   ├── Controllers/
+│   │   ├── GamificationController
+│   │   └── AdminController
+│   ├── Program.cs                    (DI configuration, middleware setup)
+│   └── appsettings.json
+│
+├── Gamification.Messaging/           (event contracts)
+│
+└── tests/
+    ├── Gamification.Domain.Tests/
+    ├── Gamification.Application.Tests/
+    └── Gamification.Integration.Tests/
+</code></pre></div></div>
+
+<h3 id="runtime-dependencies">Runtime Dependencies</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Dependency</th>
+      <th>Version</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>.NET</td>
+      <td>10</td>
+      <td>Runtime framework</td>
+    </tr>
+    <tr>
+      <td>EntityFrameworkCore</td>
+      <td>10</td>
+      <td>ORM layer</td>
+    </tr>
+    <tr>
+      <td>EntityFrameworkCore.PostgreSQL (Npgsql)</td>
+      <td>10</td>
+      <td>PostgreSQL driver</td>
+    </tr>
+    <tr>
+      <td>RabbitMQ.Client</td>
+      <td>6.x</td>
+      <td>Message broker client</td>
+    </tr>
+    <tr>
+      <td>StackExchange.Redis</td>
+      <td>2.x</td>
+      <td>Redis client</td>
+    </tr>
+    <tr>
+      <td>MediatR</td>
+      <td>12.x</td>
+      <td>CQRS mediator</td>
+    </tr>
+    <tr>
+      <td>System.IdentityModel.Tokens.Jwt</td>
+      <td>8.19.1</td>
+      <td>JWT validation</td>
+    </tr>
+    <tr>
+      <td>Microsoft.IdentityModel.Tokens</td>
+      <td>8.19.1</td>
+      <td>Token handling</td>
+    </tr>
+    <tr>
+      <td>xUnit</td>
+      <td>Latest</td>
+      <td>Unit testing</td>
+    </tr>
+    <tr>
+      <td>Moq</td>
+      <td>Latest</td>
+      <td>Mocking framework</td>
+    </tr>
+    <tr>
+      <td>FluentAssertions</td>
+      <td>Latest</td>
+      <td>Assertion library</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="database-migrations">Database Migrations</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Version</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>V1</td>
+      <td>Core tables: user_gamification, point_transactions, level_definitions</td>
+    </tr>
+    <tr>
+      <td>V2</td>
+      <td>Achievement system: achievement_definitions, user_achievements</td>
+    </tr>
+    <tr>
+      <td>V3</td>
+      <td>Rankings: rankings, ranking_entries</td>
+    </tr>
+    <tr>
+      <td>V4</td>
+      <td>Gamification rules and activity tracking: gamification_rules, weekly_activity</td>
+    </tr>
+    <tr>
+      <td>V5</td>
+      <td>Outbox Pattern &amp; Idempotency: outbox, processed_events</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="jwt-based-identity--security">JWT-based Identity &amp; Security</h2>
+
+<p>On every message received from RabbitMQ, the service validates a JWT token placed in the <code class="language-plaintext highlighter-rouge">x-jwt-token</code> message header:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Validation</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Signature</strong></td>
+      <td>HMAC-SHA256 with shared secret key</td>
+    </tr>
+    <tr>
+      <td><strong>Expiration</strong></td>
+      <td>Token must not be expired (no clock skew tolerance)</td>
+    </tr>
+    <tr>
+      <td><strong>Issuer</strong></td>
+      <td>Must match configured issuer (e.g., <code class="language-plaintext highlighter-rouge">gamification-service</code>)</td>
+    </tr>
+    <tr>
+      <td><strong>Audience</strong></td>
+      <td>Must match configured audience (e.g., <code class="language-plaintext highlighter-rouge">gamification-api</code>)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Invalid JWT Handling</strong>:</p>
+<ul>
+  <li>Missing JWT → <code class="language-plaintext highlighter-rouge">Nack(requeue=false)</code> + WARNING log</li>
+  <li>Expired JWT → <code class="language-plaintext highlighter-rouge">Nack(requeue=false)</code> + WARNING log</li>
+  <li>Invalid signature → <code class="language-plaintext highlighter-rouge">Nack(requeue=false)</code> + WARNING log</li>
+  <li>Valid JWT → Process message normally + ACK</li>
+</ul>
+
+<p><strong>Configuration</strong> (from environment variables or appsettings.json):</p>
+<pre><code class="language-env">JWT_SECRET_KEY=your-super-secret-key-min-32-characters-long!!!
+JWT_ISSUER=gamification-service
+JWT_AUDIENCE=gamification-api
+</code></pre>
+
+<hr />
+
+<h2 id="data-model">Data Model</h2>
+
+<h3 id="usergamification-aggregate-root">UserGamification (Aggregate Root)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID PK</code></td>
+      <td>Aggregate root ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">UserId</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID</code></td>
+      <td>External user ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">TotalPoints</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Cumulative points earned</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CurrentLevel</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">level_definitions.name</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ReputationScore</code></td>
+      <td><code class="language-plaintext highlighter-rouge">DECIMAL</code></td>
+      <td>Average rating (0.0–5.0)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CreatedAt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>When user entered gamification system</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">UpdatedAt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Last modification time</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Owned Collections</strong>:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">ActionStats</code>: List of <code class="language-plaintext highlighter-rouge">UserActionStat</code> value objects (TutoriaCompletada count, TutoriaDictada count, etc.)</li>
+</ul>
+
+<h3 id="pointtransaction-entity">PointTransaction (Entity)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID PK</code></td>
+      <td>Transaction ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">UserId</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">user_gamification.UserId</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Points</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Points awarded (immutable)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ActionType</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Enum: TutoriaCompletada, TutoriaDictada, MaterialAprobado, TutoriaCalificada, ForoPublicado</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Description</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Human-readable reason (e.g., “Completed tutorial in Database Design”)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SourceEventId</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID</code></td>
+      <td>External event ID (for idempotency key)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">IdempotencyKey</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Unique key: <code class="language-plaintext highlighter-rouge">{SourceEventId}-{ActionType}</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">OccurredAt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>When the action occurred</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="leveldefinition-entity">LevelDefinition (Entity)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Name</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR PK</code></td>
+      <td>Level name (Bronze, Silver, Gold, Platinum)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">MinPoints</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Minimum cumulative points to reach this level</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="achievementdefinition-aggregate-root">AchievementDefinition (Aggregate Root)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID PK</code></td>
+      <td>Achievement ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Name</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Achievement name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Description</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Achievement description</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ImageUrl</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Badge image URL</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">StrategyKey</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Strategy identifier (FIRST_TUTORING, ACTIVE_COLLABORATOR, etc.)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CriteriaConfig</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JSON</code></td>
+      <td>Strategy-specific configuration (serialized JSON)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">IsActive</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BOOLEAN</code></td>
+      <td>Whether achievement can be unlocked</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="userachievement-entity">UserAchievement (Entity)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID PK</code></td>
+      <td>Link ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">UserId</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">user_gamification.UserId</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AchievementId</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">achievement_definitions.Id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">UnlockedAt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>When achievement was unlocked</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="ranking-aggregate-root">Ranking (Aggregate Root)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID PK</code></td>
+      <td>Ranking ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Type</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>RankingType enum (GlobalPorPuntos, TutoresMejorCalificados, TopDelMes, PorMateria)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PeriodStart</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Ranking period start</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PeriodEnd</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>Ranking period end</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SubjectCode</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Subject code (nullable, null for global rankings)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Owned Collections</strong>:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">Entries</code>: List of <code class="language-plaintext highlighter-rouge">RankingEntry</code> entities</li>
+</ul>
+
+<h3 id="rankingentry-entity">RankingEntry (Entity)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID PK</code></td>
+      <td>Entry ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">UserId</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID</code></td>
+      <td>User ranked</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Position</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Rank position (1 = first place)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Score</code></td>
+      <td><code class="language-plaintext highlighter-rouge">DECIMAL</code></td>
+      <td>Score value (points, rating average, etc.)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ComputedAt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>When ranking was calculated</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="gamificationrule-entity">GamificationRule (Entity)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID PK</code></td>
+      <td>Rule ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ActionType</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>ActionType enum</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PointsAwarded</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Points granted for this action</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">IsActive</code></td>
+      <td><code class="language-plaintext highlighter-rouge">BOOLEAN</code></td>
+      <td>Whether rule is enforced</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="outbox-entity---transactional-outbox-pattern">Outbox (Entity - Transactional Outbox Pattern)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID PK</code></td>
+      <td>Event ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">EventType</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR</code></td>
+      <td>Domain event class name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AggregateId</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID</code></td>
+      <td>Affected aggregate</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Payload</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JSON</code></td>
+      <td>Serialized event data</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ProcessedAt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>When event was published (null while pending)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">RetryCount</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Publish retry attempts (max 5)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CreatedAt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>When event was recorded</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="processedevents-entity---idempotency">ProcessedEvents (Entity - Idempotency)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">EventId</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR PK</code></td>
+      <td>IdempotencyKey value</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ProcessedAt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>When event was processed</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="weeklyactivity-entity">WeeklyActivity (Entity)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID PK</code></td>
+      <td>Activity record ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">UserId</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">user_gamification.UserId</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">WeekStart</code></td>
+      <td><code class="language-plaintext highlighter-rouge">DATE</code></td>
+      <td>Monday of that week</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PointsEarned</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Points earned this week</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ActionsCount</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Number of actions this week</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">RecordedAt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>When this weekly summary was created</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="userlevelhistory-entity">UserLevelHistory (Entity)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID PK</code></td>
+      <td>History record ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">UserId</code></td>
+      <td><code class="language-plaintext highlighter-rouge">GUID FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">user_gamification.UserId</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Level</code></td>
+      <td><code class="language-plaintext highlighter-rouge">VARCHAR FK</code></td>
+      <td>References <code class="language-plaintext highlighter-rouge">level_definitions.name</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PointsAtThatMoment</code></td>
+      <td><code class="language-plaintext highlighter-rouge">INT</code></td>
+      <td>Snapshot of total points when level reached</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AchievedAt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TIMESTAMP</code></td>
+      <td>When user reached this level</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="domain-concepts">Domain Concepts</h2>
+
+<h3 id="value-objects-immutable">Value Objects (Immutable)</h3>
+
+<ul>
+  <li><strong>Points</strong>: Non-negative integer, cannot be negative</li>
+  <li><strong>UserId</strong>: Immutable user identifier (GUID)</li>
+  <li><strong>ReputationScore</strong>: Decimal between 0.0 and 5.0</li>
+  <li><strong>UserActionStat</strong>: Holds action type and count, incremented only through domain methods</li>
+  <li><strong>DateRange</strong>: Immutable period with Start ≤ End validation</li>
+  <li><strong>SubjectCode</strong>: Immutable subject identifier string</li>
+  <li><strong>IdempotencyKey</strong>: Unique key preventing duplicate processing</li>
+  <li><strong>AchievementContext</strong>: Context data for achievement evaluation (sourceEventId, occurredAt)</li>
+  <li><strong>CriteriaConfig</strong>: JSON configuration for achievement strategies</li>
+  <li><strong>EventDescription</strong>: Human-readable action description</li>
+  <li><strong>UserRankingData</strong>: Tuple of (UserId, Score) for ranking calculations</li>
+</ul>
+
+<h3 id="domain-events">Domain Events</h3>
+
+<ul>
+  <li><strong>PointsAddedEvent</strong>: Fired when points are assigned to a user</li>
+  <li><strong>AchievementUnlockedEvent</strong>: Fired when user meets achievement criteria</li>
+  <li><strong>LevelUpEvent</strong>: Fired when user reaches a new level</li>
+  <li><strong>LowRatingAlertEvent</strong>: Fired when a user’s reputation drops below threshold</li>
+</ul>
+
+<h3 id="strategy-pattern-extensible-achievements">Strategy Pattern (Extensible Achievements)</h3>
+
+<p><code class="language-plaintext highlighter-rouge">IAchievementStrategy</code> defines an interface for evaluating whether a user qualifies for an achievement:</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">public</span> <span class="k">interface</span> <span class="nc">IAchievementStrategy</span>
+<span class="p">{</span>
+    <span class="kt">string</span> <span class="n">StrategyKey</span> <span class="p">{</span> <span class="k">get</span><span class="p">;</span> <span class="p">}</span>
+    <span class="kt">bool</span> <span class="nf">Evaluate</span><span class="p">(</span><span class="n">UserGamification</span> <span class="n">user</span><span class="p">,</span> <span class="n">List</span><span class="p">&lt;</span><span class="n">UserActionStat</span><span class="p">&gt;</span> <span class="n">stats</span><span class="p">,</span>
+                  <span class="n">CriteriaConfig</span> <span class="n">config</span><span class="p">,</span> <span class="n">AchievementContext</span> <span class="n">context</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Implementations:</p>
+<ul>
+  <li><strong>FirstTutoringStrategy</strong>: Checks if <code class="language-plaintext highlighter-rouge">TutoriaDictada &gt;= 1</code></li>
+  <li><strong>ActiveCollaboratorStrategy</strong>: Checks if <code class="language-plaintext highlighter-rouge">MaterialAprobado &gt;= 5</code></li>
+  <li><strong>OutstandingTutorStrategy</strong>: Checks if <code class="language-plaintext highlighter-rouge">TutoriaCalificada &gt;= 10</code></li>
+  <li><strong>MentorOfMonthStrategy</strong>: Evaluates global ranking position</li>
+</ul>
+
+<p>This allows adding new achievement types without modifying domain logic.</p>
+
+<hr />
+
+<h2 id="endpoints">Endpoints</h2>
+
+<h3 id="user-gamification">User Gamification</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Role</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/gamification/users/{userId}/ranking</code></td>
+      <td>Yes</td>
+      <td>—</td>
+      <td>Get user’s ranking position</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/gamification/users/{userId}/achievements</code></td>
+      <td>Yes</td>
+      <td>—</td>
+      <td>List user’s unlocked achievements</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="administration">Administration</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Role</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/admin/rules</code></td>
+      <td>Yes</td>
+      <td>admin</td>
+      <td>Get all active gamification rules</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/admin/rules</code></td>
+      <td>Yes</td>
+      <td>admin</td>
+      <td>Create a new gamification rule</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PUT</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/admin/rules/{id}</code></td>
+      <td>Yes</td>
+      <td>admin</td>
+      <td>Update a gamification rule</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/admin/rules/{id}</code></td>
+      <td>Yes</td>
+      <td>admin</td>
+      <td>Deactivate a rule</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="service-communication">Service Communication</h2>
+
+<p>This service is <strong>event-driven and asynchronous</strong>, receiving user action events from RabbitMQ and publishing domain events for consumption by other services.</p>
+
+<h3 id="inbound-rabbitmq-events">Inbound RabbitMQ Events</h3>
+
+<p>The Gamification Service listens to a single RabbitMQ queue: <strong><code class="language-plaintext highlighter-rouge">gamification_events_queue</code></strong> (durable, exclusive: false, auto-delete: false).</p>
+
+<p>All inbound messages must include a JWT token in the <code class="language-plaintext highlighter-rouge">x-jwt-token</code> header for security validation. The token is validated with HMAC-SHA256 signature verification before message processing begins.</p>
+
+<h4 id="supported-event-types">Supported Event Types</h4>
+
+<table>
+  <thead>
+    <tr>
+      <th>Event Type</th>
+      <th>Points</th>
+      <th>Action Type</th>
+      <th>Description</th>
+      <th>Example Scenario</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">LessonCompleted</code></td>
+      <td>10</td>
+      <td>TutoriaCompletada</td>
+      <td>User completes a tutorial/lesson</td>
+      <td>Student finishes a study material</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">TutorshipDictated</code></td>
+      <td>15</td>
+      <td>TutoriaDictada</td>
+      <td>Tutor provides a tutoring session</td>
+      <td>Mentor teaches another student</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">QuizPassed</code></td>
+      <td>20</td>
+      <td>MaterialAprobado</td>
+      <td>User passes an assessment/quiz</td>
+      <td>Student achieves passing grade</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">TutorshipRated</code></td>
+      <td>10–25</td>
+      <td>TutoriaCalificada</td>
+      <td>User receives rating on tutoring (10 if rating &lt; 4, 25 if rating ≥ 4)</td>
+      <td>Student rates tutor’s performance</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ForumPostCreated</code></td>
+      <td>5</td>
+      <td>ForoPublicado</td>
+      <td>User creates a forum post</td>
+      <td>Student asks question in forum</td>
+    </tr>
+  </tbody>
+</table>
+
+<h4 id="event-message-structure">Event Message Structure</h4>
+
+<p>Each event type has its own structure depending on the source service, but all include a common envelope. The Gamification Service extracts the necessary fields from each event type’s unique payload.</p>
+
+<p><strong>Common Envelope</strong> (All Events):</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"eventId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"550e8400-e29b-41d4-a716-446655440000"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"userId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"user-123-uuid"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EventTypeName"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p><strong>LessonCompleted</strong> (from Study Service):</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"eventId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"550e8400-e29b-41d4-a716-446655440000"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"userId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"user-123-uuid"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"LessonCompleted"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"lessonId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"lesson-456"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"subject"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Mathematics"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"score"</span><span class="p">:</span><span class="w"> </span><span class="mf">4.5</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"completedAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-06-16T14:30:00Z"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p><strong>TutorshipDictated</strong> (from Tutoring Service):</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"eventId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"550e8400-e29b-41d4-a716-446655440000"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"userId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"tutor-789-uuid"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TutorshipDictated"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"studentId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"student-123"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"duration"</span><span class="p">:</span><span class="w"> </span><span class="mi">60</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"subject"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Physics"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"startedAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-06-16T14:00:00Z"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p><strong>QuizPassed</strong> (from Assessment Service):</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"eventId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"550e8400-e29b-41d4-a716-446655440000"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"userId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"user-123-uuid"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"QuizPassed"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"quizId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"quiz-789"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"score"</span><span class="p">:</span><span class="w"> </span><span class="mf">4.8</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"passingScore"</span><span class="p">:</span><span class="w"> </span><span class="mf">3.0</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"subject"</span><span class="p">:</span><span class="w"> </span><span class="s2">"History"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"completedAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-06-16T15:45:00Z"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p><strong>TutorshipRated</strong> (from Tutoring Service):</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"eventId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"550e8400-e29b-41d4-a716-446655440000"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"userId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"tutor-789-uuid"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"TutorshipRated"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"studentId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"student-123"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"rating"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"comment"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Excelente explicación"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"ratedAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-06-16T15:30:00Z"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p><strong>ForumPostCreated</strong> (from Forum Service):</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"eventId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"550e8400-e29b-41d4-a716-446655440000"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"userId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"user-123-uuid"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ForumPostCreated"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"postId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"post-999"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"title"</span><span class="p">:</span><span class="w"> </span><span class="s2">"¿Cómo resolver ecuaciones cuadráticas?"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"categoryId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"math-101"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"isReply"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"createdAt"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-06-16T16:00:00Z"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p><strong>Field Extraction</strong>:</p>
+<ul>
+  <li>All events must include <code class="language-plaintext highlighter-rouge">eventId</code>, <code class="language-plaintext highlighter-rouge">userId</code>, and <code class="language-plaintext highlighter-rouge">eventType</code> (envelope)</li>
+  <li>Each event type has additional fields specific to that service</li>
+  <li>The Gamification Service extracts relevant fields using <code class="language-plaintext highlighter-rouge">TryGetProperty()</code> to handle optional fields</li>
+  <li>Missing optional fields default to reasonable values</li>
+</ul>
+
+<p><strong>Message Headers</strong>:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>x-jwt-token: &lt;JWT_TOKEN_WITH_BEARER_TOKEN_FORMAT&gt;
+</code></pre></div></div>
+
+<p>The JWT must be a valid token signed with the service’s secret key, containing <code class="language-plaintext highlighter-rouge">iss</code> (issuer) and <code class="language-plaintext highlighter-rouge">aud</code> (audience) claims matching the configured values.</p>
+
+<h4 id="processing-flow">Processing Flow</h4>
+
+<ol>
+  <li><strong>RabbitMqConsumer</strong> receives message from queue</li>
+  <li>Extract JWT from <code class="language-plaintext highlighter-rouge">x-jwt-token</code> header</li>
+  <li><strong>JwtValidator</strong> validates:
+    <ul>
+      <li>Signature (HMAC-SHA256)</li>
+      <li>Expiration (no tolerance)</li>
+      <li>Issuer and Audience claims</li>
+    </ul>
+  </li>
+  <li>Extract <code class="language-plaintext highlighter-rouge">eventId</code> and query <code class="language-plaintext highlighter-rouge">processed_events</code> table for idempotency check
+    <ul>
+      <li>If already processed, ACK and skip</li>
+    </ul>
+  </li>
+  <li>Route event to appropriate handler based on <code class="language-plaintext highlighter-rouge">eventType</code>
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">LessonCompleted</code> → HandleLessonCompletedAsync</li>
+      <li><code class="language-plaintext highlighter-rouge">TutorshipDictated</code> → HandleTutorshipDictatedAsync</li>
+      <li><code class="language-plaintext highlighter-rouge">QuizPassed</code> → HandleQuizPassedAsync</li>
+      <li><code class="language-plaintext highlighter-rouge">TutorshipRated</code> → HandleTutorshipRatedAsync</li>
+      <li><code class="language-plaintext highlighter-rouge">ForumPostCreated</code> → HandleForumPostCreatedAsync</li>
+    </ul>
+  </li>
+  <li>Create <strong>AssignPointsCommand</strong> with calculated points and action type</li>
+  <li>Send command via <strong>MediatR</strong> to <strong>AssignPointsCommandHandler</strong></li>
+  <li>Handler:
+    <ul>
+      <li>Loads <strong>UserGamification</strong> aggregate from repository</li>
+      <li>Calls <code class="language-plaintext highlighter-rouge">AddPoints(transaction)</code> on aggregate</li>
+      <li>Domain logic creates <strong>PointTransaction</strong> and raises <strong>PointsAddedEvent</strong></li>
+      <li>Persists aggregate and adds event to outbox table (atomic transaction)</li>
+    </ul>
+  </li>
+  <li>Record event in <code class="language-plaintext highlighter-rouge">processed_events</code> table with eventId, eventType, and processedAt timestamp</li>
+  <li><strong>BasicAck</strong> message (remove from queue, acknowledging successful processing)</li>
+  <li>On error: <strong>BasicNack</strong> without requeue (dead-letter to DLQ or discard)</li>
+</ol>
+
+<h4 id="publishing-events-from-external-services">Publishing Events from External Services</h4>
+
+<p>To publish events to the Gamification Service, external services must:</p>
+
+<ol>
+  <li><strong>Obtain a JWT token</strong> from the authentication service with claims:
+    <ul>
+      <li><code class="language-plaintext highlighter-rouge">sub</code>: User ID</li>
+      <li><code class="language-plaintext highlighter-rouge">iss</code>: Issuer (configured as <code class="language-plaintext highlighter-rouge">gamification-service</code>)</li>
+      <li><code class="language-plaintext highlighter-rouge">aud</code>: Audience (configured as <code class="language-plaintext highlighter-rouge">gamification-api</code>)</li>
+      <li><code class="language-plaintext highlighter-rouge">exp</code>: Expiration time</li>
+    </ul>
+  </li>
+  <li>
+    <p><strong>Create the event payload</strong> as JSON with required fields</p>
+  </li>
+  <li><strong>Publish to RabbitMQ</strong> with the JWT in the <code class="language-plaintext highlighter-rouge">x-jwt-token</code> header</li>
+</ol>
+
+<p><strong>C# Example</strong> (Study Service publishing LessonCompleted):</p>
+
+<div class="language-csharp highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">using</span> <span class="nn">System</span><span class="p">;</span>
+<span class="k">using</span> <span class="nn">RabbitMQ.Client</span><span class="p">;</span>
+<span class="k">using</span> <span class="nn">System.Text</span><span class="p">;</span>
+<span class="k">using</span> <span class="nn">System.Text.Json</span><span class="p">;</span>
+
+<span class="kt">var</span> <span class="n">factory</span> <span class="p">=</span> <span class="k">new</span> <span class="n">ConnectionFactory</span> <span class="p">{</span> <span class="n">HostName</span> <span class="p">=</span> <span class="s">"rabbitmq-host"</span> <span class="p">};</span>
+<span class="k">using</span> <span class="nn">var</span> <span class="n">connection</span> <span class="p">=</span> <span class="k">await</span> <span class="n">factory</span><span class="p">.</span><span class="nf">CreateConnectionAsync</span><span class="p">();</span>
+<span class="k">using</span> <span class="nn">var</span> <span class="n">channel</span> <span class="p">=</span> <span class="k">await</span> <span class="n">connection</span><span class="p">.</span><span class="nf">CreateChannelAsync</span><span class="p">();</span>
+
+<span class="kt">var</span> <span class="n">eventPayload</span> <span class="p">=</span> <span class="k">new</span>
+<span class="p">{</span>
+    <span class="n">eventId</span> <span class="p">=</span> <span class="n">Guid</span><span class="p">.</span><span class="nf">NewGuid</span><span class="p">().</span><span class="nf">ToString</span><span class="p">(),</span>
+    <span class="n">userId</span> <span class="p">=</span> <span class="s">"student-uuid-123"</span><span class="p">,</span>
+    <span class="n">eventType</span> <span class="p">=</span> <span class="s">"LessonCompleted"</span><span class="p">,</span>
+    <span class="n">lessonId</span> <span class="p">=</span> <span class="s">"lesson-456"</span><span class="p">,</span>
+    <span class="n">subject</span> <span class="p">=</span> <span class="s">"Mathematics"</span><span class="p">,</span>
+    <span class="n">score</span> <span class="p">=</span> <span class="m">4.5</span><span class="p">,</span>
+    <span class="n">completedAt</span> <span class="p">=</span> <span class="n">DateTime</span><span class="p">.</span><span class="n">UtcNow</span>
+<span class="p">};</span>
+
+<span class="kt">var</span> <span class="n">jwtToken</span> <span class="p">=</span> <span class="s">"eyJhbGc...YOUR_JWT_TOKEN..."</span><span class="p">;</span>
+
+<span class="kt">var</span> <span class="n">props</span> <span class="p">=</span> <span class="k">new</span> <span class="n">BasicProperties</span> 
+<span class="p">{</span> 
+    <span class="n">Headers</span> <span class="p">=</span> <span class="k">new</span> <span class="n">Dictionary</span><span class="p">&lt;</span><span class="kt">string</span><span class="p">,</span> <span class="kt">object</span><span class="p">&gt;</span>
+    <span class="p">{</span>
+        <span class="p">{</span> <span class="s">"x-jwt-token"</span><span class="p">,</span> <span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span><span class="p">.</span><span class="nf">GetBytes</span><span class="p">(</span><span class="n">jwtToken</span><span class="p">)</span> <span class="p">}</span>
+    <span class="p">},</span>
+    <span class="n">Persistent</span> <span class="p">=</span> <span class="k">true</span><span class="p">,</span>
+    <span class="n">Timestamp</span> <span class="p">=</span> <span class="k">new</span> <span class="nf">AmqpTimestamp</span><span class="p">(</span><span class="n">DateTimeOffset</span><span class="p">.</span><span class="n">UtcNow</span><span class="p">.</span><span class="nf">ToUnixTimeSeconds</span><span class="p">())</span>
+<span class="p">};</span>
+
+<span class="kt">var</span> <span class="n">jsonBody</span> <span class="p">=</span> <span class="n">Encoding</span><span class="p">.</span><span class="n">UTF8</span><span class="p">.</span><span class="nf">GetBytes</span><span class="p">(</span><span class="n">JsonSerializer</span><span class="p">.</span><span class="nf">Serialize</span><span class="p">(</span><span class="n">eventPayload</span><span class="p">));</span>
+<span class="k">await</span> <span class="n">channel</span><span class="p">.</span><span class="nf">BasicPublishAsync</span><span class="p">(</span>
+    <span class="n">exchange</span><span class="p">:</span> <span class="s">""</span><span class="p">,</span>
+    <span class="n">routingKey</span><span class="p">:</span> <span class="s">"gamification_events_queue"</span><span class="p">,</span>
+    <span class="n">mandatory</span><span class="p">:</span> <span class="k">false</span><span class="p">,</span>
+    <span class="n">basicProperties</span><span class="p">:</span> <span class="n">props</span><span class="p">,</span>
+    <span class="n">body</span><span class="p">:</span> <span class="n">jsonBody</span>
+<span class="p">);</span>
+</code></pre></div></div>
+
+<p><strong>Java Example</strong> (Tutoring Service publishing TutorshipRated):</p>
+
+<div class="language-java highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">org.springframework.amqp.rabbit.core.RabbitTemplate</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">org.springframework.stereotype.Service</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">com.fasterxml.jackson.databind.ObjectMapper</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.time.Instant</span><span class="o">;</span>
+<span class="kn">import</span> <span class="nn">java.util.UUID</span><span class="o">;</span>
+
+<span class="nd">@Service</span>
+<span class="kd">public</span> <span class="kd">class</span> <span class="nc">TutorshipEventPublisher</span> <span class="o">{</span>
+    <span class="kd">private</span> <span class="kd">final</span> <span class="nc">RabbitTemplate</span> <span class="n">rabbitTemplate</span><span class="o">;</span>
+    <span class="kd">private</span> <span class="kd">final</span> <span class="nc">ObjectMapper</span> <span class="n">objectMapper</span><span class="o">;</span>
+    
+    <span class="kd">public</span> <span class="kt">void</span> <span class="nf">publishTutorshipRated</span><span class="o">(</span><span class="no">UUID</span> <span class="n">tutorId</span><span class="o">,</span> <span class="no">UUID</span> <span class="n">studentId</span><span class="o">,</span> <span class="kt">int</span> <span class="n">rating</span><span class="o">,</span> <span class="nc">String</span> <span class="n">comment</span><span class="o">)</span> <span class="kd">throws</span> <span class="nc">Exception</span> <span class="o">{</span>
+        <span class="nc">Map</span><span class="o">&lt;</span><span class="nc">String</span><span class="o">,</span> <span class="nc">Object</span><span class="o">&gt;</span> <span class="n">event</span> <span class="o">=</span> <span class="nc">Map</span><span class="o">.</span><span class="na">of</span><span class="o">(</span>
+            <span class="s">"eventId"</span><span class="o">,</span> <span class="no">UUID</span><span class="o">.</span><span class="na">randomUUID</span><span class="o">().</span><span class="na">toString</span><span class="o">(),</span>
+            <span class="s">"userId"</span><span class="o">,</span> <span class="n">tutorId</span><span class="o">.</span><span class="na">toString</span><span class="o">(),</span>  <span class="c1">// tutor receives the points</span>
+            <span class="s">"eventType"</span><span class="o">,</span> <span class="s">"TutorshipRated"</span><span class="o">,</span>
+            <span class="s">"studentId"</span><span class="o">,</span> <span class="n">studentId</span><span class="o">.</span><span class="na">toString</span><span class="o">(),</span>
+            <span class="s">"rating"</span><span class="o">,</span> <span class="n">rating</span><span class="o">,</span>
+            <span class="s">"comment"</span><span class="o">,</span> <span class="n">comment</span><span class="o">,</span>
+            <span class="s">"ratedAt"</span><span class="o">,</span> <span class="nc">Instant</span><span class="o">.</span><span class="na">now</span><span class="o">()</span>
+        <span class="o">);</span>
+        
+        <span class="nc">String</span> <span class="n">jwtToken</span> <span class="o">=</span> <span class="n">obtainJwtToken</span><span class="o">();</span> <span class="c1">// Implement JWT retrieval</span>
+        
+        <span class="n">rabbitTemplate</span><span class="o">.</span><span class="na">convertAndSend</span><span class="o">(</span><span class="s">"gamification_events_queue"</span><span class="o">,</span> 
+            <span class="n">objectMapper</span><span class="o">.</span><span class="na">writeValueAsString</span><span class="o">(</span><span class="n">event</span><span class="o">),</span>
+            <span class="n">message</span> <span class="o">-&gt;</span> <span class="o">{</span>
+                <span class="n">message</span><span class="o">.</span><span class="na">getMessageProperties</span><span class="o">().</span><span class="na">setHeader</span><span class="o">(</span><span class="s">"x-jwt-token"</span><span class="o">,</span> <span class="n">jwtToken</span><span class="o">);</span>
+                <span class="k">return</span> <span class="n">message</span><span class="o">;</span>
+            <span class="o">}</span>
+        <span class="o">);</span>
+    <span class="o">}</span>
+<span class="o">}</span>
+</code></pre></div></div>
+
+<p><strong>Python Example</strong> (Forum Service publishing ForumPostCreated):</p>
+
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="n">pika</span>
+<span class="kn">import</span> <span class="n">json</span>
+<span class="kn">import</span> <span class="n">uuid</span>
+<span class="kn">from</span> <span class="n">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="n">connection</span> <span class="o">=</span> <span class="n">pika</span><span class="p">.</span><span class="nc">BlockingConnection</span><span class="p">(</span><span class="n">pika</span><span class="p">.</span><span class="nc">ConnectionParameters</span><span class="p">(</span><span class="sh">'</span><span class="s">localhost</span><span class="sh">'</span><span class="p">))</span>
+<span class="n">channel</span> <span class="o">=</span> <span class="n">connection</span><span class="p">.</span><span class="nf">channel</span><span class="p">()</span>
+
+<span class="n">event</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="sh">"</span><span class="s">eventId</span><span class="sh">"</span><span class="p">:</span> <span class="nf">str</span><span class="p">(</span><span class="n">uuid</span><span class="p">.</span><span class="nf">uuid4</span><span class="p">()),</span>
+    <span class="sh">"</span><span class="s">userId</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">user-uuid-123</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">eventType</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">ForumPostCreated</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">postId</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">post-999</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">title</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">¿Cómo resolver ecuaciones cuadráticas?</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">categoryId</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">math-101</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">isReply</span><span class="sh">"</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">createdAt</span><span class="sh">"</span><span class="p">:</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">utcnow</span><span class="p">().</span><span class="nf">isoformat</span><span class="p">()</span> <span class="o">+</span> <span class="sh">"</span><span class="s">Z</span><span class="sh">"</span>
+<span class="p">}</span>
+
+<span class="n">jwt_token</span> <span class="o">=</span> <span class="sh">"</span><span class="s">eyJhbGc...YOUR_JWT_TOKEN...</span><span class="sh">"</span>
+
+<span class="n">properties</span> <span class="o">=</span> <span class="n">pika</span><span class="p">.</span><span class="nc">BasicProperties</span><span class="p">(</span>
+    <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="sh">"</span><span class="s">x-jwt-token</span><span class="sh">"</span><span class="p">:</span> <span class="n">jwt_token</span><span class="p">},</span>
+    <span class="n">delivery_mode</span><span class="o">=</span><span class="n">pika</span><span class="p">.</span><span class="n">spec</span><span class="p">.</span><span class="n">PERSISTENT_DELIVERY_MODE</span>
+<span class="p">)</span>
+
+<span class="n">channel</span><span class="p">.</span><span class="nf">basic_publish</span><span class="p">(</span>
+    <span class="n">exchange</span><span class="o">=</span><span class="sh">''</span><span class="p">,</span>
+    <span class="n">routing_key</span><span class="o">=</span><span class="sh">'</span><span class="s">gamification_events_queue</span><span class="sh">'</span><span class="p">,</span>
+    <span class="n">body</span><span class="o">=</span><span class="n">json</span><span class="p">.</span><span class="nf">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+    <span class="n">properties</span><span class="o">=</span><span class="n">properties</span>
+<span class="p">)</span>
+
+<span class="n">connection</span><span class="p">.</span><span class="nf">close</span><span class="p">()</span>
+</code></pre></div></div>
+
+<h3 id="outbound-events-rabbitmq-publishing">Outbound Events (RabbitMQ Publishing)</h3>
+
+<p>Domain events are persisted in the <code class="language-plaintext highlighter-rouge">outbox</code> table during the same database transaction as the aggregate update, ensuring consistency. The <strong>OutboxWorker</strong> (background service running every 5 seconds) reads pending events and publishes them via RabbitMqProducer with retry logic (max 5 attempts).</p>
+
+<p><strong>Published Events</strong>:</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">PointsAddedEvent</code>: When points are awarded</li>
+  <li><code class="language-plaintext highlighter-rouge">AchievementUnlockedEvent</code>: When achievement criteria are met</li>
+  <li><code class="language-plaintext highlighter-rouge">LevelUpEvent</code>: When user reaches new level</li>
+  <li><code class="language-plaintext highlighter-rouge">LowRatingAlertEvent</code>: When reputation drops below threshold</li>
+</ul>
+
+<h3 id="background-services">Background Services</h3>
+
+<ol>
+  <li><strong>RabbitMqConsumer</strong>: Listens for inbound events, validates JWT, processes commands</li>
+  <li><strong>OutboxWorker</strong>: Publishes pending domain events to RabbitMQ (every 5 seconds, max 5 retries)</li>
+  <li><strong>RankingJob</strong>: Recalculates rankings periodically (every 24 hours), saves to DB, invalidates Redis cache</li>
+</ol>
+
+<h3 id="just-in-time-user-recognition">Just-in-time User Recognition</h3>
+
+<p>The service does <strong>not</strong> provision users — external services must provide the user’s ID (UserId) in the event. The UserGamification aggregate is created on first point assignment.</p>
+
+<hr />
+
+<h2 id="c4-diagrams">C4 Diagrams</h2>
+
+<h3 id="context-diagram-level-1">Context Diagram (Level 1)</h3>
+
+<p><a href="gamification/img_1.png"><img src="/how/gamification/img_1.png" alt="Context Diagram" /></a></p>
+
+<p>The diagram shows the Gamification Service within the EciWise ecosystem. External services (Education Service) publish events to RabbitMQ, which the Gamification Service consumes and validates with JWT authentication. Three user roles interact via REST API: Students view rankings and achievements, Tutors see teaching metrics, and Administrators manage gamification rules. The service persists state in PostgreSQL and caches rankings in Redis.</p>
+
+<h3 id="container-diagram-level-2">Container Diagram (Level 2)</h3>
+
+<p><a href="gamification/img_2.png"><img src="/how/gamification/img_2.png" alt="Container Diagram" /></a></p>
+
+<p>The container diagram decomposes the Gamification Service into four main components. The API Container exposes REST endpoints for clients. The RabbitMQ Consumer (background service) listens to the event queue, validates JWT tokens, and routes commands to handlers. Background Workers (OutboxWorker and RankingJob) handle asynchronous tasks: publishing domain events and recalculating rankings. All components access PostgreSQL for persistent state, Redis for caching, and RabbitMQ for messaging.</p>
+
+<h3 id="component-diagram-level-3">Component Diagram (Level 3)</h3>
+
+<p><a href="gamification/img_3.png"><img src="/how/gamification/img_3.png" alt="Component Diagram" /></a></p>
+
+<p>The component diagram details the internal architecture across four layers. The API Container exposes Controllers and DI configuration. The Domain Layer contains three Aggregates (UserGamification, AchievementDefinition, Ranking), a Domain Service, and a Strategy interface. The Application Layer implements CQRS with Commands, Queries, and their Handlers. The Infrastructure Layer provides Adapters: Repository implementations, JWT validation, RabbitMQ consumer/producer, Redis cache, and background workers. Controllers send commands/queries via MediatR; Handlers orchestrate domain logic; Adapters handle persistence, messaging, and external integrations.</p>
+
+<h3 id="sequence-diagram-level-4---assign-points-flow">Sequence Diagram (Level 4 - Assign Points Flow)</h3>
+
+<p><a href="gamification/img_4.png"><img src="/how/gamification/img_4.png" alt="Sequence Diagram" /></a></p>
+
+<p>This sequence diagram illustrates the complete flow of assigning points to a user triggered by an external event. The External Service publishes an event with an <code class="language-plaintext highlighter-rouge">x-jwt-token</code> header. The RabbitMQ Consumer validates the JWT token and checks for idempotency. The AssignPointsCommand is sent through MediatR to the Domain Handler, which loads the UserGamification aggregate from the Repository and increments points, raising a PointsAddedEvent. The aggregate is persisted with the event stored in the Outbox table (atomically). The consumer inserts a record into the processed_events table for idempotency and acknowledges the message. Finally, the OutboxWorker picks up the pending events and publishes them through the RabbitMQ Producer.</p>
+
+<hr />
+
+<h2 id="design-patterns--best-practices">Design Patterns &amp; Best Practices</h2>
+
+<h3 id="1-hexagonal-architecture-ports--adapters">1. <strong>Hexagonal Architecture (Ports &amp; Adapters)</strong></h3>
+<ul>
+  <li>Domain layer has zero external dependencies</li>
+  <li>Ports (interfaces) defined in Domain, implemented in Infrastructure</li>
+  <li>Easy to test, extend, and replace adapters</li>
+</ul>
+
+<h3 id="2-domain-driven-design-ddd">2. <strong>Domain-Driven Design (DDD)</strong></h3>
+<ul>
+  <li>Aggregate Roots: UserGamification, AchievementDefinition, Ranking</li>
+  <li>Entities: PointTransaction, UserAchievement, RankingEntry</li>
+  <li>Value Objects: Points, UserId, DateRange, IdempotencyKey (immutable, compared by value)</li>
+  <li>Domain Services: GamificationDomainService orchestrates complex operations</li>
+  <li>Ubiquitous Language: Domain concepts are explicit in code</li>
+</ul>
+
+<h3 id="3-cqrs-command-query-responsibility-segregation">3. <strong>CQRS (Command Query Responsibility Segregation)</strong></h3>
+<ul>
+  <li><strong>Commands</strong> (write): AssignPointsCommand, UnlockAchievementCommand</li>
+  <li><strong>Queries</strong> (read): GetUserRankingQuery, GetUserAchievementsQuery</li>
+  <li>Handlers separate read and write logic</li>
+  <li>Enables independent scaling of read/write paths</li>
+</ul>
+
+<h3 id="4-event-driven-architecture">4. <strong>Event-Driven Architecture</strong></h3>
+<ul>
+  <li>Domain Events: PointsAddedEvent, AchievementUnlockedEvent, LevelUpEvent, LowRatingAlertEvent</li>
+  <li>Outbox Pattern: Events persisted atomically with aggregate changes, published asynchronously</li>
+  <li>Guaranteed delivery with retry logic (max 5 attempts)</li>
+</ul>
+
+<h3 id="5-strategy-pattern">5. <strong>Strategy Pattern</strong></h3>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">IAchievementStrategy</code> interface for pluggable evaluation logic</li>
+  <li>Concrete strategies: FirstTutoringStrategy, ActiveCollaboratorStrategy, OutstandingTutorStrategy, MentorOfMonthStrategy</li>
+  <li>New strategies can be added without modifying domain logic</li>
+</ul>
+
+<h3 id="6-idempotency">6. <strong>Idempotency</strong></h3>
+<ul>
+  <li>Every event has a deterministic IdempotencyKey: <code class="language-plaintext highlighter-rouge">{sourceEventId}-{actionType}</code></li>
+  <li><code class="language-plaintext highlighter-rouge">processed_events</code> table tracks already-processed events</li>
+  <li>Prevents duplicate point assignments from message retries</li>
+</ul>
+
+<h3 id="7-cache-aside-pattern">7. <strong>Cache-Aside Pattern</strong></h3>
+<ul>
+  <li>Rankings pre-calculated by RankingJob every 24 hours</li>
+  <li>Stored in PostgreSQL and cached in Redis (10-minute TTL)</li>
+  <li>On cache miss, fallback to database and refresh cache</li>
+  <li>Cache invalidated on ranking recalculation</li>
+</ul>
+
+<h3 id="8-jwt-based-authentication">8. <strong>JWT-based Authentication</strong></h3>
+<ul>
+  <li>Every RabbitMQ message includes JWT in <code class="language-plaintext highlighter-rouge">x-jwt-token</code> header</li>
+  <li>Validation occurs before message processing</li>
+  <li>Claims extracted: <code class="language-plaintext highlighter-rouge">sub</code> (userId), <code class="language-plaintext highlighter-rouge">iss</code> (issuer), <code class="language-plaintext highlighter-rouge">aud</code> (audience)</li>
+  <li>Invalid messages rejected with <code class="language-plaintext highlighter-rouge">Nack(requeue=false)</code></li>
+</ul>
+
+<hr />
+
+<h2 id="infrastructure-topology">Infrastructure Topology</h2>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>External Services
+    ↓ (publishes events with JWT)
+RabbitMQ Broker
+    ↓ (durable queue)
+Gamification Service
+├── RabbitMqConsumer (validates JWT, routes to handlers)
+├── Application Layer (CQRS via MediatR)
+├── Domain Layer (pure business logic)
+└── Infrastructure Layer
+    ├── PostgreSQL (persistent state)
+    ├── Redis (cached rankings)
+    └── RabbitMQ Producer (publishes domain events)
+
+Background Workers:
+├── OutboxWorker (publishes domain events every 5s)
+└── RankingJob (recalculates rankings every 24h)
+</code></pre></div></div>
+
+<hr />
+
+<h2 id="deployment-checklist">Deployment Checklist</h2>
+
+<ul class="task-list">
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />PostgreSQL 16 database running with schema migrated</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />Redis 7 instance accessible and configured</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />RabbitMQ 3.12 broker with <code class="language-plaintext highlighter-rouge">gamification_events_queue</code> declared (durable)</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" /><code class="language-plaintext highlighter-rouge">.env</code> file configured with JWT credentials</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />HTTPS/TLS enabled for API in production</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />RabbitMQ TLS connection configured for production</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />PostgreSQL TLS connection configured for production</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />Secrets stored in Azure Key Vault (production only)</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />Monitoring and alerting configured (ELK stack or Splunk)</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />Database backups automated</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />Load balancer configured with health checks (<code class="language-plaintext highlighter-rouge">GET /health</code>)</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />Rate limiting and DDoS protection enabled</li>
+  <li class="task-list-item"><input type="checkbox" class="task-list-item-checkbox" disabled="disabled" />Security headers configured (CORS, X-Frame-Options, etc.)</li>
+</ul>
+
+<hr />
+
+<h2 id="further-reading">Further Reading</h2>
+
+<ul>
+  <li><a href="https://github.com/EciWise/gamification#readme">README.md</a> — Quick start and feature overview</li>
+  <li><a href="https://github.com/EciWise/gamification/blob/develop/CONTRIBUTING.md">CONTRIBUTING.md</a> — Development guidelines</li>
+  <li><a href="https://github.com/EciWise/gamification/blob/develop/SECURITY.md">SECURITY.md</a> — Security policies and best practices</li>
+  <li><a href="https://medium.com/ssense-tech/hexagonal-architecture-there-are-only-strings-and-mirros-52cb50d41092">Hexagonal Architecture</a> — Design pattern explanation</li>
+  <li><a href="https://en.wikipedia.org/wiki/Domain-driven_design">Domain-Driven Design</a> — Domain modeling approach</li>
+</ul>
+
+			<div class="page-footer">
+				<span>ECIWise Wiki</span>
+				<div>
+				
+				
+				</div>
+			</div>
+		</article>
+	</div>
+</body>
+</html>
