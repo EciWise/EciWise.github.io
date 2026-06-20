@@ -35,6 +35,10 @@
 				
 					
 				
+					
+				
+					
+				
 			</div>
 			<div class="nav-section">
 				<div class="nav-section-title">How</div>
@@ -43,11 +47,19 @@
 					
 				
 					
+						<a href="/how/community-service.html" >Community Service</a>
+					
+				
+					
 						<a href="/how/gamification-service.html" class="active">Gamification Service</a>
 					
 				
 					
 				
+					
+				
+					
+						<a href="/how/notifications-service.html" >Notifications Service</a>
 					
 				
 					
@@ -1307,40 +1319,40 @@ JWT_AUDIENCE=gamification-api
 
 <p><strong>Python Example</strong> (Forum Service publishing ForumPostCreated):</p>
 
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="n">pika</span>
-<span class="kn">import</span> <span class="n">json</span>
-<span class="kn">import</span> <span class="n">uuid</span>
-<span class="kn">from</span> <span class="n">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">pika</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">uuid</span>
+<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
 
-<span class="n">connection</span> <span class="o">=</span> <span class="n">pika</span><span class="p">.</span><span class="nc">BlockingConnection</span><span class="p">(</span><span class="n">pika</span><span class="p">.</span><span class="nc">ConnectionParameters</span><span class="p">(</span><span class="sh">'</span><span class="s">localhost</span><span class="sh">'</span><span class="p">))</span>
-<span class="n">channel</span> <span class="o">=</span> <span class="n">connection</span><span class="p">.</span><span class="nf">channel</span><span class="p">()</span>
+<span class="n">connection</span> <span class="o">=</span> <span class="n">pika</span><span class="p">.</span><span class="n">BlockingConnection</span><span class="p">(</span><span class="n">pika</span><span class="p">.</span><span class="n">ConnectionParameters</span><span class="p">(</span><span class="s">'localhost'</span><span class="p">))</span>
+<span class="n">channel</span> <span class="o">=</span> <span class="n">connection</span><span class="p">.</span><span class="n">channel</span><span class="p">()</span>
 
 <span class="n">event</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="sh">"</span><span class="s">eventId</span><span class="sh">"</span><span class="p">:</span> <span class="nf">str</span><span class="p">(</span><span class="n">uuid</span><span class="p">.</span><span class="nf">uuid4</span><span class="p">()),</span>
-    <span class="sh">"</span><span class="s">userId</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">user-uuid-123</span><span class="sh">"</span><span class="p">,</span>
-    <span class="sh">"</span><span class="s">eventType</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">ForumPostCreated</span><span class="sh">"</span><span class="p">,</span>
-    <span class="sh">"</span><span class="s">postId</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">post-999</span><span class="sh">"</span><span class="p">,</span>
-    <span class="sh">"</span><span class="s">title</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">¿Cómo resolver ecuaciones cuadráticas?</span><span class="sh">"</span><span class="p">,</span>
-    <span class="sh">"</span><span class="s">categoryId</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">math-101</span><span class="sh">"</span><span class="p">,</span>
-    <span class="sh">"</span><span class="s">isReply</span><span class="sh">"</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
-    <span class="sh">"</span><span class="s">createdAt</span><span class="sh">"</span><span class="p">:</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">utcnow</span><span class="p">().</span><span class="nf">isoformat</span><span class="p">()</span> <span class="o">+</span> <span class="sh">"</span><span class="s">Z</span><span class="sh">"</span>
+    <span class="s">"eventId"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="p">.</span><span class="n">uuid4</span><span class="p">()),</span>
+    <span class="s">"userId"</span><span class="p">:</span> <span class="s">"user-uuid-123"</span><span class="p">,</span>
+    <span class="s">"eventType"</span><span class="p">:</span> <span class="s">"ForumPostCreated"</span><span class="p">,</span>
+    <span class="s">"postId"</span><span class="p">:</span> <span class="s">"post-999"</span><span class="p">,</span>
+    <span class="s">"title"</span><span class="p">:</span> <span class="s">"¿Cómo resolver ecuaciones cuadráticas?"</span><span class="p">,</span>
+    <span class="s">"categoryId"</span><span class="p">:</span> <span class="s">"math-101"</span><span class="p">,</span>
+    <span class="s">"isReply"</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="s">"createdAt"</span><span class="p">:</span> <span class="n">datetime</span><span class="p">.</span><span class="n">utcnow</span><span class="p">().</span><span class="n">isoformat</span><span class="p">()</span> <span class="o">+</span> <span class="s">"Z"</span>
 <span class="p">}</span>
 
-<span class="n">jwt_token</span> <span class="o">=</span> <span class="sh">"</span><span class="s">eyJhbGc...YOUR_JWT_TOKEN...</span><span class="sh">"</span>
+<span class="n">jwt_token</span> <span class="o">=</span> <span class="s">"eyJhbGc...YOUR_JWT_TOKEN..."</span>
 
-<span class="n">properties</span> <span class="o">=</span> <span class="n">pika</span><span class="p">.</span><span class="nc">BasicProperties</span><span class="p">(</span>
-    <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="sh">"</span><span class="s">x-jwt-token</span><span class="sh">"</span><span class="p">:</span> <span class="n">jwt_token</span><span class="p">},</span>
+<span class="n">properties</span> <span class="o">=</span> <span class="n">pika</span><span class="p">.</span><span class="n">BasicProperties</span><span class="p">(</span>
+    <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s">"x-jwt-token"</span><span class="p">:</span> <span class="n">jwt_token</span><span class="p">},</span>
     <span class="n">delivery_mode</span><span class="o">=</span><span class="n">pika</span><span class="p">.</span><span class="n">spec</span><span class="p">.</span><span class="n">PERSISTENT_DELIVERY_MODE</span>
 <span class="p">)</span>
 
-<span class="n">channel</span><span class="p">.</span><span class="nf">basic_publish</span><span class="p">(</span>
-    <span class="n">exchange</span><span class="o">=</span><span class="sh">''</span><span class="p">,</span>
-    <span class="n">routing_key</span><span class="o">=</span><span class="sh">'</span><span class="s">gamification_events_queue</span><span class="sh">'</span><span class="p">,</span>
-    <span class="n">body</span><span class="o">=</span><span class="n">json</span><span class="p">.</span><span class="nf">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+<span class="n">channel</span><span class="p">.</span><span class="n">basic_publish</span><span class="p">(</span>
+    <span class="n">exchange</span><span class="o">=</span><span class="s">''</span><span class="p">,</span>
+    <span class="n">routing_key</span><span class="o">=</span><span class="s">'gamification_events_queue'</span><span class="p">,</span>
+    <span class="n">body</span><span class="o">=</span><span class="n">json</span><span class="p">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
     <span class="n">properties</span><span class="o">=</span><span class="n">properties</span>
 <span class="p">)</span>
 
-<span class="n">connection</span><span class="p">.</span><span class="nf">close</span><span class="p">()</span>
+<span class="n">connection</span><span class="p">.</span><span class="n">close</span><span class="p">()</span>
 </code></pre></div></div>
 
 <h3 id="outbound-events-rabbitmq-publishing">Outbound Events (RabbitMQ Publishing)</h3>
