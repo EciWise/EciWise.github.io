@@ -3,184 +3,418 @@ layout: default
 title: Tutoring Service
 ---
 
-# Microservicio de Tutorías Académicas
+# Tutoring Service
 
-El microservicio `tutoring` gestiona la oferta y reserva de tutorías académicas de ECIWise. Permite que los tutores publiquen disponibilidad recurrente, materializa esa disponibilidad en slots concretos y ofrece a los estudiantes búsqueda, reserva, cancelación y reprogramación con control transaccional de cupos.
+## Overview
 
-> Esta página describe el comportamiento confirmado en el código de `EciWise/tutoring`. El esquema Prisma se considera soporte de datos; una tabla sin controlador ni caso de uso no se presenta como funcionalidad disponible.
+`tutoring` is the microservice responsible for managing academic tutoring within the ECIWise platform. It allows tutors to publish recurring availability, automatically converts that availability into bookable tutoring slots, and enables students to search, reserve, cancel, and reschedule sessions.
 
-## Capacidades actuales
+The service handles three core domains:
 
-- Catálogos de materias, salas, franjas horarias y asignaciones tutor–materia.
-- Plantillas recurrentes de disponibilidad por tutor, materia, modalidad, cupos y vigencia.
-- Materialización automática e idempotente de tutorías dentro de una ventana móvil.
-- Búsqueda de tutorías programadas con cupo por materia, modalidad, fecha y tutor.
-- Reserva, cancelación y reprogramación atómica, incluida la cancelación de la tutoría por tutor o administrador.
-- Espejo local de usuarios alimentado de forma perezosa con los claims del JWT.
-- Eventos de dominio dentro del proceso y documentación OpenAPI en `/api/docs`.
+- **Institutional scheduling**: administrators manage subjects, rooms, time slots, and tutor–subject authorization.
+- **Tutor availability**: tutors publish recurring availability templates with subject, modality, capacity, and validity dates. A scheduled job materializes concrete tutoring sessions from those templates.
+- **Student reservations**: students search available sessions and reserve, cancel, or reschedule their participation with transactional capacity control.
 
-## Stack y estructura
+The current implementation also maintains a local user projection from JWT claims and publishes domain events in-process. Attendance, evaluations, and reputation have database support but no active API or use cases yet.
 
-| Área | Implementación |
-|---|---|
-| Runtime | Node.js 20+, TypeScript estricto |
-| API | NestJS 11, REST, Swagger/OpenAPI |
-| Persistencia | Prisma 7, `@prisma/adapter-pg`, PostgreSQL/Neon |
-| Seguridad | Passport JWT, HS256, guards de autenticación y roles |
-| Procesos programados | `@nestjs/schedule` |
-| Eventos | `@nestjs/event-emitter`, publisher in-memory |
-| Pruebas | Jest, dominio puro y casos de uso con repositorios in-memory |
+---
 
-El código sigue **arquitectura hexagonal, vertical slicing y DDD**. Cada capacidad contiene dominio, aplicación y adaptadores; las dependencias apuntan hacia los puertos y el dominio, no hacia Prisma o NestJS.
+## Tutoring Module Flow
+
+The tutoring lifecycle starts with institutional configuration and ends with a student reservation:
+
+1. An administrator creates subjects, rooms, and institutional time slots.
+2. An administrator assigns and authorizes a tutor for a subject.
+3. The tutor publishes a recurring availability template.
+4. The daily materialization job creates concrete `Tutoria` slots within a moving time window.
+5. A student searches programmed sessions with available capacity.
+6. The student reserves a slot; PostgreSQL increments capacity conditionally inside a transaction.
+7. The student may cancel or atomically reschedule the reservation.
+8. The tutor or an administrator may cancel the entire tutoring session and release its reservations.
+
+### User Capabilities
+
+**Students** can search sessions by subject, modality, date, or tutor; inspect session details; reserve available capacity; cancel their reservation; and reschedule to another compatible session.
+
+**Tutors** can publish, list, edit, and deactivate their own availability. They can also cancel tutoring sessions assigned to them.
+
+**Administrators** manage institutional catalogs and tutor–subject assignments, can manage availability on behalf of tutors, and can trigger materialization manually.
+
+### Materialization
+
+`MaterializacionJob` runs every day at **01:00** in the process timezone. It executes the same `MaterializarVentana` use case exposed by the administrative endpoint.
+
+- Active availability templates are expanded into matching calendar dates.
+- The configured window is controlled by `MATERIALIZACION_VENTANA_SEMANAS`.
+- The unique key `(tutorUserId, franjaId, fecha)` makes the operation idempotent.
+- Duplicate attempts are reported as omitted instead of creating another session.
+- Editing an availability template does not modify sessions already materialized.
+
+---
+
+## Architecture
+
+[![Tutoring Service internal architecture](tutoring/c4-componentes.svg)](tutoring/c4-componentes.svg)
+
+The service follows **Hexagonal Architecture (Ports & Adapters)** combined with **Vertical Slicing** and **Domain-Driven Design**. Each business capability owns its domain, application use cases, and infrastructure adapters.
+
+HTTP controllers and the materialization job are inbound adapters. Application use cases coordinate domain entities and outbound ports. Prisma repositories, the local user repository, and the in-memory event publisher are outbound adapters. The domain layer is plain TypeScript and does not depend on NestJS or Prisma.
+
+### Runtime Environment
+
+The service is built with **NestJS 11** and **TypeScript** on **Node.js 20+**. It uses **Prisma 7** with `@prisma/adapter-pg` to connect to PostgreSQL; the current hosted database target is Neon. JWT authentication is implemented with Passport JWT and HS256.
+
+API documentation is generated at runtime with Swagger and exposed at `/api/docs`.
+
+### Package Structure
 
 ```text
 src/
-├── auth/                 JWT, guards, roles y decorators
-├── config/               validación de entorno
-├── shared/               kernel de dominio e infraestructura común
+├── auth/                         # JWT strategy, guards, roles, decorators
+├── config/                       # environment validation
+├── shared/
+│   ├── domain/                   # value objects, enums, errors, events
+│   └── infrastructure/           # Prisma, filters, in-memory publisher
 └── modules/
-    ├── identidad/        espejo local de usuarios
-    ├── catalogos/        materias, salas, franjas y tutor–materia
-    ├── disponibilidad/   plantillas y materialización
-    ├── tutorias/         búsqueda y detalle de slots
-    └── reservas/         reservar, cancelar y reprogramar
+    ├── identidad/                # local user projection from JWT claims
+    ├── catalogos/                # subjects, rooms, time slots, tutor subjects
+    ├── disponibilidad/           # recurring availability and materialization
+    ├── tutorias/                 # session search and detail queries
+    └── reservas/                 # reserve, cancel, reschedule, cancel session
+
+prisma/
+├── schema.prisma                 # relational model
+├── migrations/                   # migration history
+└── seed.ts                       # institutional time slots and rooms
 ```
 
-## Arquitectura C4
+Each vertical slice follows this internal shape:
 
-Los diagramas se publican como SVG porque el sitio de GitHub Pages usa Jekyll/Kramdown y no procesa Mermaid en el navegador. Se puede abrir cada imagen para verla a tamaño completo.
+```text
+domain/{entities,value-objects,events,ports/outbound}
+application/use-cases
+infrastructure/{persistence,http/{controllers,dto}}
+<slice>.module.ts
+```
 
-### Nivel 1 — Contexto
+### Runtime Dependencies
 
-[![C4 contexto del microservicio de Tutorías](tutoring/c4-contexto.svg)](tutoring/c4-contexto.svg)
-
-El servicio `auth` emite el JWT, pero `tutoring` no lo consulta por red durante cada request: valida firma, expiración y claims localmente con el secreto HS256 compartido. PostgreSQL/Neon es la única dependencia de datos activa.
-
-### Nivel 2 — Contenedores
-
-[![C4 contenedores del microservicio de Tutorías](tutoring/c4-contenedores.svg)](tutoring/c4-contenedores.svg)
-
-La API, el scheduler y el bus de eventos viven en el mismo proceso Node.js. `EventEmitter2` no es un broker externo y RabbitMQ todavía no tiene un adaptador activo. Prisma conecta la aplicación con PostgreSQL mediante `adapter-pg`.
-
-### Nivel 3 — Componentes
-
-[![C4 componentes del microservicio de Tutorías](tutoring/c4-componentes.svg)](tutoring/c4-componentes.svg)
-
-Los controladores y el job son adaptadores de entrada. Los casos de uso coordinan entidades y puertos; los repositorios Prisma y el publisher in-memory son adaptadores de salida. Esto mantiene el dominio TypeScript independiente de NestJS y Prisma.
-
-## Flujos críticos
-
-### Materialización de disponibilidad
-
-1. El tutor publica una `DisponibilidadTutor` activa sobre una franja institucional.
-2. El cron diario de las **01:00** o el endpoint administrativo ejecuta `MaterializarVentana`.
-3. El caso de uso calcula las fechas compatibles con día de semana, vigencia y ventana configurada.
-4. Por cada fecha crea una `Tutoria` en estado `PROGRAMADA`.
-5. La restricción única `(tutorUserId, franjaId, fecha)` evita duplicados; los conflictos se cuentan como omitidos.
-6. Cada creación emite `tutoria.materializada` dentro del proceso.
-
-El proceso es idempotente. No existe lock distribuido: varias réplicas pueden repetir trabajo, pero la unicidad de base de datos evita duplicar tutorías.
-
-### Reserva y concurrencia
-
-1. Un estudiante autenticado solicita `POST /reservas`.
-2. El caso de uso comprueba existencia, estado, traslapes y reserva previa.
-3. PostgreSQL incrementa `cupos_ocupados` solo si la tutoría sigue programada y tiene capacidad.
-4. Dentro de la misma transacción se crea o reactiva el `Participante`.
-5. Si ninguna fila puede actualizarse, la API responde con conflicto `409`.
-
-La reprogramación ocupa primero el destino y cancela el origen dentro de una única transacción; cualquier fallo revierte ambas operaciones.
-
-## Modelo de datos
-
-Fuente de verdad: `prisma/schema.prisma`.
-
-[![Modelo entidad–relación de Tutorías](tutoring/modelo-er.svg)](tutoring/modelo-er.svg)
-
-El esquema contiene 12 modelos. `UsuarioLocal`, `ReputacionTutor` y `ReputacionEstudiante` usan identificadores provenientes del sistema de identidad y no tienen claves foráneas hacia los demás modelos. Las evaluaciones y reputaciones existen en el esquema, pero todavía no cuentan con API ni casos de uso activos.
-
-| Núcleo | Responsabilidad |
+| Dependency | Purpose |
 |---|---|
-| `Materia`, `Sala`, `FranjaHoraria` | Catálogos institucionales |
-| `TutorMateria` | Autorización de un tutor para una materia |
-| `DisponibilidadTutor` | Plantilla recurrente y vigente |
-| `Tutoria` | Slot materializado con modalidad, estado y capacidad |
-| `Participante` | Reserva y estado del estudiante |
-| `UsuarioLocal` | Últimos datos observados en el JWT |
-| Evaluaciones y reputaciones | Soporte de datos para una fase posterior |
+| NestJS 11 | HTTP application and dependency injection |
+| Prisma 7 | ORM and generated database client |
+| `@prisma/adapter-pg` | PostgreSQL driver adapter |
+| PostgreSQL / Neon | Persistent relational storage |
+| Passport JWT | Bearer JWT validation |
+| `class-validator` | Request DTO validation |
+| `@nestjs/schedule` | Daily materialization job |
+| `@nestjs/event-emitter` | In-process domain event delivery |
+| `@nestjs/swagger` | Runtime OpenAPI documentation |
+| Jest | Unit and application tests |
 
-## Autenticación y autorización
+### Database Migrations
 
-Todas las rutas funcionales, salvo `GET /`, requieren `Authorization: Bearer <token>`.
+Prisma Migrate manages the schema under `prisma/migrations`. The generated Prisma client uses a custom output directory, so it must be regenerated after schema changes.
 
-Claims consumidos:
-
-```json
-{
-  "sub": "uuid-del-usuario",
-  "email": "usuario@escuelaing.edu.co",
-  "nombre": "Ada",
-  "apellido": "Lovelace",
-  "rol": "estudiante"
-}
+```bash
+npx prisma migrate deploy
+npx prisma generate
+npm run seed
 ```
 
-Los roles reconocidos son `estudiante`, `tutor` y `admin`. `JwtAuthGuard` autentica y `RolesGuard` aplica los roles declarados por cada handler. El interceptor de identidad actualiza `usuario_local` en segundo plano con el último JWT observado; un fallo de esa captura no bloquea la respuesta principal.
+The seed is idempotent and creates the institutional weekday time-slot grid and room catalog used by local environments.
 
-## API
+---
 
-La especificación ejecutable está disponible en `http://localhost:<PORT>/api/docs`.
+## JWT-based Identity
 
-| Módulo | Método y ruta | Acceso | Propósito |
-|---|---|---|---|
-| Salud | `GET /` | Público | Respuesta básica del servicio |
-| Identidad | `GET /identidad/me` | Autenticado | Claims normalizados |
-| Identidad | `GET /identidad/usuarios/:userId` | Autenticado | Usuario del espejo local |
-| Materias | `POST /catalogos/materias` | Admin | Crear materia |
-| Materias | `GET /catalogos/materias` | Autenticado | Listar materias |
-| Materias | `PATCH /catalogos/materias/:id/activar` | Admin | Activar materia |
-| Materias | `PATCH /catalogos/materias/:id/desactivar` | Admin | Desactivar materia |
-| Salas | `POST /catalogos/salas` | Admin | Crear sala |
-| Salas | `GET /catalogos/salas` | Autenticado | Listar salas |
-| Franjas | `POST /catalogos/franjas` | Admin | Crear franja |
-| Franjas | `GET /catalogos/franjas` | Autenticado | Listar por día opcional |
-| Tutor–materia | `POST /catalogos/tutor-materias` | Admin | Asignar materia |
-| Tutor–materia | `GET /catalogos/tutor-materias` | Autenticado | Listar asignaciones |
-| Tutor–materia | `PATCH .../:id/autorizar` | Admin | Autorizar asignación |
-| Tutor–materia | `PATCH .../:id/desautorizar` | Admin | Desautorizar asignación |
-| Disponibilidad | `POST /disponibilidad` | Tutor, admin | Publicar plantilla recurrente |
-| Disponibilidad | `GET /disponibilidad` | Tutor, admin | Listar disponibilidades |
-| Disponibilidad | `PATCH /disponibilidad/:id` | Propietario, admin | Editar plantilla |
-| Disponibilidad | `PATCH /disponibilidad/:id/desactivar` | Propietario, admin | Desactivar plantilla |
-| Materialización | `POST /disponibilidad/materializacion` | Admin | Ejecutar ventana manualmente |
-| Tutorías | `GET /tutorias` | Autenticado | Buscar slots con filtros |
-| Tutorías | `GET /tutorias/:id` | Autenticado | Consultar detalle |
-| Reservas | `POST /reservas` | Estudiante | Reservar cupo |
-| Reservas | `POST /reservas/:tutoriaId/cancelar` | Estudiante | Cancelar reserva |
-| Reservas | `POST /reservas/reprogramar` | Estudiante | Cambiar de slot atómicamente |
-| Reservas | `POST /reservas/cancelacion-tutoria` | Tutor, admin | Cancelar tutoría y liberar reservas |
+All functional routes require a Bearer JWT except the root health response at `GET /`.
 
-Filtros de búsqueda de tutorías: `materiaId`, `modalidad`, `fecha` y `tutorUserId`. Los errores de dominio se traducen principalmente a `400` (validación), `404` (no encontrado), `409` (conflicto) y `422` (regla de negocio), además de `401/403` para seguridad.
+The service validates:
 
-## Reglas de negocio principales
+- signature using the shared `JWT_SECRET`;
+- algorithm fixed to `HS256`;
+- token expiration;
+- required `sub`, `email`, and `rol` claims.
 
-| Regla | Estado | Garantía actual |
+### JWT Claims
+
+| Claim | Purpose |
+|---|---|
+| `sub` | External user identifier |
+| `email` | User email |
+| `nombre` | User first name |
+| `apellido` | User last name |
+| `rol` | `estudiante`, `tutor`, or `admin` |
+
+`JwtAuthGuard` authenticates requests and `RolesGuard` enforces handler-level roles. The service does not call the authentication service during normal requests; Auth and Tutoring share a JWT contract.
+
+### Just-in-time User Projection
+
+`JwtCaptureInterceptor` asynchronously upserts authenticated users into `usuario_local` using the most recent JWT claims. A synchronization failure is logged but does not block the main request.
+
+This projection allows read models to display local user data without a synchronous Auth dependency. External user IDs stored in domain tables are intentionally not foreign keys to `usuario_local`.
+
+---
+
+## Data Model
+
+The source of truth is `prisma/schema.prisma`.
+
+[![Tutoring Service entity relationship diagram](tutoring/modelo-er.svg)](tutoring/modelo-er.svg)
+
+### Institutional Catalogs
+
+| Model | Purpose | Important constraints |
 |---|---|---|
-| RN-01: el estudiante no debe traslapar tutorías | Implementada | Consulta previa al reservar o reprogramar |
-| RN-02: una disponibilidad por tutor y franja | Implementada | Restricción única en PostgreSQL |
-| RN-03: materia registrada y asignada | Implementada | FK y verificación de autorización |
-| RN-04: solo estudiantes pueden reservar | Implementada mediante JWT | Rol `estudiante`; no existe estado local de usuario |
-| RN-05: solo tutores autorizados publican | Implementada | Validación de `TutorMateria` autorizada |
-| RN-06: evaluar solo tutorías realizadas | Pendiente | No hay caso de uso de evaluación |
-| RN-07: una evaluación por participante | Parcial | Unicidad en Prisma, sin API |
-| RN-08: cancelación con motivo | Implementada | DTO y validación de dominio |
-| RN-09: no exceder cupos | Implementada | Update condicional transaccional |
+| `Materia` | Subject catalog | Unique `codigo`; logical activation |
+| `Sala` | Physical room catalog | Unique `codigo`; optional building metadata |
+| `FranjaHoraria` | Institutional weekday time slot | Day, start/end time, ordering, activation |
+| `TutorMateria` | Tutor authorization for a subject | Unique tutor–subject pair; authorization flag |
 
-RN-01 se comprueba mediante lectura previa y no con aislamiento serializable; una doble reserva concurrente del mismo estudiante sigue siendo un escenario que merece una prueba de integración específica.
+### Scheduling
 
-## Configuración y ejecución local
+| Model | Purpose | Important constraints |
+|---|---|---|
+| `DisponibilidadTutor` | Recurring availability template | Tutor, slot, subject, modality, capacity, validity |
+| `Tutoria` | Concrete materialized session | Unique tutor–slot–date; state and occupied capacity |
 
-Requisitos: Node.js 20+, npm, PostgreSQL 14+ y un JWT compatible con el servicio `auth`.
+`DisponibilidadTutor` supports `PRESENCIAL` and `VIRTUAL` modalities. Physical availability references a room, while virtual sessions may expose an `enlaceVirtual` when available.
+
+### Reservations
+
+| Model | Purpose | Important constraints |
+|---|---|---|
+| `Participante` | Student reservation for a session | Unique student–session pair; reservation/cancellation state |
+
+Capacity is stored in `Tutoria` as `cuposMaximos` and `cuposOcupados`. Reservation persistence updates this counter conditionally to prevent overbooking under concurrency.
+
+### Identity, Evaluations, and Reputation
+
+| Model | Current status |
+|---|---|
+| `UsuarioLocal` | Active local projection populated from JWT claims |
+| `EvaluacionTutoria` | Schema support only; no active endpoint or use case |
+| `EvaluacionParticipante` | Schema support only; no active endpoint or use case |
+| `ReputacionTutor` | Schema support only; no active projection or query API |
+| `ReputacionEstudiante` | Schema support only; no active projection or query API |
+
+---
+
+## Business Rules
+
+| Rule | Status | Enforcement |
+|---|---|---|
+| RN-01 — A student must not overlap tutoring sessions | Implemented | Overlap query before reserving or rescheduling |
+| RN-02 — A tutor has one availability per time slot | Implemented | Database unique constraint |
+| RN-03 — The subject must exist and be assigned | Implemented | Foreign key and tutor authorization check |
+| RN-04 — Only students can reserve | Implemented through JWT | Required `estudiante` role |
+| RN-05 — Only authorized tutors publish availability | Implemented | Authorized `TutorMateria` validation |
+| RN-06 — Evaluate only completed tutoring sessions | Pending | No evaluation use case |
+| RN-07 — One evaluation per participant | Partial | Prisma uniqueness, no executable flow |
+| RN-08 — Cancellation requires a reason | Implemented | DTO and domain validation |
+| RN-09 — Capacity must never be exceeded | Implemented | Conditional transactional update |
+
+RN-09 is concurrency-safe because PostgreSQL increments capacity only while `cupos_ocupados < cupos_maximos`. RN-01 currently uses a prior read rather than a serializable database constraint, so concurrent overlapping reservations by the same student remain an integration scenario worth testing explicitly.
+
+---
+
+## Endpoints
+
+The live OpenAPI contract is available at `/api/docs` while the service is running.
+
+### Identity
+
+| Method | Route | Access | Description |
+|---|---|---|---|
+| GET | `/identidad/me` | Authenticated | Return normalized JWT claims |
+| GET | `/identidad/usuarios/:userId` | Authenticated | Read a captured local user |
+
+### Subjects
+
+| Method | Route | Access | Description |
+|---|---|---|---|
+| POST | `/catalogos/materias` | Admin | Create a subject |
+| GET | `/catalogos/materias` | Authenticated | List subjects; optionally active only |
+| PATCH | `/catalogos/materias/:id/activar` | Admin | Activate a subject |
+| PATCH | `/catalogos/materias/:id/desactivar` | Admin | Deactivate a subject |
+
+### Rooms and Time Slots
+
+| Method | Route | Access | Description |
+|---|---|---|---|
+| POST | `/catalogos/salas` | Admin | Create a room |
+| GET | `/catalogos/salas` | Authenticated | List rooms |
+| POST | `/catalogos/franjas` | Admin | Create an institutional time slot |
+| GET | `/catalogos/franjas` | Authenticated | List time slots; optionally filter by day |
+
+### Tutor–Subject Assignments
+
+| Method | Route | Access | Description |
+|---|---|---|---|
+| POST | `/catalogos/tutor-materias` | Admin | Assign a subject to a tutor |
+| GET | `/catalogos/tutor-materias` | Authenticated | List assignments for a tutor |
+| PATCH | `/catalogos/tutor-materias/:id/autorizar` | Admin | Authorize an assignment |
+| PATCH | `/catalogos/tutor-materias/:id/desautorizar` | Admin | Revoke authorization |
+
+### Availability and Materialization
+
+| Method | Route | Access | Description |
+|---|---|---|---|
+| POST | `/disponibilidad` | Tutor, admin | Publish recurring availability |
+| GET | `/disponibilidad` | Tutor, admin | List tutor availability |
+| PATCH | `/disponibilidad/:id` | Owner, admin | Edit availability |
+| PATCH | `/disponibilidad/:id/desactivar` | Owner, admin | Deactivate availability |
+| POST | `/disponibilidad/materializacion` | Admin | Run materialization manually |
+
+### Tutoring Sessions
+
+| Method | Route | Access | Description |
+|---|---|---|---|
+| GET | `/tutorias` | Authenticated | Search programmed sessions with capacity |
+| GET | `/tutorias/:id` | Authenticated | Read session details |
+
+Supported search filters are `materiaId`, `modalidad`, `fecha`, and `tutorUserId`.
+
+### Reservations
+
+| Method | Route | Access | Description |
+|---|---|---|---|
+| POST | `/reservas` | Student | Reserve a tutoring session |
+| POST | `/reservas/:tutoriaId/cancelar` | Student | Cancel the student's reservation |
+| POST | `/reservas/reprogramar` | Student | Atomically move to another session |
+| POST | `/reservas/cancelacion-tutoria` | Tutor, admin | Cancel a session and release reservations |
+
+### Error Mapping
+
+| HTTP | Meaning |
+|---|---|
+| 400 | Invalid request or domain value |
+| 401 | Missing, invalid, or expired JWT |
+| 403 | Insufficient role or ownership |
+| 404 | Resource not found |
+| 409 | Duplicate, full session, or capacity race |
+| 422 | Business rule violation |
+
+---
+
+## Service Communication
+
+### Authentication Contract
+
+The external Auth service issues HS256 JWTs. Tutoring validates them locally and does not make a synchronous Auth HTTP request during normal API operations.
+
+### Domain Events
+
+The application publishes events such as tutoring materialization, reservation, and cancellation through an `IEventPublisher` port. The current adapter uses `EventEmitter2`, so delivery is local to the Node.js process.
+
+### External Messaging
+
+RabbitMQ is a planned integration, not an active runtime dependency. No adapter currently consumes `RABBITMQ_URL`, and events are not durable across process restarts.
+
+### Database Communication
+
+Prisma repositories are the only active persistence adapters. The service owns its tutoring schema and uses PostgreSQL transactions for reservation and rescheduling consistency.
+
+---
+
+## C4 — Level 1: System Context
+
+[![Tutoring Service system context](tutoring/c4-contexto.svg)](tutoring/c4-contexto.svg)
+
+### Actors
+
+| Actor | Interaction |
+|---|---|
+| Student | Searches, reserves, cancels, and reschedules tutoring sessions |
+| Tutor | Publishes availability and cancels assigned sessions |
+| Administrator | Manages catalogs, authorizations, and materialization |
+
+### Systems
+
+| System | Responsibility |
+|---|---|
+| Tutoring Service | Scheduling, session search, and reservation management |
+| Auth Service | Issues the shared HS256 JWT |
+| PostgreSQL / Neon | Stores catalogs, availability, sessions, and reservations |
+
+### Relationships
+
+- Clients call the Tutoring REST API with a Bearer JWT.
+- Auth issues the token, while Tutoring validates its contract locally.
+- Tutoring reads and writes its PostgreSQL database through Prisma.
+
+---
+
+## C4 — Level 2: Containers
+
+[![Tutoring Service containers](tutoring/c4-contenedores.svg)](tutoring/c4-contenedores.svg)
+
+### Containers
+
+| Container | Technology | Responsibility |
+|---|---|---|
+| REST Application | NestJS 11 | Controllers, guards, use cases, Swagger |
+| Scheduler | `@nestjs/schedule` | Daily materialization trigger |
+| Event Bus | EventEmitter2 | In-process domain event dispatch |
+| Persistence Adapter | Prisma 7 | Repository implementations and transactions |
+| Database | PostgreSQL / Neon | Durable relational data |
+
+The REST API, scheduler, and event bus run in the same Node.js process; they are logical containers in the diagram, not independent deployments.
+
+### External System
+
+The Auth service is external and shares the JWT validation contract. There is no runtime network call from Tutoring to Auth for each request.
+
+---
+
+## Design Patterns & Best Practices
+
+### 1. Hexagonal Architecture
+
+Domain and application layers depend on ports. Prisma, HTTP, scheduling, and event delivery are replaceable adapters.
+
+### 2. Vertical Slicing
+
+Identity, catalogs, availability, tutoring search, and reservations are organized as business capabilities rather than technical layers shared across the entire service.
+
+### 3. Domain-Driven Design
+
+Entities and value objects protect invariants such as modality, capacity, validity ranges, cancellation reasons, and reservation state.
+
+### 4. Idempotent Materialization
+
+The materialization job can safely repeat because the tutor–slot–date unique constraint prevents duplicate sessions.
+
+### 5. Transactional Capacity Control
+
+Capacity is claimed with a conditional SQL update inside a transaction, preventing overbooking even when multiple students reserve simultaneously.
+
+### 6. Just-in-time Identity Projection
+
+JWT claims populate a local user read model without coupling every query to the Auth service.
+
+### 7. Domain Event Port
+
+Use cases publish domain events through an interface. The current in-memory adapter can later be replaced by durable messaging without moving event creation into controllers.
+
+---
+
+## Deployment
+
+### Environment Variables
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `NODE_ENV` | No | Runtime environment |
+| `PORT` | No | HTTP port |
+| `DATABASE_URL` | Yes | PostgreSQL runtime connection |
+| `DIRECT_URL` | Yes | Direct database connection required by startup validation |
+| `JWT_SECRET` | Yes | Shared HS256 secret, minimum 16 characters |
+| `JWT_EXPIRATION` | No | Informational token TTL |
+| `MATERIALIZACION_VENTANA_SEMANAS` | No | Materialization horizon |
+
+### Local Execution
 
 ```bash
 npm install
@@ -190,19 +424,7 @@ npm run seed
 npm run start:dev
 ```
 
-Variables relevantes:
-
-| Variable | Uso |
-|---|---|
-| `NODE_ENV` | Entorno de ejecución |
-| `PORT` | Puerto HTTP |
-| `DATABASE_URL` | Conexión PostgreSQL de runtime y Prisma CLI actual |
-| `DIRECT_URL` | Variable requerida por la validación de arranque |
-| `JWT_SECRET` | Secreto HS256 compartido, mínimo 16 caracteres |
-| `JWT_EXPIRATION` | TTL informativo |
-| `MATERIALIZACION_VENTANA_SEMANAS` | Horizonte de materialización |
-
-Comandos de verificación:
+### Verification Commands
 
 ```bash
 npm run build
@@ -211,21 +433,21 @@ npm run test:cov
 npm run test:e2e
 ```
 
-## Estado y límites conocidos
+### Current Operational Limitations
 
-- No hay endpoints para asistencia, observaciones, evaluaciones, reputación o historial dedicado.
-- El enlace virtual y la sala se leen, pero no existe un endpoint para “iniciar” una tutoría.
-- Los eventos se publican en memoria; RabbitMQ y notificaciones externas son trabajo posterior.
-- No existen `Dockerfile` ni `docker-compose.yml` en el servicio.
-- No hay definición de despliegue de la aplicación dentro del repositorio.
-- La zona horaria del cron no está configurada explícitamente.
-- Editar una disponibilidad no modifica las tutorías ya materializadas.
+- The repository does not include a `Dockerfile` or `docker-compose.yml`.
+- No application deployment manifest is currently defined.
+- The cron timezone is not configured explicitly.
+- Multiple replicas may repeat materialization work; uniqueness prevents duplicates but not redundant processing.
+- CORS is enabled without an explicit production origin allowlist.
+- Attendance, observations, evaluations, reputation, and dedicated history endpoints are not implemented.
 
-## Fuentes técnicas
+---
 
-- Repositorio: [EciWise/tutoring](https://github.com/EciWise/tutoring)
-- Modelo relacional: `prisma/schema.prisma`
-- Composición de módulos: `src/app.module.ts` y `src/modules/*`
-- Contrato HTTP: controladores y DTOs bajo `src/modules/*/infrastructure/http`
-- Reglas y transacciones: casos de uso, entidades y repositorios Prisma
+## Further Reading
+
+- Source repository: [EciWise/tutoring](https://github.com/EciWise/tutoring)
+- Runtime API contract: `/api/docs`
+- Relational source of truth: `prisma/schema.prisma`
+- Module composition: `src/app.module.ts` and `src/modules/*`
 
