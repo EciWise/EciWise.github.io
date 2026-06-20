@@ -1,9 +1,9 @@
 ---
 layout: default
-title: Comunidad Service
+title: Community Service
 ---
 
-# Comunidad Service
+# Community Service
 
 ## Overview
 
@@ -21,11 +21,12 @@ The service handles three core domains:
 
 The following use case diagram shows the actions available to students and teachers within the academic forums module, including participation, moderation, and content reporting.
 
-[![usecase-forums.png](comunidad/usecase-forums.png)](comunidad/usecase-forums.png)
+[![usecase-forums.png](community/usecase-forums.png)](community/usecase-forums.png)
+
 
 The following diagram shows the administrative actions available over forums and categories within the community module.
 
-[![usecase-admin.png](comunidad/usecase-admin.png)](comunidad/usecase-admin.png)
+[![usecase-admin.png](community/usecase-admin.png)](community/usecase-admin.png)
 
 The community module supports distinct user roles with different capabilities.
 
@@ -35,7 +36,7 @@ The community module supports distinct user roles with different capabilities.
 
 The following sequence diagram shows the interaction flow when a student accesses a forum and reads a thread.
 
-[![seq-forum-read.png](comunidad/seq-forum-read.png)](comunidad/seq-forum-read.png)
+[![seq-forum-read.png](community/seq-forum-read.png)](community/seq-forum-read.png)
 
 ---
 
@@ -48,27 +49,22 @@ The service follows a layered architecture. Every request passes through the Sec
 The service is built with **NestJS 11.x** and **TypeScript**, backed by a **PostgreSQL 14+** database. Schema changes are managed through Prisma Migrate. Asynchronous notifications are delivered via **Azure Service Bus**.
 
 ### Package Structure
+
+```
 src/
-
 ├── auth/              # JWT guards, decorators, role validation
-
 ├── chats/             # Chat groups (REST + WebSocket gateway)
-
 ├── forums/            # Forum management
-
 ├── threads/           # Discussion threads
-
 ├── responses/         # Thread responses
-
 ├── votes/             # Voting system (WebSocket)
-
 ├── reportes/          # Content moderation and reports
-
 ├── prisma/            # Prisma service
-
 ├── config/            # Environment configuration and validation
-
 └── main.ts            # Entry point
+
+```
+
 ### Runtime Dependencies
 
 | Dependency | Version |
@@ -203,7 +199,7 @@ Outbound notifications are sent asynchronously to the `mail.envio.individual` qu
 
 The following sequence diagram shows the full interaction flow for creating or responding to a forum post, including optional file attachment and the asynchronous notification dispatch to subscribed users via the notification service.
 
-[![seq-participation-notifications.png](comunidad/seq-participation-notifications.png)](comunidad/seq-participation-notifications.png)
+[![seq-participation-notifications.png](community/seq-participation-notifications.png)](community/seq-participation-notifications.png)
 
 ---
 
