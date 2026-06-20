@@ -43,6 +43,7 @@ To develop an institutional digital platform that centralizes and improves acces
 - Ignacio Andrés Castillo Rendón
 - Juan Diego Rodríguez Velásquez
 - David Alejandro Patacón Henao
+- Jared Sebastian Farfan Guevara
 - Anderson Fabián García Nieto
 - Christian Alfonso Romero Martínez
 - Laura Alejandra Venegas Pirabán

@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Notifications Service — ECIWise</title>
+	<link rel="stylesheet" href="/wiki.css">
+	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
+</head>
+<body>
+	<!-- ── Sidebar ── -->
+	<aside id="sidebar">
+		<div class="sidebar-header">
+			<div class="wiki-title">ECIWise</div>
+			<div class="wiki-subtitle">ECIWise</div>
+		</div>
+		<nav class="sidebar-nav">
+			<div class="nav-section">
+				<div class="nav-section-title">General</div>
+				<a href="/" >Home</a>
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">Docs</div>
+				<a href="/docs/" >Overview</a>
+				
+					
+						<a href="/docs/actors-roles-permissions.html" >Actors, Roles & Permissions</a>
+					
+				
+					
+				
+					
+				
+					
+				
+					
+				
+					
+				
+					
+				
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">How</div>
+				<a href="/how/" >Overview</a>
+				
+					
+				
+					
+						<a href="/how/community-service.html" >Community Service</a>
+					
+				
+					
+						<a href="/how/gamification-service.html" >Gamification Service</a>
+					
+				
+					
+				
+					
+				
+					
+						<a href="/how/notifications-service.html" class="active">Notifications Service</a>
+					
+				
+					
+						<a href="/how/study-service.html" >Study Service</a>
+					
+				
+			</div>
+		</nav>
+		<div class="sidebar-footer">
+			Last updated: Jun 2026 ·
+			<a href="https://github.com/eciwise">GitHub</a>
+		</div>
+	</aside>
+	<!-- ── Main ── -->
+	<div id="content">
+		<div id="topbar">
+			<button id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰ Menu</button>
+			<div class="breadcrumb">
+				<a href="/">Home</a>
+				
+				
+					
+				
+					
+						<span>/</span>
+						<a href="/how/">How</a>
+					
+				
+					
+						<span>/</span>
+						<span>Notifications Service</span>
+					
+				
+			</div>
+			<div class="topbar-meta">
+				
+			</div>
+		</div>
+		<article>
+			<h1 id="notifications-service">Notifications Service</h1>
+
+<h2 id="overview">Overview</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">notifications</code> service is the asynchronous messaging and email delivery backbone of the ECIWISE platform. It consumes events from multiple upstream microservices via message queues, renders Handlebars email templates with i18n support, sends emails through SendGrid, and persists notifications in PostgreSQL for REST API consumption.</p>
+
+<ul>
+  <li><strong>Email Delivery</strong>: Sends transactional emails (individual, role-based, and mass) via the SendGrid API with configurable sender identity and template-driven content.</li>
+  <li><strong>Template Engine</strong>: Maintains 17 Handlebars HTML templates covering authentication events, tutoring lifecycle, materials, chat, and forum activity — with optional internationalization (es, en, de, pt, fr).</li>
+  <li><strong>Message Queue Consumer</strong>: Consumes from Azure Service Bus or RabbitMQ (selectable at runtime) with a strategy-based broker abstraction, two-layer message validation, and dual action flags (<code class="language-plaintext highlighter-rouge">mandarCorreo</code> + <code class="language-plaintext highlighter-rouge">guardar</code>).</li>
+</ul>
+
+<hr />
+
+<h2 id="notification-flow">Notification Flow</h2>
+
+<p>The notification lifecycle begins when an upstream service (Community, Materials, or Tutorships) publishes a message to a shared queue. The service validates the envelope and data, resolves the appropriate template, sends the email via SendGrid, and optionally persists a notification record in the database.</p>
+
+<p><a href="notifications/cicloNotificacion.png"><img src="/how/notifications/cicloNotificacion.png" alt="Notification Lifecycle" /></a></p>
+
+<p>A notification passes through three phases:</p>
+
+<ol>
+  <li><strong>Received</strong> — The message enters via Azure Service Bus or RabbitMQ.</li>
+  <li><strong>Validation</strong> — The <code class="language-plaintext highlighter-rouge">NotificationEnvelopeValidator</code> checks the envelope structure, then a type-specific validator (<code class="language-plaintext highlighter-rouge">IndividualDataValidator</code>, <code class="language-plaintext highlighter-rouge">RolDataValidator</code>, or <code class="language-plaintext highlighter-rouge">MasivoDataValidator</code>) checks the data payload. Invalid messages are ACK’d and discarded with a warning log.</li>
+  <li><strong>Processing</strong> — If the user exists in the local database, the service evaluates two independent flags: <code class="language-plaintext highlighter-rouge">mandarCorreo</code> (send email via SendGrid) and <code class="language-plaintext highlighter-rouge">guardar</code> (persist a notification record). Both can be true, false, or independently set.</li>
+</ol>
+
+<hr />
+
+<h2 id="architecture">Architecture</h2>
+
+<p>The service follows a <strong>modular NestJS architecture</strong> with a strategy-based broker abstraction. The <code class="language-plaintext highlighter-rouge">MessagingOrchestratorService</code> selects between <code class="language-plaintext highlighter-rouge">AzureMessagingConsumer</code> and <code class="language-plaintext highlighter-rouge">RabbitMQMessagingConsumer</code> at startup based on the <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER</code> environment variable. Only one broker is active per runtime instance.</p>
+
+<p><a href="notifications/notificacionArquitectura.png"><img src="/how/notifications/notificacionArquitectura.png" alt="Internal Architecture" /></a></p>
+
+<h3 id="runtime-environment">Runtime Environment</h3>
+
+<p>The service is built with <strong>NestJS 11</strong> on <strong>TypeScript</strong>, using <strong>Prisma 7</strong> with the <code class="language-plaintext highlighter-rouge">@prisma/adapter-pg</code> adapter for PostgreSQL connection pooling. Email delivery is handled by <strong>SendGrid</strong> (<code class="language-plaintext highlighter-rouge">@sendgrid/mail</code> v8.x). Message consumption supports both <strong>Azure Service Bus</strong> (<code class="language-plaintext highlighter-rouge">@azure/service-bus</code> v7.9.5) and <strong>RabbitMQ</strong> (<code class="language-plaintext highlighter-rouge">amqplib</code> v2.0.1). Authentication uses <strong>Passport-JWT</strong> with HS256 validation against a shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code>.</p>
+
+<h3 id="package-structure">Package Structure</h3>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>notifications/
+├── src/
+│   ├── alerta/                    # REST API module
+│   │   ├── alerta.controller.ts   # 6 REST endpoints
+│   │   ├── alerta.service.ts      # Email sending, DB CRUD, template rendering
+│   │   ├── dto/                   # Data transfer objects
+│   │   │   ├── notificacion.dto.ts
+│   │   │   ├── rolMail.dto.ts
+│   │   │   └── unicoMail.dto.ts
+│   │   └── enums/
+│   │       ├── template.enum.ts   # 17 template keys → email subjects
+│   │       └── type.enum.ts       # Notification types
+│   ├── auth/                      # JWT authentication
+│   │   ├── jwt.strategy.ts        # HS256 token validation
+│   │   ├── jwt-auth.guard.ts      # Route protection
+│   │   ├── usuarios-sync.service.ts  # JIT user provisioning
+│   │   └── public.decorator.ts    # @Public() decorator
+│   ├── config/
+│   │   └── env.ts                 # Joi-validated environment variables
+│   ├── messaging/                 # Queue consumer layer
+│   │   ├── consumers/
+│   │   │   ├── base-messaging.consumer.ts       # Shared processing logic
+│   │   │   ├── azure-messaging.consumer.ts      # Azure Service Bus consumer
+│   │   │   └── rabbitmq-messaging.consumer.ts   # RabbitMQ consumer
+│   │   ├── contracts/             # Message schemas (Zod)
+│   │   │   ├── notification-envelope.schema.ts
+│   │   │   ├── individual.schema.ts
+│   │   │   ├── rol.schema.ts
+│   │   │   └── masivo.schema.ts
+│   │   ├── interfaces/
+│   │   │   └── messaging-provider.interface.ts  # IMessagingProvider
+│   │   ├── messaging.module.ts
+│   │   └── messaging.orchestrator.ts           # Broker selection
+│   ├── prisma/
+│   │   ├── prisma.module.ts
+│   │   └── prisma.service.ts
+│   ├── templates/                 # 17 Handlebars email templates
+│   │   ├── CancelacionTutoriaEstudiante.hbs
+│   │   ├── CancelacionTutoriaTutor.hbs
+│   │   ├── CompletacionTutoriaEstudiante.hbs
+│   │   ├── CompletacionTutoriaTutor.hbs
+│   │   ├── ConfirmacionTutoriaEstudiante.hbs
+│   │   ├── ConfirmacionTutoriaTutor.hbs
+│   │   ├── RechazoTutoriaEstudiante.hbs
+│   │   ├── RechazoTutoriaTutor.hbs
+│   │   ├── SolicitudTutoriaEstudiante.hbs
+│   │   ├── SolicitudTutoriaTutor.hbs
+│   │   ├── cambioDeRol.hbs
+│   │   ├── cuentaEliminada.hbs
+│   │   ├── mencionRespuesta.hbs
+│   │   ├── mencionThread.hbs
+│   │   ├── nuevoMaterialSubido.hbs
+│   │   ├── nuevoThreadEnForo.hbs
+│   │   └── nuevoUsuario.hbs
+│   ├── app.module.ts
+│   └── main.ts
+├── prisma/
+│   └── schema.prisma
+├── test/
+│   ├── app.e2e-spec.ts
+│   └── jest-e2e.json
+├── dockerfile
+└── package.json
+</code></pre></div></div>
+
+<h3 id="runtime-dependencies">Runtime Dependencies</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Dependency</th>
+      <th>Version</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@nestjs/common</code></td>
+      <td>^11.1.8</td>
+      <td>NestJS core framework</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@nestjs/core</code></td>
+      <td>^11.0.1</td>
+      <td>NestJS core framework</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@nestjs/jwt</code></td>
+      <td>^11.0.2</td>
+      <td>JWT token handling</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@nestjs/passport</code></td>
+      <td>^11.0.5</td>
+      <td>Passport.js integration</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@nestjs/swagger</code></td>
+      <td>^11.2.1</td>
+      <td>API documentation (Swagger)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@prisma/client</code></td>
+      <td>^7.0.1</td>
+      <td>Database ORM</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@prisma/adapter-pg</code></td>
+      <td>^7.1.0</td>
+      <td>PostgreSQL adapter for Prisma 7</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@azure/service-bus</code></td>
+      <td>^7.9.5</td>
+      <td>Azure Service Bus client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">amqplib</code></td>
+      <td>^2.0.1</td>
+      <td>RabbitMQ client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@sendgrid/mail</code></td>
+      <td>^8.1.6</td>
+      <td>SendGrid email API</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">class-validator</code></td>
+      <td>^0.14.2</td>
+      <td>DTO validation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">class-transformer</code></td>
+      <td>^0.5.1</td>
+      <td>Object transformation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">joi</code></td>
+      <td>^18.0.1</td>
+      <td>Environment variable validation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">passport-jwt</code></td>
+      <td>^4.0.1</td>
+      <td>JWT Passport strategy</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="jwt-based-identity">JWT-based Identity</h2>
+
+<p>The service validates JWT tokens using HMAC-SHA256 with a shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code>. All routes are protected by <code class="language-plaintext highlighter-rouge">JwtAuthGuard</code> unless explicitly marked with the <code class="language-plaintext highlighter-rouge">@Public()</code> decorator.</p>
+
+<p><a href="notifications/jwt.png"><img src="/how/notifications/jwt.png" alt="JWT Model" /></a></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Claim</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sub</code></td>
+      <td>User identifier (UUID)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">email</code></td>
+      <td>User email address</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nombre</code></td>
+      <td>First name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">apellido</code></td>
+      <td>Last name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rol</code></td>
+      <td>Role name (e.g., <code class="language-plaintext highlighter-rouge">admin</code>, <code class="language-plaintext highlighter-rouge">tutor</code>, <code class="language-plaintext highlighter-rouge">estudiante</code>)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The <code class="language-plaintext highlighter-rouge">UsuariosSyncService</code> performs <strong>Just-in-Time User Provisioning</strong>: on each authenticated request, it upserts the JWT user into the local <code class="language-plaintext highlighter-rouge">usuarios</code> table, creating the role if it does not exist. This keeps the local user registry in sync with the central <code class="language-plaintext highlighter-rouge">auth</code> service without inter-service calls.</p>
+
+<hr />
+
+<h2 id="data-model">Data Model</h2>
+
+<p>The service uses three tables. The <code class="language-plaintext highlighter-rouge">notifications</code> table is owned by this service; <code class="language-plaintext highlighter-rouge">usuarios</code> and <code class="language-plaintext highlighter-rouge">roles</code> are shared with other microservices and kept in sync via JWT-based JIT provisioning.</p>
+
+<p><a href="notifications/esquemaBaseDeDatos.png"><img src="/how/notifications/esquemaBaseDeDatos.png" alt="Database Schema" /></a></p>
+
+<h3 id="notifications">notifications</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td>UUID</td>
+      <td><code class="language-plaintext highlighter-rouge">@id @default(uuid())</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">user_id</code></td>
+      <td>String</td>
+      <td>FK to <code class="language-plaintext highlighter-rouge">usuarios.id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fecha_creacion</code></td>
+      <td>Timestamptz</td>
+      <td><code class="language-plaintext highlighter-rouge">@default(now())</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">asunto</code></td>
+      <td>String</td>
+      <td>Email subject / notification title</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">resumen</code></td>
+      <td>String</td>
+      <td>Notification body / summary</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">visto</code></td>
+      <td>Boolean</td>
+      <td><code class="language-plaintext highlighter-rouge">@default(false)</code> — read status</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Composite primary key</strong>: <code class="language-plaintext highlighter-rouge">(id, user_id)</code></p>
+
+<h3 id="usuarios">usuarios</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td>UUID</td>
+      <td><code class="language-plaintext highlighter-rouge">@id</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">email</code></td>
+      <td>String</td>
+      <td><code class="language-plaintext highlighter-rouge">@unique</code>, indexed</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nombre</code></td>
+      <td>String</td>
+      <td>First name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">apellido</code></td>
+      <td>String</td>
+      <td>Last name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rol_id</code></td>
+      <td>Int</td>
+      <td>FK to <code class="language-plaintext highlighter-rouge">roles.id</code>, <code class="language-plaintext highlighter-rouge">@default(1)</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">estado_id</code></td>
+      <td>Int</td>
+      <td>Account status</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="roles">roles</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Column</th>
+      <th>Type</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td>Int</td>
+      <td><code class="language-plaintext highlighter-rouge">@id @default(autoincrement())</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nombre</code></td>
+      <td>String</td>
+      <td><code class="language-plaintext highlighter-rouge">@unique</code> — role name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">descripcion</code></td>
+      <td>String?</td>
+      <td>Optional description</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">activo</code></td>
+      <td>Boolean</td>
+      <td>Active status</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="endpoints">Endpoints</h2>
+
+<p>All endpoints are under the <code class="language-plaintext highlighter-rouge">/notificacion</code> prefix.</p>
+
+<h3 id="notification-queries">Notification Queries</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion/:userId</code></td>
+      <td>Get all notifications for a user (sorted by date desc)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion/unread-count/:userId</code></td>
+      <td>Count unread notifications</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion/unread-chat-count/:userId</code></td>
+      <td>Count unread chat notifications (subject starts with “Hay un nuevo mensaje”)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PATCH</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion/read-all/:userId</code></td>
+      <td>Mark all notifications as read</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PATCH</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion/read/:id</code></td>
+      <td>Mark a single notification as read</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion/:id</code></td>
+      <td>Delete a notification</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="dtos">DTOs</h3>
+
+<p><strong>NotificacionDto</strong> (response):</p>
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">id: number</code>, <code class="language-plaintext highlighter-rouge">asunto: string</code>, <code class="language-plaintext highlighter-rouge">resumen: string</code>, <code class="language-plaintext highlighter-rouge">visto: boolean</code>, <code class="language-plaintext highlighter-rouge">fechaCreacion: Date</code>, <code class="language-plaintext highlighter-rouge">type: string</code></li>
+</ul>
+
+<p><strong>UnicoMailDto</strong> (individual email input):</p>
+<ul>
+  <li>Required: <code class="language-plaintext highlighter-rouge">email</code>, <code class="language-plaintext highlighter-rouge">template</code>, <code class="language-plaintext highlighter-rouge">resumen</code>, <code class="language-plaintext highlighter-rouge">guardar</code>, <code class="language-plaintext highlighter-rouge">type</code></li>
+  <li>Optional: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">mandarCorreo</code> (default true), <code class="language-plaintext highlighter-rouge">year</code> (default current year), <code class="language-plaintext highlighter-rouge">tema</code>, <code class="language-plaintext highlighter-rouge">material_author</code>, <code class="language-plaintext highlighter-rouge">link</code>, <code class="language-plaintext highlighter-rouge">oldRole</code>, <code class="language-plaintext highlighter-rouge">newRole</code>, <code class="language-plaintext highlighter-rouge">materia</code>, <code class="language-plaintext highlighter-rouge">fileName</code>, <code class="language-plaintext highlighter-rouge">fecha</code>, <code class="language-plaintext highlighter-rouge">tutor</code>, <code class="language-plaintext highlighter-rouge">estudiante</code>, <code class="language-plaintext highlighter-rouge">mensaje</code>, <code class="language-plaintext highlighter-rouge">modalidad</code>, <code class="language-plaintext highlighter-rouge">hora</code>, <code class="language-plaintext highlighter-rouge">nombreGrupo</code>, <code class="language-plaintext highlighter-rouge">taggedBy</code>, <code class="language-plaintext highlighter-rouge">threadTitle</code>, <code class="language-plaintext highlighter-rouge">createdBy</code>, <code class="language-plaintext highlighter-rouge">mentionedBy</code></li>
+</ul>
+
+<p><strong>RolMailDto</strong> (role-based email input):</p>
+<ul>
+  <li>Required: <code class="language-plaintext highlighter-rouge">rol</code>, <code class="language-plaintext highlighter-rouge">template</code>, <code class="language-plaintext highlighter-rouge">resumen</code>, <code class="language-plaintext highlighter-rouge">guardar</code>, <code class="language-plaintext highlighter-rouge">type</code></li>
+  <li>Optional: <code class="language-plaintext highlighter-rouge">mandarCorreo</code> (default true), <code class="language-plaintext highlighter-rouge">material_name</code>, <code class="language-plaintext highlighter-rouge">material_subject</code>, <code class="language-plaintext highlighter-rouge">material_topic</code>, <code class="language-plaintext highlighter-rouge">material_author</code>, <code class="language-plaintext highlighter-rouge">link</code></li>
+</ul>
+
+<hr />
+
+<h2 id="message-broker-integration">Message Broker Integration</h2>
+
+<table>
+  <tbody>
+    <tr>
+      <td>The service supports two mutually exclusive message brokers, selected at startup via the <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER</code> environment variable (<code class="language-plaintext highlighter-rouge">'azure'</code></td>
+      <td><code class="language-plaintext highlighter-rouge">'rabbitmq'</code>, default <code class="language-plaintext highlighter-rouge">'azure'</code>).</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="broker-selection">Broker Selection</h3>
+
+<p>The <code class="language-plaintext highlighter-rouge">MessagingOrchestratorService</code> instantiates the appropriate consumer during <code class="language-plaintext highlighter-rouge">OnModuleInit</code> and stops it during <code class="language-plaintext highlighter-rouge">OnModuleDestroy</code>. Only one broker is active per instance.</p>
+
+<h3 id="queue-topology">Queue Topology</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Broker</th>
+      <th>Queue / Exchange</th>
+      <th>Type</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Azure Service Bus</strong></td>
+      <td><code class="language-plaintext highlighter-rouge">mail.envio.individual</code></td>
+      <td>Queue</td>
+      <td>Single-recipient emails</td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td><code class="language-plaintext highlighter-rouge">mail.envio.rol</code></td>
+      <td>Queue</td>
+      <td>Role-based emails</td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td><code class="language-plaintext highlighter-rouge">mail.envio.masivo</code></td>
+      <td>Queue</td>
+      <td>Mass/batch emails</td>
+    </tr>
+    <tr>
+      <td><strong>RabbitMQ</strong></td>
+      <td><code class="language-plaintext highlighter-rouge">notifications</code></td>
+      <td>Exchange (topic, durable)</td>
+      <td>Message routing</td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td><code class="language-plaintext highlighter-rouge">notification.individual</code></td>
+      <td>Queue (bound to exchange)</td>
+      <td>Single-recipient emails</td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td><code class="language-plaintext highlighter-rouge">notification.rol</code></td>
+      <td>Queue (bound to exchange)</td>
+      <td>Role-based emails</td>
+    </tr>
+    <tr>
+      <td> </td>
+      <td><code class="language-plaintext highlighter-rouge">notification.masivo</code></td>
+      <td>Queue (bound to exchange)</td>
+      <td>Mass/batch emails</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="message-envelope-structure">Message Envelope Structure</h3>
+
+<p>Every message must conform to the <code class="language-plaintext highlighter-rouge">NotificationEnvelope</code> format:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"notification"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"notificationType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"individual"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"rol"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"masivo"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"language"</span><span class="p">:</span><span class="w"> </span><span class="s2">"es"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"en"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"de"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"pt"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"fr"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<h3 id="validation-pipeline">Validation Pipeline</h3>
+
+<p>Messages go through a <strong>two-layer validation</strong> process:</p>
+
+<ol>
+  <li><strong>Envelope layer</strong> — <code class="language-plaintext highlighter-rouge">NotificationEnvelopeValidator</code> checks <code class="language-plaintext highlighter-rouge">eventType</code>, <code class="language-plaintext highlighter-rouge">notificationType</code>, <code class="language-plaintext highlighter-rouge">language</code>, and <code class="language-plaintext highlighter-rouge">data</code> presence.</li>
+  <li><strong>Data layer</strong> — Type-specific validators check required fields:</li>
+</ol>
+
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Required Fields</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">individual</code></td>
+      <td><code class="language-plaintext highlighter-rouge">email</code> (string), <code class="language-plaintext highlighter-rouge">template</code> (string), <code class="language-plaintext highlighter-rouge">resumen</code> (string), <code class="language-plaintext highlighter-rouge">guardar</code> (boolean, optional)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rol</code></td>
+      <td><code class="language-plaintext highlighter-rouge">rol</code> (string), <code class="language-plaintext highlighter-rouge">template</code> (string), <code class="language-plaintext highlighter-rouge">resumen</code> (string), <code class="language-plaintext highlighter-rouge">guardar</code> (boolean, optional)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">masivo</code></td>
+      <td><code class="language-plaintext highlighter-rouge">emails</code> (non-empty string array), <code class="language-plaintext highlighter-rouge">template</code> (string), <code class="language-plaintext highlighter-rouge">resumen</code> (string), <code class="language-plaintext highlighter-rouge">guardar</code> (boolean, optional)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Failed validation results in the message being ACK’d (not retried) with a warning log to prevent poison pill scenarios.</p>
+
+<h3 id="sequence-diagrams">Sequence Diagrams</h3>
+
+<h4 id="individual-notification">Individual Notification</h4>
+
+<p><a href="notifications/notificacionIndividual.png"><img src="/how/notifications/notificacionIndividual.png" alt="Individual Notification Sequence" /></a></p>
+
+<p>The upstream service publishes a message to <code class="language-plaintext highlighter-rouge">mail.envio.individual</code>. The orchestrator selects the active provider, delegates to <code class="language-plaintext highlighter-rouge">BaseMessagingConsumer.processEnvelope()</code>, validates the envelope and data, looks up the user by email, and conditionally sends the email and/or persists the notification.</p>
+
+<h4 id="role-based-notification">Role-Based Notification</h4>
+
+<p><a href="notifications/notificacionRol.png"><img src="/how/notifications/notificacionRol.png" alt="Role-Based Notification Sequence" /></a></p>
+
+<p>The upstream service publishes a message to <code class="language-plaintext highlighter-rouge">mail.envio.rol</code> with a role name. The service queries all users with that role and sends an individual email to each. If <code class="language-plaintext highlighter-rouge">guardar=true</code>, a notification record is created for each recipient.</p>
+
+<h4 id="mass-notification">Mass Notification</h4>
+
+<p><a href="notifications/notificacionMasiva.png"><img src="/how/notifications/notificacionMasiva.png" alt="Mass Notification Sequence" /></a></p>
+
+<p>The upstream service publishes a message to <code class="language-plaintext highlighter-rouge">mail.envio.masivo</code> with an array of email addresses. SendGrid personalizations group all recipients into a single API call. If <code class="language-plaintext highlighter-rouge">guardar=true</code>, individual notification records are created for each email.</p>
+
+<hr />
+
+<h2 id="email-templates">Email Templates</h2>
+
+<p>The service maintains <strong>17 Handlebars HTML templates</strong> in <code class="language-plaintext highlighter-rouge">src/templates/</code>. Each template is a full HTML email with inline CSS. A logo CID attachment (<code class="language-plaintext highlighter-rouge">cid:logo</code>) is loaded from <code class="language-plaintext highlighter-rouge">docs/logo.png</code> if the file exists.</p>
+
+<h3 id="template-catalog">Template Catalog</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Template Key</th>
+      <th>Email Subject</th>
+      <th>Category</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cambioDeRol</code></td>
+      <td>Su rol ha sido actualizado</td>
+      <td>Auth</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">cuentaEliminada</code></td>
+      <td>Su cuenta ha sido eliminada</td>
+      <td>Auth</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nuevoUsuario</code></td>
+      <td>Nuevo usuario registrado</td>
+      <td>Auth</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SolicitudTutoriaEstudiante</code></td>
+      <td>Ha creado una nueva solicitud de tutoria</td>
+      <td>Tutoring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SolicitudTutoriaTutor</code></td>
+      <td>Ha recibido una nueva solicitud de tutoria</td>
+      <td>Tutoring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ConfirmacionTutoriaEstudiante</code></td>
+      <td>Su tutoria ha sido confirmada</td>
+      <td>Tutoring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ConfirmacionTutoriaTutor</code></td>
+      <td>Se ha confirmado una nueva tutoria</td>
+      <td>Tutoring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">RechazoTutoriaEstudiante</code></td>
+      <td>Su solicitud de tutoria ha sido rechazada</td>
+      <td>Tutoring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">RechazoTutoriaTutor</code></td>
+      <td>Se ha rechazado una solicitud de tutoria</td>
+      <td>Tutoring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CancelacionTutoriaEstudiante</code></td>
+      <td>Su tutoria ha sido cancelada</td>
+      <td>Tutoring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CancelacionTutoriaTutor</code></td>
+      <td>Ha sido cancelada una tutoria</td>
+      <td>Tutoring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CompletacionTutoriaEstudiante</code></td>
+      <td>Su tutoria ha sido completada</td>
+      <td>Tutoring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CompletacionTutoriaTutor</code></td>
+      <td>Se ha completado una tutoria</td>
+      <td>Tutoring</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nuevoMaterialSubido</code></td>
+      <td>Se ha subido un nuevo material</td>
+      <td>Materials</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nuevoMensaje</code></td>
+      <td>Hay un nuevo mensaje del Grupo: {name}</td>
+      <td>Chat</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nuevoThreadEnForo</code></td>
+      <td>Se ha creado un nuevo hilo en el foro</td>
+      <td>Forum</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">mencionThread</code></td>
+      <td>Has sido mencionado en un hilo del foro</td>
+      <td>Forum</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">mencionRespuesta</code></td>
+      <td>Has sido mencionado en una respuesta del foro</td>
+      <td>Forum</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="template-variables-by-category">Template Variables by Category</h3>
+
+<p><strong>Auth templates</strong>: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">year</code>, <code class="language-plaintext highlighter-rouge">oldRole</code>, <code class="language-plaintext highlighter-rouge">newRole</code></p>
+
+<p><strong>Tutoring templates</strong>: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">year</code>, <code class="language-plaintext highlighter-rouge">materia</code>, <code class="language-plaintext highlighter-rouge">fecha</code>, <code class="language-plaintext highlighter-rouge">hora</code>, <code class="language-plaintext highlighter-rouge">tutor</code>, <code class="language-plaintext highlighter-rouge">estudiante</code>, <code class="language-plaintext highlighter-rouge">modalidad</code>, <code class="language-plaintext highlighter-rouge">razon</code>, <code class="language-plaintext highlighter-rouge">mensaje</code></p>
+
+<p><strong>Materials templates</strong>: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">year</code>, <code class="language-plaintext highlighter-rouge">fileName</code>, <code class="language-plaintext highlighter-rouge">materia</code>, <code class="language-plaintext highlighter-rouge">tema</code>, <code class="language-plaintext highlighter-rouge">material_author</code>, <code class="language-plaintext highlighter-rouge">link</code></p>
+
+<p><strong>Chat templates</strong>: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">year</code>, <code class="language-plaintext highlighter-rouge">nombreGrupo</code>, <code class="language-plaintext highlighter-rouge">mensaje</code></p>
+
+<p><strong>Forum templates</strong>: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">year</code>, <code class="language-plaintext highlighter-rouge">nombreGrupo</code>, <code class="language-plaintext highlighter-rouge">threadTitle</code>, <code class="language-plaintext highlighter-rouge">createdBy</code>, <code class="language-plaintext highlighter-rouge">mentionedBy</code>, <code class="language-plaintext highlighter-rouge">taggedBy</code>, <code class="language-plaintext highlighter-rouge">fecha</code></p>
+
+<h3 id="i18n-resolution">i18n Resolution</h3>
+
+<p>Template resolution is controlled by <code class="language-plaintext highlighter-rouge">TRANSLATED_TEMPLATES_ENABLED</code> (default <code class="language-plaintext highlighter-rouge">false</code>). Supported locales: <code class="language-plaintext highlighter-rouge">es</code>, <code class="language-plaintext highlighter-rouge">en</code>, <code class="language-plaintext highlighter-rouge">de</code>, <code class="language-plaintext highlighter-rouge">pt</code>, <code class="language-plaintext highlighter-rouge">fr</code>. Resolution order:</p>
+
+<ol>
+  <li><code class="language-plaintext highlighter-rouge">{templateName}.{locale}.hbs</code> (if locale enabled and file exists)</li>
+  <li><code class="language-plaintext highlighter-rouge">{templateName}.hbs</code> (fallback)</li>
+  <li>Inline HTML <code class="language-plaintext highlighter-rouge">&lt;p&gt;Hola ,&lt;/p&gt;&lt;p&gt;&lt;/p&gt;</code> (hardcoded fallback)</li>
+</ol>
+
+<p>The fallback locale is configurable via <code class="language-plaintext highlighter-rouge">TRANSLATED_TEMPLATES_FALLBACK</code> (default <code class="language-plaintext highlighter-rouge">'es'</code>).</p>
+
+<hr />
+
+<h2 id="service-communication">Service Communication</h2>
+
+<p><a href="notifications/notifications-service-connections.png"><img src="/how/notifications/notifications-service-connections.png" alt="Service Connections" /></a></p>
+
+<h3 id="producers">Producers</h3>
+
+<p>The following upstream services publish messages to the notification queues:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Producer Service</th>
+      <th>Broker</th>
+      <th>Queues</th>
+      <th>Message Types</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">community/</code></td>
+      <td>Azure Service Bus</td>
+      <td><code class="language-plaintext highlighter-rouge">mail.envio.*</code></td>
+      <td>Individual, Rol, Masivo</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">materials/</code></td>
+      <td>Azure Service Bus</td>
+      <td><code class="language-plaintext highlighter-rouge">mail.envio.*</code></td>
+      <td>Individual, Rol, Masivo</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tutorships/</code></td>
+      <td>Azure Service Bus</td>
+      <td><code class="language-plaintext highlighter-rouge">mail.envio.*</code></td>
+      <td>Individual, Rol, Masivo</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="jwt-trust-model">JWT Trust Model</h3>
+
+<p>All backend services validate JWTs independently by verifying the HMAC-SHA256 signature against a shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code> — no callback to the <code class="language-plaintext highlighter-rouge">auth</code> service. The notifications service extracts user claims from the token and upserts them into the local <code class="language-plaintext highlighter-rouge">usuarios</code> table via <code class="language-plaintext highlighter-rouge">UsuariosSyncService</code>.</p>
+
+<h3 id="database-sharing">Database Sharing</h3>
+
+<p>The service shares the <code class="language-plaintext highlighter-rouge">usuarios</code> and <code class="language-plaintext highlighter-rouge">roles</code> tables with <code class="language-plaintext highlighter-rouge">auth/</code>, <code class="language-plaintext highlighter-rouge">community/</code>, <code class="language-plaintext highlighter-rouge">materials/</code>, and <code class="language-plaintext highlighter-rouge">tutorships/</code>. The <code class="language-plaintext highlighter-rouge">notifications</code> table is unique to this service. User data is kept in sync through JIT provisioning from JWTs rather than direct inter-service database access.</p>
+
+<hr />
+
+<h2 id="c4--level-1-system-context">C4 — Level 1: System Context</h2>
+
+<p><a href="notifications/notificaciones.png"><img src="/how/notifications/notificaciones.png" alt="System Context" /></a></p>
+
+<h3 id="actors">Actors</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Actor</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Student</td>
+      <td>Receives email notifications and views in-app notifications</td>
+    </tr>
+    <tr>
+      <td>Tutor</td>
+      <td>Receives email notifications and views in-app notifications</td>
+    </tr>
+    <tr>
+      <td>Administrator</td>
+      <td>Receives system-wide email notifications</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="systems">Systems</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>System</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Notifications Service</td>
+      <td>Internal</td>
+      <td>Email delivery and notification persistence</td>
+    </tr>
+    <tr>
+      <td>Auth Service</td>
+      <td>Internal</td>
+      <td>JWT authentication and user management</td>
+    </tr>
+    <tr>
+      <td>Community Service</td>
+      <td>Internal</td>
+      <td>Forums, chat, content moderation</td>
+    </tr>
+    <tr>
+      <td>Materials Service</td>
+      <td>Internal</td>
+      <td>Study materials management</td>
+    </tr>
+    <tr>
+      <td>Tutorships Service</td>
+      <td>Internal</td>
+      <td>Tutoring session management</td>
+    </tr>
+    <tr>
+      <td>SendGrid</td>
+      <td>External</td>
+      <td>Email delivery API</td>
+    </tr>
+    <tr>
+      <td>PostgreSQL</td>
+      <td>External</td>
+      <td>Notification and user data persistence</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="relationships">Relationships</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>From</th>
+      <th>To</th>
+      <th>Protocol</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Community Service</td>
+      <td>Notifications Service</td>
+      <td>Azure Service Bus</td>
+      <td>Publishes notification events</td>
+    </tr>
+    <tr>
+      <td>Materials Service</td>
+      <td>Notifications Service</td>
+      <td>Azure Service Bus</td>
+      <td>Publishes notification events</td>
+    </tr>
+    <tr>
+      <td>Tutorships Service</td>
+      <td>Notifications Service</td>
+      <td>Azure Service Bus</td>
+      <td>Publishes notification events</td>
+    </tr>
+    <tr>
+      <td>Notifications Service</td>
+      <td>SendGrid</td>
+      <td>HTTPS</td>
+      <td>Sends transactional emails</td>
+    </tr>
+    <tr>
+      <td>Notifications Service</td>
+      <td>PostgreSQL</td>
+      <td>TCP</td>
+      <td>Reads/writes notification and user data</td>
+    </tr>
+    <tr>
+      <td>Student / Tutor / Administrator</td>
+      <td>Notifications Service</td>
+      <td>HTTPS</td>
+      <td>Views notifications via REST API</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="c4--level-2-containers">C4 — Level 2: Containers</h2>
+
+<p><a href="notifications/contenedores.png"><img src="/how/notifications/contenedores.png" alt="Containers" /></a></p>
+
+<h3 id="containers">Containers</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Container</th>
+      <th>Technology</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Notifications API</td>
+      <td>NestJS 11, TypeScript</td>
+      <td>REST API for notification queries and email sending</td>
+    </tr>
+    <tr>
+      <td>AzureMessagingConsumer</td>
+      <td><code class="language-plaintext highlighter-rouge">@azure/service-bus</code></td>
+      <td>Consumes from Azure Service Bus queues</td>
+    </tr>
+    <tr>
+      <td>RabbitMQMessagingConsumer</td>
+      <td><code class="language-plaintext highlighter-rouge">amqplib</code></td>
+      <td>Consumes from RabbitMQ exchange/queues</td>
+    </tr>
+    <tr>
+      <td>MessagingOrchestrator</td>
+      <td>NestJS</td>
+      <td>Selects and manages the active broker provider</td>
+    </tr>
+    <tr>
+      <td>BaseMessagingConsumer</td>
+      <td>NestJS</td>
+      <td>Shared message processing logic (validation, email, persistence)</td>
+    </tr>
+    <tr>
+      <td>AlertaService</td>
+      <td>NestJS</td>
+      <td>Business logic for email sending and notification CRUD</td>
+    </tr>
+    <tr>
+      <td>AlertaController</td>
+      <td>NestJS</td>
+      <td>REST endpoints for notification queries</td>
+    </tr>
+    <tr>
+      <td>UsuariosSyncService</td>
+      <td>NestJS</td>
+      <td>JIT user provisioning from JWT</td>
+    </tr>
+    <tr>
+      <td>JwtStrategy</td>
+      <td>Passport-JWT</td>
+      <td>HS256 token validation</td>
+    </tr>
+    <tr>
+      <td>PrismaService</td>
+      <td>Prisma 7</td>
+      <td>Database access layer</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="external-systems">External Systems</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>System</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Azure Service Bus</td>
+      <td>Default message broker (3 queues)</td>
+    </tr>
+    <tr>
+      <td>RabbitMQ</td>
+      <td>Alternative message broker (exchange + 3 queues)</td>
+    </tr>
+    <tr>
+      <td>SendGrid API</td>
+      <td>Email delivery provider</td>
+    </tr>
+    <tr>
+      <td>PostgreSQL</td>
+      <td>Notification and user data persistence</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="relationships-1">Relationships</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>From</th>
+      <th>To</th>
+      <th>Protocol</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Community / Materials / Tutorships</td>
+      <td>Azure Service Bus</td>
+      <td>AMQP</td>
+      <td>Publishes <code class="language-plaintext highlighter-rouge">mail.envio.*</code> messages</td>
+    </tr>
+    <tr>
+      <td>Community / Materials / Tutorships</td>
+      <td>RabbitMQ</td>
+      <td>AMQP</td>
+      <td>Publishes to <code class="language-plaintext highlighter-rouge">notifications</code> exchange</td>
+    </tr>
+    <tr>
+      <td>AzureMessagingConsumer</td>
+      <td>Azure Service Bus</td>
+      <td>AMQP</td>
+      <td>Subscribes to 3 queues</td>
+    </tr>
+    <tr>
+      <td>RabbitMQMessagingConsumer</td>
+      <td>RabbitMQ</td>
+      <td>AMQP</td>
+      <td>Subscribes to 3 queues</td>
+    </tr>
+    <tr>
+      <td>BaseMessagingConsumer</td>
+      <td>AlertaService</td>
+      <td>Method call</td>
+      <td>Delegates email sending and persistence</td>
+    </tr>
+    <tr>
+      <td>AlertaController</td>
+      <td>AlertaService</td>
+      <td>Method call</td>
+      <td>REST API business logic</td>
+    </tr>
+    <tr>
+      <td>AlertaService</td>
+      <td>SendGrid API</td>
+      <td>HTTPS</td>
+      <td>Sends emails</td>
+    </tr>
+    <tr>
+      <td>AlertaService</td>
+      <td>PrismaService</td>
+      <td>Method call</td>
+      <td>Database CRUD</td>
+    </tr>
+    <tr>
+      <td>UsuariosSyncService</td>
+      <td>PrismaService</td>
+      <td>Method call</td>
+      <td>Upserts users from JWT</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="deployment">Deployment</h2>
+
+<p><a href="notifications/despliegue.png"><img src="/how/notifications/despliegue.png" alt="Deployment" /></a></p>
+
+<p>The service is deployed as an <strong>Azure Web App</strong> (<code class="language-plaintext highlighter-rouge">eciwise-alert</code>) running <strong>Node.js 20</strong>. The CI/CD pipeline uses <strong>GitHub Actions</strong> (<code class="language-plaintext highlighter-rouge">main_eciwise-alert.yml</code>) triggered on push to <code class="language-plaintext highlighter-rouge">main</code>. The pipeline runs <code class="language-plaintext highlighter-rouge">npm install</code>, <code class="language-plaintext highlighter-rouge">npm run build</code>, <code class="language-plaintext highlighter-rouge">npm test</code>, and deploys to Azure using OIDC authentication.</p>
+
+<h3 id="environment-variables">Environment Variables</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Required</th>
+      <th>Default</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PORT</code></td>
+      <td>yes</td>
+      <td>—</td>
+      <td>HTTP server port</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">MAIL_FROM</code></td>
+      <td>yes</td>
+      <td>—</td>
+      <td>Sender email address</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SENDGRID_API_KEY</code></td>
+      <td>yes</td>
+      <td>—</td>
+      <td>SendGrid API key</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">JWT_SECRET</code></td>
+      <td>yes</td>
+      <td>—</td>
+      <td>HMAC secret for JWT verification</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">MESSAGING_BROKER</code></td>
+      <td>no</td>
+      <td><code class="language-plaintext highlighter-rouge">'azure'</code></td>
+      <td><code class="language-plaintext highlighter-rouge">'azure'</code> or <code class="language-plaintext highlighter-rouge">'rabbitmq'</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SWAGGER_ENABLED</code></td>
+      <td>no</td>
+      <td><code class="language-plaintext highlighter-rouge">true</code></td>
+      <td>Enable Swagger docs at <code class="language-plaintext highlighter-rouge">/api</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">TRANSLATED_TEMPLATES_ENABLED</code></td>
+      <td>no</td>
+      <td><code class="language-plaintext highlighter-rouge">false</code></td>
+      <td>Enable i18n template resolution</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">TRANSLATED_TEMPLATES_FALLBACK</code></td>
+      <td>no</td>
+      <td><code class="language-plaintext highlighter-rouge">'es'</code></td>
+      <td>Fallback locale</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SERVICE_BUS_CONNECTION_STRING</code></td>
+      <td>conditional</td>
+      <td>—</td>
+      <td>Required when <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER=azure</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">RABBITMQ_URL</code></td>
+      <td>conditional</td>
+      <td><code class="language-plaintext highlighter-rouge">'amqp://guest:guest@localhost:5672'</code></td>
+      <td>Required when <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER=rabbitmq</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DATABASE_URL</code></td>
+      <td>yes</td>
+      <td>—</td>
+      <td>PostgreSQL session-mode pooler URL</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DIRECT_URL</code></td>
+      <td>yes</td>
+      <td>—</td>
+      <td>PostgreSQL transaction-mode pooler URL</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="design-patterns--best-practices">Design Patterns &amp; Best Practices</h2>
+
+<ul>
+  <li>
+    <p><strong>Strategy Pattern (Broker Selection)</strong>: The <code class="language-plaintext highlighter-rouge">IMessagingProvider</code> interface defines <code class="language-plaintext highlighter-rouge">start()</code> and <code class="language-plaintext highlighter-rouge">stop()</code> methods. <code class="language-plaintext highlighter-rouge">AzureMessagingConsumer</code> and <code class="language-plaintext highlighter-rouge">RabbitMQMessagingConsumer</code> are concrete implementations selected at runtime by <code class="language-plaintext highlighter-rouge">MessagingOrchestratorService</code> based on the <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER</code> environment variable. Only one broker is active per instance.</p>
+  </li>
+  <li>
+    <p><strong>Template Method Pattern (Message Processing)</strong>: <code class="language-plaintext highlighter-rouge">BaseMessagingConsumer</code> contains the shared processing logic (<code class="language-plaintext highlighter-rouge">processEnvelope</code>, <code class="language-plaintext highlighter-rouge">processIndividualMessage</code>, <code class="language-plaintext highlighter-rouge">processRolMessage</code>, <code class="language-plaintext highlighter-rouge">processMasivoMessage</code>). Concrete consumers only implement broker-specific connection handling, inheriting all validation and dispatch logic.</p>
+  </li>
+  <li>
+    <p><strong>Two-Layer Validation</strong>: Messages are validated first at the envelope level (structure, event type, notification type) and then at the data level (type-specific required fields). This separation ensures well-formed messages before business logic executes, and invalid messages are safely ACK’d to prevent poison pill scenarios.</p>
+  </li>
+  <li>
+    <p><strong>Dual Action Flags</strong>: Each message can independently trigger email sending (<code class="language-plaintext highlighter-rouge">mandarCorreo</code>) and database persistence (<code class="language-plaintext highlighter-rouge">guardar</code>). This allows upstream producers to control notification behavior precisely — e.g., send email only, persist only, or both.</p>
+  </li>
+  <li>
+    <p><strong>Graceful Degradation</strong>: Failed template lookups fall back to inline HTML; logo attachment failures are logged but do not block email sending; invalid messages are ACK’d (not retried) to avoid queue poisoning. RabbitMQ consumers handle connection loss with automatic reconnection every 5 seconds.</p>
+  </li>
+  <li>
+    <p><strong>Just-in-Time User Provisioning</strong>: The <code class="language-plaintext highlighter-rouge">UsuariosSyncService</code> upserts JWT user data into the local <code class="language-plaintext highlighter-rouge">usuarios</code> table on each authenticated request, eliminating the need for inter-service user synchronization calls while keeping the local registry current.</p>
+  </li>
+  <li>
+    <p><strong>Connection Pooling with Prisma 7</strong>: Uses <code class="language-plaintext highlighter-rouge">@prisma/adapter-pg</code> for session-mode and transaction-mode connection pooling via <code class="language-plaintext highlighter-rouge">DATABASE_URL</code> and <code class="language-plaintext highlighter-rouge">DIRECT_URL</code>, optimizing database connection management in a cloud environment.</p>
+  </li>
+</ul>
+
+			<div class="page-footer">
+				<span>ECIWise Wiki</span>
+				<div>
+				
+				
+				</div>
+			</div>
+		</article>
+	</div>
+</body>
+</html>

@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Community Service — ECIWise</title>
+	<link rel="stylesheet" href="/wiki.css">
+	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
+</head>
+<body>
+	<!-- ── Sidebar ── -->
+	<aside id="sidebar">
+		<div class="sidebar-header">
+			<div class="wiki-title">ECIWise</div>
+			<div class="wiki-subtitle">ECIWise</div>
+		</div>
+		<nav class="sidebar-nav">
+			<div class="nav-section">
+				<div class="nav-section-title">General</div>
+				<a href="/" >Home</a>
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">Docs</div>
+				<a href="/docs/" >Overview</a>
+				
+					
+						<a href="/docs/actors-roles-permissions.html" >Actors, Roles & Permissions</a>
+					
+				
+					
+				
+					
+				
+					
+				
+					
+				
+					
+				
+					
+				
+			</div>
+			<div class="nav-section">
+				<div class="nav-section-title">How</div>
+				<a href="/how/" >Overview</a>
+				
+					
+				
+					
+						<a href="/how/community-service.html" class="active">Community Service</a>
+					
+				
+					
+						<a href="/how/gamification-service.html" >Gamification Service</a>
+					
+				
+					
+				
+					
+				
+					
+						<a href="/how/notifications-service.html" >Notifications Service</a>
+					
+				
+					
+						<a href="/how/study-service.html" >Study Service</a>
+					
+				
+			</div>
+		</nav>
+		<div class="sidebar-footer">
+			Last updated: Jun 2026 ·
+			<a href="https://github.com/eciwise">GitHub</a>
+		</div>
+	</aside>
+	<!-- ── Main ── -->
+	<div id="content">
+		<div id="topbar">
+			<button id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰ Menu</button>
+			<div class="breadcrumb">
+				<a href="/">Home</a>
+				
+				
+					
+				
+					
+						<span>/</span>
+						<a href="/how/">How</a>
+					
+				
+					
+						<span>/</span>
+						<span>Community Service</span>
+					
+				
+			</div>
+			<div class="topbar-meta">
+				
+			</div>
+		</div>
+		<article>
+			<h1 id="community-service">Community Service</h1>
+
+<h2 id="overview">Overview</h2>
+
+<p><code class="language-plaintext highlighter-rouge">wise-comunidad</code> is the microservice responsible for managing the academic community module within the ECIWISE+ platform. It provides students, tutors, and administrators with structured tools for real-time communication, discussion forums, content moderation, and voting.</p>
+
+<p>The service handles three core domains:</p>
+
+<ul>
+  <li><strong>Real-time chat</strong>: Chat groups with instant messaging via WebSockets (Socket.IO), including typing indicators and group membership management.</li>
+  <li><strong>Forums and threads</strong>: Discussion forums organized by academic subjects, with thread creation, likes, editing, and responses with real-time voting.</li>
+  <li><strong>Content moderation</strong>: A full reporting pipeline with status management and audit logs, accessible to administrators.</li>
+</ul>
+
+<hr />
+
+<h2 id="module-flow">Module Flow</h2>
+
+<p>The following use case diagram shows the actions available to students and teachers within the academic forums module, including participation, moderation, and content reporting.</p>
+
+<p><a href="community/usecase-forums.png"><img src="/how/community/usecase-forums.png" alt="usecase-forums.png" /></a></p>
+
+<p>The following diagram shows the administrative actions available over forums and categories within the community module.</p>
+
+<p><a href="community/usecase-admin.png"><img src="/how/community/usecase-admin.png" alt="usecase-admin.png" /></a></p>
+
+<p>The community module supports distinct user roles with different capabilities.</p>
+
+<p><strong>Students and Tutors</strong> can participate in forum discussions by creating threads and posting responses. They can vote on responses (útil / no útil) in real time, like forums and threads, and send and receive messages within chat groups. They can also report content they consider inappropriate.</p>
+
+<p><strong>Administrators</strong> have full access to the report management system, including listing all reports, reviewing their statuses, updating moderation states, and viewing usage statistics.</p>
+
+<p>The following sequence diagram shows the interaction flow when a student accesses a forum and reads a thread.</p>
+
+<p><a href="community/seq-forum-read.png"><img src="/how/community/seq-forum-read.png" alt="seq-forum-read.png" /></a></p>
+
+<hr />
+
+<h2 id="architecture">Architecture</h2>
+
+<p>The service follows a layered architecture. Every request passes through the Security Layer, where the JWT guard validates the Bearer token and resolves the authenticated user before reaching any controller. The Presentation Layer contains the REST controllers grouped by domain. The Business Layer holds the services and domain logic. The Persistence Layer uses Prisma ORM with PostgreSQL. Real-time features are implemented via a Socket.IO gateway operating in the <code class="language-plaintext highlighter-rouge">/chat</code> namespace. Asynchronous notifications are dispatched through Azure Service Bus.</p>
+
+<h3 id="runtime-environment">Runtime Environment</h3>
+
+<p>The service is built with <strong>NestJS 11.x</strong> and <strong>TypeScript</strong>, backed by a <strong>PostgreSQL 14+</strong> database. Schema changes are managed through Prisma Migrate. Asynchronous notifications are delivered via <strong>Azure Service Bus</strong>.</p>
+
+<h3 id="package-structure">Package Structure</h3>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>src/
+├── auth/              # JWT guards, decorators, role validation
+├── chats/             # Chat groups (REST + WebSocket gateway)
+├── forums/            # Forum management
+├── threads/           # Discussion threads
+├── responses/         # Thread responses
+├── votes/             # Voting system (WebSocket)
+├── reportes/          # Content moderation and reports
+├── prisma/            # Prisma service
+├── config/            # Environment configuration and validation
+└── main.ts            # Entry point
+
+</code></pre></div></div>
+
+<h3 id="runtime-dependencies">Runtime Dependencies</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Dependency</th>
+      <th>Version</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>NestJS</td>
+      <td>11.x</td>
+    </tr>
+    <tr>
+      <td>TypeScript</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Prisma ORM</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>PostgreSQL</td>
+      <td>14+</td>
+    </tr>
+    <tr>
+      <td>Passport JWT</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Socket.IO</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>class-validator</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>class-transformer</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Azure Service Bus SDK</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Jest</td>
+      <td>—</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="jwt-based-identity">JWT-based Identity</h2>
+
+<p>On every request, the service reads and validates the Bearer JWT. All endpoints are protected by the JWT guard except those explicitly marked with <code class="language-plaintext highlighter-rouge">@Public()</code>. Roles are enforced via <code class="language-plaintext highlighter-rouge">@Roles()</code> and <code class="language-plaintext highlighter-rouge">RolesGuard</code>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Claim</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sub</code></td>
+      <td>Identifies the authenticated user</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rol</code></td>
+      <td>User role: <code class="language-plaintext highlighter-rouge">Estudiante</code>, <code class="language-plaintext highlighter-rouge">Tutor</code>, <code class="language-plaintext highlighter-rouge">Admin</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="endpoints">Endpoints</h2>
+
+<h3 id="chats">Chats</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/chats</code></td>
+      <td>Yes</td>
+      <td>Create a chat group</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/chats</code></td>
+      <td>Yes</td>
+      <td>List groups for the authenticated user</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/chats/:id</code></td>
+      <td>Yes</td>
+      <td>Get a group with its messages</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/chats/:id/messages</code></td>
+      <td>Yes</td>
+      <td>Get messages for a group</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/chats/:id/messages</code></td>
+      <td>Yes</td>
+      <td>Send a message (REST)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/chats/:id</code></td>
+      <td>Yes</td>
+      <td>Delete a chat group</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="foros">Foros</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/forums</code></td>
+      <td>Yes</td>
+      <td>Create a forum</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/forums</code></td>
+      <td>Yes</td>
+      <td>List all forums</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/forums/:id</code></td>
+      <td>Yes</td>
+      <td>Get a forum with its threads</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/forums/:id/threads</code></td>
+      <td>Yes</td>
+      <td>Create a thread in a forum</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/forums/:id/like</code></td>
+      <td>Yes</td>
+      <td>Like a forum</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/forums/:id/close</code></td>
+      <td>Yes (creator only)</td>
+      <td>Close a forum</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/forums/materias</code></td>
+      <td>Yes</td>
+      <td>List available subjects</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="threads">Threads</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/threads</code></td>
+      <td>Yes</td>
+      <td>Create a thread</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/threads/:id</code></td>
+      <td>Yes</td>
+      <td>Get a thread with its responses</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/threads/:id/like</code></td>
+      <td>Yes</td>
+      <td>Like a thread</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/threads/:id/edit</code></td>
+      <td>Yes (author only)</td>
+      <td>Edit a thread</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="reportes">Reportes</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/reportes</code></td>
+      <td>Yes</td>
+      <td>Create a content report</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/reportes</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Admin</code></td>
+      <td>List all reports</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/reportes/mis-reportes</code></td>
+      <td>Yes</td>
+      <td>List reports submitted by the current user</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/reportes/estadisticas</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Admin</code></td>
+      <td>Get moderation statistics</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/reportes/:id</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Admin</code></td>
+      <td>Get a report by ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PATCH</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/reportes/:id/estado</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Admin</code></td>
+      <td>Update a report’s status</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Full interactive documentation is available at <code class="language-plaintext highlighter-rouge">/api</code> when the server is running (Swagger/OpenAPI).</p>
+
+<hr />
+
+<h2 id="websocket-events-chat">WebSocket Events (Chat)</h2>
+
+<p>The chat system uses Socket.IO on the <code class="language-plaintext highlighter-rouge">/chat</code> namespace. Authentication is performed via JWT in the connection handshake.</p>
+
+<h3 id="connection">Connection</h3>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="k">import</span> <span class="p">{</span> <span class="nx">io</span> <span class="p">}</span> <span class="k">from</span> <span class="dl">'</span><span class="s1">socket.io-client</span><span class="dl">'</span><span class="p">;</span>
+
+<span class="kd">const</span> <span class="nx">socket</span> <span class="o">=</span> <span class="nx">io</span><span class="p">(</span><span class="dl">'</span><span class="s1">http://localhost:3000/chat</span><span class="dl">'</span><span class="p">,</span> <span class="p">{</span>
+  <span class="na">auth</span><span class="p">:</span> <span class="p">{</span>
+    <span class="na">token</span><span class="p">:</span> <span class="dl">'</span><span class="s1">tu-jwt-token</span><span class="dl">'</span>
+  <span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div></div>
+
+<h3 id="client--server-events">Client → Server Events</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Event</th>
+      <th>Payload</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">joinGroup</code></td>
+      <td><code class="language-plaintext highlighter-rouge">{ grupoId: string }</code></td>
+      <td>Join a chat group. Required before sending messages.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">leaveGroup</code></td>
+      <td><code class="language-plaintext highlighter-rouge">{ grupoId: string }</code></td>
+      <td>Leave a chat group</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sendMessage</code></td>
+      <td><code class="language-plaintext highlighter-rouge">{ grupoId: string, contenido: string }</code></td>
+      <td>Send a message to a group</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">typing</code></td>
+      <td><code class="language-plaintext highlighter-rouge">{ grupoId: string }</code></td>
+      <td>Signal that the user is typing</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">stopTyping</code></td>
+      <td><code class="language-plaintext highlighter-rouge">{ grupoId: string }</code></td>
+      <td>Signal that the user stopped typing</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="server--client-events">Server → Client Events</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Event</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">newMessage</code></td>
+      <td>A new message was sent in the group</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">userJoined</code></td>
+      <td>A user joined the group</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">userLeft</code></td>
+      <td>A user left the group</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">userTyping</code></td>
+      <td>A user is typing</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">userStoppedTyping</code></td>
+      <td>A user stopped typing</td>
+    </tr>
+  </tbody>
+</table>
+
+<blockquote>
+  <p><strong>Important</strong>: <code class="language-plaintext highlighter-rouge">joinGroup</code> must be emitted before <code class="language-plaintext highlighter-rouge">sendMessage</code>. The server validates group membership before allowing any action.</p>
+</blockquote>
+
+<hr />
+
+<h2 id="service-communication">Service Communication</h2>
+
+<p>This service operates as a self-contained service that relies exclusively on the JWT token for user identity and authorization. It does not make runtime calls to the authentication microservice — JWT signatures are validated locally using the shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code>.</p>
+
+<h3 id="authorization">Authorization</h3>
+
+<p>All role checks (<code class="language-plaintext highlighter-rouge">Estudiante</code>, <code class="language-plaintext highlighter-rouge">Tutor</code>, <code class="language-plaintext highlighter-rouge">Admin</code>) and ownership validation are performed locally using the JWT claims and the data stored in this service’s own database. Duplicate reports are prevented at the database level.</p>
+
+<h3 id="notifications">Notifications</h3>
+
+<p>Outbound notifications are sent asynchronously to the <code class="language-plaintext highlighter-rouge">mail.envio.individual</code> queue on Azure Service Bus.</p>
+
+<h2 id="flow-1--forum-participation-and-notifications">Flow 1 — Forum Participation and Notifications</h2>
+
+<p>The following sequence diagram shows the full interaction flow for creating or responding to a forum post, including optional file attachment and the asynchronous notification dispatch to subscribed users via the notification service.</p>
+
+<p><a href="community/seq-participation-notifications.png"><img src="/how/community/seq-participation-notifications.png" alt="seq-participation-notifications.png" /></a></p>
+
+<hr />
+
+<h2 id="containers-diagram">Containers Diagram</h2>
+
+<blockquote>
+  <p><em>No diagram available at this time.</em></p>
+</blockquote>
+
+<p>The service is deployed using Docker with a multi-stage <code class="language-plaintext highlighter-rouge">Dockerfile</code>. The build stage compiles the application and the runtime stage serves it on port <code class="language-plaintext highlighter-rouge">3000</code>. All configuration is injected through environment variables. Database schema changes are applied automatically by Prisma Migrate on startup.</p>
+
+<hr />
+
+<h2 id="c4--level-1-system-context">C4 — Level 1: System Context</h2>
+
+<h3 id="actors">Actors</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Actor</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Estudiante</code></td>
+      <td>Creates threads, posts in forums, votes on responses, and sends chat messages.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Tutor</code></td>
+      <td>Participates in forums and chat groups with the same capabilities as students.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Administrador</code></td>
+      <td>Manages all reported content and moderation states across the platform.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="systems">Systems</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>System</th>
+      <th>Type</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td>Internal</td>
+      <td>Web application (Angular SPA) through which users interact with the platform.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Comunidad</code></td>
+      <td>Internal</td>
+      <td>Community microservice: real-time chat, forums, threads, votes, and content moderation.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td>External</td>
+      <td>Authenticates users and issues JWTs signed with role and identity claims.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Azure Service Bus</code></td>
+      <td>External</td>
+      <td>Asynchronous messaging for outbound email notifications.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="relationships">Relationships</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>From</th>
+      <th>To</th>
+      <th>Protocol</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Estudiante</code>, <code class="language-plaintext highlighter-rouge">Tutor</code>, <code class="language-plaintext highlighter-rouge">Administrador</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">HTTPS</code></td>
+      <td>All actors use the frontend to access the platform.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Comunidad</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JSON/HTTPS + Bearer JWT</code></td>
+      <td>Calls REST endpoints with <code class="language-plaintext highlighter-rouge">Authorization: Bearer &lt;token&gt;</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Comunidad</code></td>
+      <td><code class="language-plaintext highlighter-rouge">WebSocket + Bearer JWT</code></td>
+      <td>Connects to the <code class="language-plaintext highlighter-rouge">/chat</code> namespace for real-time messaging.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JSON/HTTPS</code></td>
+      <td>Logs in and obtains the JWT.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Comunidad</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td>Local signature validation</td>
+      <td>Validates JWT signature locally with the shared secret <code class="language-plaintext highlighter-rouge">JWT_SECRET</code> (no runtime call).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Comunidad</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Azure Service Bus</code></td>
+      <td><code class="language-plaintext highlighter-rouge">AMQP</code></td>
+      <td>Publishes notifications to the <code class="language-plaintext highlighter-rouge">mail.envio.individual</code> queue.</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="c4--level-2-containers">C4 — Level 2: Containers</h2>
+
+<h3 id="actor">Actor</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Actor</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Usuario</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Estudiante</code>, <code class="language-plaintext highlighter-rouge">Tutor</code>, or <code class="language-plaintext highlighter-rouge">Administrador</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="containers">Containers</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Container</th>
+      <th>Technology</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Angular SPA</code></td>
+      <td>Community web interface.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Comunidad API</code></td>
+      <td><code class="language-plaintext highlighter-rouge">NestJS 11, TypeScript</code></td>
+      <td>Stateless REST + WebSocket API on port <code class="language-plaintext highlighter-rouge">3000</code>. Validates the JWT on every request and exposes the chat, forum, thread, vote, and moderation modules.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Base de datos</code></td>
+      <td><code class="language-plaintext highlighter-rouge">PostgreSQL 14+</code></td>
+      <td><code class="language-plaintext highlighter-rouge">wise_comunidad</code> schema, versioned with Prisma Migrate.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Azure Service Bus</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Azure Messaging</code></td>
+      <td>Handles the <code class="language-plaintext highlighter-rouge">mail.envio.individual</code> queue for asynchronous email notifications.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="external-system">External System</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>System</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td>Issues JWTs with the claims <code class="language-plaintext highlighter-rouge">sub</code> and <code class="language-plaintext highlighter-rouge">rol</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="relationships-1">Relationships</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>From</th>
+      <th>To</th>
+      <th>Protocol</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Usuario</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">HTTPS</code></td>
+      <td>Uses the platform.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Comunidad API</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JSON/HTTPS</code></td>
+      <td>Calls <code class="language-plaintext highlighter-rouge">/chats/*</code>, <code class="language-plaintext highlighter-rouge">/forums/*</code>, <code class="language-plaintext highlighter-rouge">/threads/*</code>, <code class="language-plaintext highlighter-rouge">/reportes/*</code> with <code class="language-plaintext highlighter-rouge">Authorization: Bearer &lt;token&gt;</code>.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Front</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td><code class="language-plaintext highlighter-rouge">JSON/HTTPS</code></td>
+      <td>Login — obtains the JWT.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Comunidad API</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Microservicio de Autenticación</code></td>
+      <td>Local signature validation</td>
+      <td>Validates the JWT signature locally with the shared secret <code class="language-plaintext highlighter-rouge">JWT_SECRET</code> (no runtime call).</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Comunidad API</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Base de datos</code></td>
+      <td><code class="language-plaintext highlighter-rouge">TCP 5432</code></td>
+      <td>Reads and writes via Prisma ORM. Prisma Migrate runs on startup.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ECIWISE Comunidad API</code></td>
+      <td><code class="language-plaintext highlighter-rouge">Azure Service Bus</code></td>
+      <td><code class="language-plaintext highlighter-rouge">AMQP</code></td>
+      <td>Sends outbound notifications to the <code class="language-plaintext highlighter-rouge">mail.envio.individual</code> queue.</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="design-patterns--best-practices">Design Patterns &amp; Best Practices</h2>
+
+<p><strong>Layered Architecture</strong>
+The service is organized into clearly separated modules per domain: Controller → Service → Prisma Repository. Each module has a single responsibility and only communicates with the layer directly below it.</p>
+
+<p><strong>Module Pattern (NestJS)</strong>
+Each domain (chats, forums, threads, responses, votes, reportes) is encapsulated in its own NestJS module with its own controller, service, and Prisma access, keeping boundaries explicit and dependencies injected.</p>
+
+<p><strong>DTO Pattern</strong>
+Request and response objects use <code class="language-plaintext highlighter-rouge">class-validator</code> decorators for input validation, preventing raw data from reaching the service layer and keeping the API contract explicit.</p>
+
+<p><strong>Role-Based Authorization</strong>
+Permission checks are enforced via <code class="language-plaintext highlighter-rouge">@Roles()</code> and <code class="language-plaintext highlighter-rouge">RolesGuard</code> applied at the controller level, with ownership validation performed in service classes. All endpoints require JWT authentication except those explicitly decorated with <code class="language-plaintext highlighter-rouge">@Public()</code>.</p>
+
+<p><strong>Real-Time via WebSocket Gateway</strong>
+The chat module exposes a Socket.IO gateway in the <code class="language-plaintext highlighter-rouge">/chat</code> namespace, handling group membership, message broadcasting, and typing indicators independently from the REST layer.</p>
+
+<p><strong>Centralized Exception Handling</strong>
+NestJS exception filters provide consistent HTTP error responses across all controllers.</p>
+
+<p><strong>Content Sanitization</strong>
+Thread content is sanitized before persistence to prevent XSS attacks.</p>
+
+<p><strong>Database Migrations as Code</strong>
+Schema changes are version-controlled through Prisma Migrate scripts, making the database schema reproducible and auditable across environments.</p>
+
+<p><strong>Duplicate Prevention at Database Level</strong>
+Duplicate reports are enforced via database constraints, not only application logic.</p>
+
+			<div class="page-footer">
+				<span>ECIWise Wiki</span>
+				<div>
+				
+				
+				</div>
+			</div>
+		</article>
+	</div>
+</body>
+</html>
