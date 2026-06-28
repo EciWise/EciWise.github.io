@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Study Service — ECIWise+</title>
+	<title>Study Service — ECIWise</title>
 	<link rel="stylesheet" href="/wiki.css">
 	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
 </head>
@@ -36,7 +36,7 @@
 			</svg>
 			<div class="sidebar-brand">
 				<div class="wiki-title">ECIWISE<span class="eci-logo__plus-word">+</span></div>
-				<div class="wiki-subtitle">ECIWise+</div>
+				<div class="wiki-subtitle">ECIWise</div>
 			</div>
 		</div>
 
@@ -77,6 +77,14 @@
 					
 						
 					
+						
+					
+						
+					
+						
+					
+						
+					
 				</ul>
 			</div>
 
@@ -92,7 +100,15 @@
 						
 					
 						
+							<li><a href="/how/auth-service.html" >Auth Service</a></li>
+						
+					
+						
 							<li><a href="/how/community-service.html" >Community Service</a></li>
+						
+					
+						
+							<li><a href="/how/game-service.html" >Game Service</a></li>
 						
 					
 						
@@ -106,11 +122,19 @@
 						
 					
 						
+							<li><a href="/how/materials-service.html" >Materials Service</a></li>
+						
+					
+						
 							<li><a href="/how/notifications-service.html" >Notifications Service</a></li>
 						
 					
 						
 							<li><a href="/how/study-service.html" class="active">Study Service</a></li>
+						
+					
+						
+							<li><a href="/how/talk-service.html" >Talk Service</a></li>
 						
 					
 						
@@ -1464,7 +1488,7 @@ Permission checks (<code class="language-plaintext highlighter-rouge">isAdmin</c
 Schema changes are version-controlled through Flyway migration scripts (<code class="language-plaintext highlighter-rouge">V1</code> through <code class="language-plaintext highlighter-rouge">V4</code>), making the database schema reproducible and auditable across environments.</p>
 
 			<div class="page-footer">
-				<span>ECIWise+ Wiki</span>
+				<span>ECIWise Wiki</span>
 				<div>
 				
 				
@@ -1472,6 +1496,18 @@ Schema changes are version-controlled through Flyway migration scripts (<code cl
 			</div>
 		</article>
 	</div>
+
+	<script type="module">
+		import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+		mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+		document.querySelectorAll('pre > code.language-mermaid').forEach(function(el) {
+			const div = document.createElement('div');
+			div.className = 'mermaid';
+			div.textContent = el.textContent;
+			el.parentNode.parentNode.replaceChild(div, el.parentNode);
+		});
+		mermaid.run();
+	</script>
 
 	<script>
 		function toggleSidebar() {

@@ -88,7 +88,7 @@ body {
 /* ── SIDEBAR — light theme, mirrors shell__nav + side-nav ────────── */
 #sidebar {
   width: var(--sidebar-w);
-  min-height: 100vh;
+  height: 100vh;
   background: var(--surface);
   border-right: 1px solid var(--border);
   position: fixed;

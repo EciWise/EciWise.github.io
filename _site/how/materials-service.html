@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Materials Service — ECIWise</title>
+	<link rel="stylesheet" href="/wiki.css">
+	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
+</head>
+<body>
+	<!-- ── Sidebar overlay scrim (mobile) ── -->
+	<div id="sidebar-scrim" onclick="closeSidebar()"></div>
+
+	<!-- ── Sidebar — mirrors shell__nav + side-nav ── -->
+	<aside id="sidebar">
+
+		<!-- Math decoration: menu variant (behind nav content) -->
+		<div class="sidebar-math-decor" aria-hidden="true">
+			<span class="mds mds--a" style="top:4%;right:14%;font-size:1.4rem;--mdf-dur:12s;--mdf-dl:-1s">π</span>
+			<span class="mds mds--b" style="top:12%;left:12%;font-size:1.1rem;--mdf-dur:10s;--mdf-dl:-4s">α</span>
+			<span class="mds mds--a" style="top:22%;right:17%;font-size:1.2rem;--mdf-dur:14s;--mdf-dl:-7s">∂</span>
+			<span class="mds mds--b" style="top:31%;left:10%;font-size:1.0rem;--mdf-dur:11s;--mdf-dl:-2s">λ</span>
+			<span class="mds mds--p" style="top:40%;right:13%;font-size:1.5rem;--mdf-dur:13s;--mdf-dl:-9s">Σ</span>
+			<span class="mds mds--a" style="top:50%;left:13%;font-size:1.1rem;--mdf-dur:9s;--mdf-dl:-5s">θ</span>
+			<span class="mds mds--b" style="top:59%;right:15%;font-size:1.3rem;--mdf-dur:15s;--mdf-dl:-8s">∫</span>
+			<span class="mds mds--a" style="top:68%;left:11%;font-size:1.0rem;--mdf-dur:12s;--mdf-dl:-3s">ε</span>
+			<span class="mds mds--b" style="top:77%;right:13%;font-size:1.4rem;--mdf-dur:11s;--mdf-dl:-6s">ω</span>
+			<span class="mds mds--p" style="bottom:8%;left:12%;font-size:1.1rem;--mdf-dur:10s;--mdf-dl:-11s">δ</span>
+		</div>
+
+		<!-- Header -->
+		<div class="sidebar-header">
+			<svg class="sidebar-logo" viewBox="0 0 48 48" aria-hidden="true">
+				<path class="sidebar-logo__astroid" d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z"/>
+				<path class="sidebar-logo__plus" d="M24 17 V31 M17 24 H31"/>
+			</svg>
+			<div class="sidebar-brand">
+				<div class="wiki-title">ECIWISE<span class="eci-logo__plus-word">+</span></div>
+				<div class="wiki-subtitle">ECIWise</div>
+			</div>
+		</div>
+
+		<!-- Navigation — mirrors side-nav__list -->
+		<nav class="sidebar-nav" aria-label="Navegación">
+
+			<div class="nav-section">
+				<span class="nav-section-title">General</span>
+				<ul>
+					<li><a href="/" >Home</a></li>
+				</ul>
+			</div>
+
+			<div class="nav-section">
+				<span class="nav-section-title">Docs</span>
+				<ul>
+					<li><a href="/docs/" >Overview</a></li>
+					
+						
+							<li><a href="/docs/actors-roles-permissions.html" >Actors, Roles & Permissions</a></li>
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+				</ul>
+			</div>
+
+			<div class="nav-section">
+				<span class="nav-section-title">How</span>
+				<ul>
+					<li><a href="/how/" >Overview</a></li>
+					
+						
+					
+						
+							<li><a href="/how/ai-service.html" >AI Service</a></li>
+						
+					
+						
+							<li><a href="/how/auth-service.html" >Auth Service</a></li>
+						
+					
+						
+							<li><a href="/how/community-service.html" >Community Service</a></li>
+						
+					
+						
+							<li><a href="/how/game-service.html" >Game Service</a></li>
+						
+					
+						
+							<li><a href="/how/gamification-service.html" >Gamification Service</a></li>
+						
+					
+						
+					
+						
+					
+						
+					
+						
+							<li><a href="/how/materials-service.html" class="active">Materials Service</a></li>
+						
+					
+						
+							<li><a href="/how/notifications-service.html" >Notifications Service</a></li>
+						
+					
+						
+							<li><a href="/how/study-service.html" >Study Service</a></li>
+						
+					
+						
+							<li><a href="/how/talk-service.html" >Talk Service</a></li>
+						
+					
+						
+							<li><a href="/how/tutoring-service.html" >Tutoring Service</a></li>
+						
+					
+				</ul>
+			</div>
+
+		</nav>
+
+		<div class="sidebar-footer">
+			Last updated: Jun 2026 ·
+			<a href="https://github.com/eciwise">GitHub</a>
+		</div>
+	</aside>
+
+	<!-- ── Main ── -->
+	<div id="content">
+
+		<!-- Topbar — mirrors ECIWISE-Front top-bar -->
+		<div id="topbar">
+
+			<!-- Math decoration: bar variant -->
+			<div class="topbar-math-decor" aria-hidden="true">
+				<span class="mds mds--p" style="top:45%;left:27%;font-size:0.90rem;--mdf-dur:9s;--mdf-dl:-2s">δ</span>
+				<span class="mds mds--a" style="top:22%;left:34%;font-size:0.78rem;--mdf-dur:11s;--mdf-dl:-5s">∂</span>
+				<span class="mds mds--b" style="top:68%;left:42%;font-size:0.95rem;--mdf-dur:10s;--mdf-dl:-8s">λ</span>
+				<span class="mds mds--p" style="top:25%;left:51%;font-size:0.82rem;--mdf-dur:12s;--mdf-dl:-1s">ε</span>
+				<span class="mds mds--a" style="top:65%;left:60%;font-size:0.88rem;--mdf-dur:9s;--mdf-dl:-6s">∑</span>
+				<span class="mds mds--b" style="top:28%;left:69%;font-size:0.72rem;--mdf-dur:11s;--mdf-dl:-3s">θ</span>
+				<span class="mds mds--a" style="top:30%;left:86%;font-size:0.95rem;--mdf-dur:10s;--mdf-dl:-4s">π</span>
+			</div>
+
+			<!-- Left: menu toggle + logo + tagline -->
+			<div class="top-bar__left">
+				<button class="icon-button top-bar__menu" onclick="toggleSidebar()" aria-label="Abrir navegación">
+					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<line x1="3" y1="6" x2="21" y2="6"/>
+						<line x1="3" y1="12" x2="21" y2="12"/>
+						<line x1="3" y1="18" x2="21" y2="18"/>
+					</svg>
+				</button>
+
+				<a href="/" class="eci-logo" aria-label="ECIWise — Inicio">
+					<svg class="eci-logo__mark" viewBox="0 0 48 48" aria-hidden="true">
+						<path class="eci-logo__astroid" d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z"/>
+						<path class="eci-logo__plus" d="M24 17 V31 M17 24 H31"/>
+					</svg>
+					<span class="eci-logo__word">ECIWISE<span class="eci-logo__plus-word">+</span></span>
+				</a>
+
+				<span class="top-bar__tagline">Documentación</span>
+			</div>
+
+			<!-- Center: breadcrumb -->
+			<div class="top-bar__center">
+				<nav class="breadcrumb" aria-label="Breadcrumb">
+					<a href="/">Home</a>
+					
+					
+						
+					
+						
+							<span>/</span>
+							<a href="/how/">How</a>
+						
+					
+						
+							<span>/</span>
+							<span>Materials Service</span>
+						
+					
+				</nav>
+			</div>
+
+			<!-- Right: GitHub -->
+			<div class="top-bar__right">
+				<a href="https://github.com/eciwise" class="icon-button" title="GitHub" target="_blank" rel="noopener">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+						<path d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.184 6.839 9.504.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.021C22 6.484 17.522 2 12 2z"/>
+					</svg>
+				</a>
+			</div>
+		</div>
+
+		<article>
+			<h1 id="materials-service">Materials Service</h1>
+
+<h2 id="overview">Overview</h2>
+
+<p><code class="language-plaintext highlighter-rouge">materials</code> (Wise Banco Material) is the collaborative academic repository microservice for ECIWise. Users upload, search, and rate PDF study materials organized by subject, semester, and topic. The service orchestrates AI-based content validation, cloud storage, and email notifications triggered by a message bus.</p>
+
+<p>The service handles three core domains:</p>
+
+<ul>
+  <li><strong>Material lifecycle</strong>: upload PDFs with deduplication (SHA-256 hash check), AI validation, tag assignment, versioning, and soft deletion that also removes the cloud blob.</li>
+  <li><strong>Discovery and statistics</strong>: full-text search by name, multi-filter browsing (subject, semester, tags), and aggregated statistics (popular materials, downloads, view counts, rating averages).</li>
+  <li><strong>Ratings</strong>: 1–5 star ratings with comments; per-material and per-user aggregations.</li>
+</ul>
+
+<hr />
+
+<h2 id="hexagonal-architecture">Hexagonal Architecture</h2>
+
+<pre><code class="language-mermaid">graph TB
+    subgraph Domain["Domain (core)"]
+        MS["MaterialService\nbusiness logic"]
+    end
+
+    subgraph Ports["Ports (interfaces)"]
+        SP["StoragePort\n«interface»"]
+        MBP["MessageBusPort\n«interface»"]
+    end
+
+    subgraph StorageAdapters["Storage Adapters"]
+        AB["AzureBlobAdapter\n@azure/storage-blob"]
+        S3["S3Adapter\n@aws-sdk/client-s3"]
+    end
+
+    subgraph BusAdapters["Message Bus Adapters"]
+        ASB["AzureServiceBusAdapter\n@azure/service-bus"]
+        RMQ["RabbitMQAdapter\namqplib"]
+    end
+
+    subgraph Infra["Infrastructure"]
+        CM["CommonModule\nfactory: env var → adapter"]
+        DB["PostgreSQL\nvia Prisma"]
+    end
+
+    MS --&gt;|uses| SP
+    MS --&gt;|uses| MBP
+    SP -.-&gt;|implemented by| AB
+    SP -.-&gt;|implemented by| S3
+    MBP -.-&gt;|implemented by| ASB
+    MBP -.-&gt;|implemented by| RMQ
+    CM --&gt;|provides| SP
+    CM --&gt;|provides| MBP
+    MS --&gt;|persists| DB
+</code></pre>
+
+<hr />
+
+<h2 id="provider-selection">Provider Selection</h2>
+
+<pre><code class="language-mermaid">flowchart LR
+    subgraph ENV["Environment Variables"]
+        SP["STORAGE_PROVIDER\nazure | s3"]
+        MP["MESSAGE_BUS_PROVIDER\nazure | rabbitmq"]
+    end
+
+    subgraph Storage["Storage"]
+        SP --&gt;|azure| AZ["Azure Blob Storage"]
+        SP --&gt;|s3| S3b["AWS S3"]
+    end
+
+    subgraph Bus["Messaging"]
+        MP --&gt;|azure| SB["Azure Service Bus"]
+        MP --&gt;|rabbitmq| RMQb["RabbitMQ"]
+    end
+
+    note["Switching providers requires\nonly .env change + restart.\nNo code change, no recompilation."]
+</code></pre>
+
+<hr />
+
+<h2 id="system-architecture">System Architecture</h2>
+
+<pre><code class="language-mermaid">graph TB
+    subgraph Clients["Clients"]
+        User["User (browser / app)"]
+        AI["AI Validation Service\n(external)"]
+    end
+
+    subgraph MaterialsService["Materials Service — NestJS 11"]
+        subgraph Controllers["Controllers"]
+            MC["MaterialController\n22 REST endpoints"]
+            PC["PdfExportController\nstats → PDF"]
+        end
+        JwtGuard2["JwtGuard\nHS256 validation"]
+        Svc["MaterialService\nbusiness logic"]
+        CommonMod["CommonModule\nadapter factory"]
+        Prisma["PrismaService"]
+    end
+
+    subgraph External2["External Providers"]
+        AzBlob["Azure Blob Storage\nor AWS S3"]
+        AzBus["Azure Service Bus\nor RabbitMQ"]
+        PG2[("PostgreSQL")]
+    end
+
+    User --&gt;|"REST + Bearer JWT"| JwtGuard2
+    JwtGuard2 --&gt; Controllers
+    Controllers --&gt; Svc
+    Svc --&gt; CommonMod
+    CommonMod --&gt;|StoragePort| AzBlob
+    CommonMod --&gt;|MessageBusPort| AzBus
+    AzBus &lt;--&gt;|"material.process / material.responses"| AI
+    Svc --&gt; Prisma
+    Prisma --&gt; PG2
+</code></pre>
+
+<hr />
+
+<h2 id="material-upload-flow">Material Upload Flow</h2>
+
+<pre><code class="language-mermaid">sequenceDiagram
+    actor U as User
+    participant C as MaterialController
+    participant S as MaterialService
+    participant ST as StoragePort
+    participant MB as MessageBusPort
+    participant IA as AI Service (external)
+    participant DB as PostgreSQL
+
+    U-&gt;&gt;C: POST /material (PDF buffer + metadata)
+    C-&gt;&gt;C: validate MIME type = application/pdf
+    C-&gt;&gt;S: validateMaterial(buffer, dto, filename)
+
+    S-&gt;&gt;S: SHA-256(buffer) → hash
+    S-&gt;&gt;DB: SELECT WHERE hash = ?
+    DB--&gt;&gt;S: null (no duplicate)
+
+    S-&gt;&gt;ST: upload(buffer, filename, contentType)
+    ST--&gt;&gt;S: fileUrl
+
+    S-&gt;&gt;MB: send("material.process", { fileUrl, filename }, correlationId)
+    MB--&gt;&gt;IA: message enqueued
+
+    IA--&gt;&gt;MB: response on "material.responses"
+    MB--&gt;&gt;S: onMessage(body, correlationId)
+
+    alt PDF valid
+        S-&gt;&gt;DB: INSERT Materiales + Tags + Resumen
+        S-&gt;&gt;MB: send("mail.envio.individual", { email, template })
+        S--&gt;&gt;C: CreateMaterialResponseDto
+        C--&gt;&gt;U: 201 Created
+    else PDF invalid
+        S-&gt;&gt;ST: delete(fileUrl)
+        S--&gt;&gt;C: UnprocessableEntityException
+        C--&gt;&gt;U: 422 Unprocessable Entity
+    end
+</code></pre>
+
+<hr />
+
+<h2 id="deduplication-flow">Deduplication Flow</h2>
+
+<pre><code class="language-mermaid">flowchart TD
+    Upload2["POST /material (PDF buffer)"]
+    Hash["Compute SHA-256(buffer)"]
+    Lookup["SELECT * FROM Materiales WHERE hash = ?"]
+    Found{"Duplicate\nfound?"}
+    Reject["409 Conflict\nDuplicate material"]
+    Continue["Continue upload flow"]
+
+    Upload2 --&gt; Hash --&gt; Lookup --&gt; Found
+    Found --&gt;|yes| Reject
+    Found --&gt;|no| Continue
+</code></pre>
+
+<hr />
+
+<h2 id="package-structure">Package Structure</h2>
+
+<pre><code class="language-mermaid">graph TD
+    AppModule2["AppModule"]
+    MaterialModule["MaterialModule"]
+    CommonModule2["CommonModule\nadapter factory"]
+    PrismaModule2["PrismaModule"]
+    PdfModule["PdfExportModule"]
+    AuthMod["AuthModule\nJwtGuard"]
+    Config2["config/env.ts\nJoi validation"]
+
+    AppModule2 --&gt; MaterialModule
+    AppModule2 --&gt; CommonModule2
+    AppModule2 --&gt; PrismaModule2
+    AppModule2 --&gt; PdfModule
+    AppModule2 --&gt; AuthMod
+    AppModule2 --&gt; Config2
+
+    MaterialModule --&gt; MC2["material.controller.ts\n22 endpoints"]
+    MaterialModule --&gt; MS2["material.service.ts\nbusiness logic"]
+    MaterialModule --&gt; DTO2["dto/\nrequest + response DTOs"]
+    MaterialModule --&gt; Entities["entities/\ndomain entities"]
+
+    CommonModule2 --&gt; Ports2["ports/\nStoragePort\nMessageBusPort"]
+    CommonModule2 --&gt; Adapters["adapters/\nazure-blob  s3\nazure-service-bus  rabbitmq"]
+</code></pre>
+
+<hr />
+
+<h2 id="data-model">Data Model</h2>
+
+<pre><code class="language-mermaid">erDiagram
+    usuarios {
+        string id PK
+        string email
+        string nombre
+        string apellido
+        string telefono
+        string biografia
+        int semestre
+        string google_id
+        string avatar_url
+        int rol_id
+        int estado_id
+        datetime ultimo_login
+        datetime created_at
+        datetime updated_at
+    }
+
+    Materiales {
+        string id PK
+        string nombre
+        string userId FK
+        string url
+        string extension
+        string descripcion
+        int vistos
+        int descargas
+        string hash
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    Tags {
+        int id PK
+        string tag
+    }
+
+    MaterialTags {
+        int idTag FK
+        string idMaterial FK
+    }
+
+    Calificaciones {
+        int id PK
+        string idMaterial FK
+        string userId FK
+        int calificacion
+        string comentario
+        datetime createdAt
+    }
+
+    Resumen {
+        int id PK
+        string idMaterial FK
+        string resumen
+    }
+
+    usuarios ||--o{ Materiales : "uploads"
+    usuarios ||--o{ Calificaciones : "rates"
+    Materiales ||--o{ MaterialTags : "has"
+    Tags ||--o{ MaterialTags : "groups"
+    Materiales ||--o{ Calificaciones : "receives"
+    Materiales ||--o{ Resumen : "generates"
+</code></pre>
+
+<hr />
+
+<h2 id="cicd-pipeline">CI/CD Pipeline</h2>
+
+<pre><code class="language-mermaid">flowchart TD
+    Push["Push / PR"]
+    Branch{"Branch"}
+    Build["build.yml\nSonarQube + coverage"]
+    Publish["publish.yml\nDocker → GHCR"]
+
+    Push --&gt; Branch
+    Branch --&gt;|develop or PR| Build
+    Branch --&gt;|main or develop| Publish
+
+    Build --&gt; B1["Checkout"]
+    B1 --&gt; B2["Setup Node 20"]
+    B2 --&gt; B3["npm ci"]
+    B3 --&gt; B4["npm run test:cov\n144 tests"]
+    B4 --&gt; B5["SonarQube Scan\nwith coverage/lcov.info"]
+
+    Publish --&gt; D1["Checkout"]
+    D1 --&gt; D2["Docker meta\nsha + branch tags"]
+    D2 --&gt; D3["Login GHCR"]
+    D3 --&gt; D4["Build &amp; Push\nghcr.io/dosw2025/wise_banco_material"]
+</code></pre>
+
+<hr />
+
+<h2 id="endpoints">Endpoints</h2>
+
+<h3 id="materials-material">Materials (<code class="language-plaintext highlighter-rouge">/material</code>)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material</code></td>
+      <td>Upload a new PDF — AI validation, deduplication</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material</code></td>
+      <td>List all materials (paginated)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/search</code></td>
+      <td>Search by name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/filter</code></td>
+      <td>Advanced filter (subject, semester, tags, sort)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/sorted/by-date</code></td>
+      <td>List sorted by upload date</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/stats/popular</code></td>
+      <td>Top most-viewed materials</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/stats/count</code></td>
+      <td>Total material count</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/stats/tags-percentage</code></td>
+      <td>Global tag distribution</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/:id</code></td>
+      <td>Material detail</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/:id/download</code></td>
+      <td>Download PDF stream</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PUT</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/:id</code></td>
+      <td>Update metadata or replace file</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/:id</code></td>
+      <td>Delete material and remove cloud blob</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/:id/ratings</code></td>
+      <td>Rate a material (1–5 stars)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/:id/ratings</code></td>
+      <td>Average rating and total count</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/:id/ratings/list</code></td>
+      <td>Full list of ratings with comments</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/user/:userId</code></td>
+      <td>All materials by a user with stats</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/user/:userId/stats</code></td>
+      <td>Aggregated upload statistics</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/user/:userId/top-downloaded</code></td>
+      <td>User’s top 3 most downloaded</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/user/:userId/top-viewed</code></td>
+      <td>User’s top 3 most viewed</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/user/:userId/top</code></td>
+      <td>All user materials sorted by popularity</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/user/:userId/average-rating</code></td>
+      <td>User’s average rating</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/material/user/:userId/tags-percentage</code></td>
+      <td>User’s tag distribution</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="pdf-export-pdf-export">PDF Export (<code class="language-plaintext highlighter-rouge">/pdf-export</code>)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/pdf-export/:id/stats/export</code></td>
+      <td>Export material statistics as a PDF</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="deployment">Deployment</h2>
+
+<h3 id="environment-variables">Environment Variables</h3>
+
+<pre><code class="language-env">NODE_ENV=development
+PORT=3000
+SWAGGER_ENABLED=true
+
+STORAGE_PROVIDER=azure          # azure | s3
+BLOB_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=...
+BLOB_STORAGE_ACCOUNT_NAME=your-account-name
+
+# AWS S3 (only if STORAGE_PROVIDER=s3)
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
+S3_BUCKET_NAME=your-bucket-name
+
+MESSAGE_BUS_PROVIDER=azure      # azure | rabbitmq
+SERVICE_BUS_CONNECTION_STRING=Endpoint=sb://your-namespace...
+
+# RabbitMQ (only if MESSAGE_BUS_PROVIDER=rabbitmq)
+RABBITMQ_URL=amqp://user:password@localhost:5672
+
+DATABASE_URL=postgresql://user:pass@host:5432/db?schema=public
+DIRECT_URL=postgresql://user:pass@host:5432/db?schema=public
+</code></pre>
+
+<h3 id="local-execution">Local Execution</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cp</span> .env.template .env
+npm <span class="nb">install
+</span>npx prisma generate
+npm run start:dev
+</code></pre></div></div>
+
+<h3 id="api-documentation">API Documentation</h3>
+
+<p>Swagger is available at <code class="language-plaintext highlighter-rouge">http://localhost:3000/api</code> when <code class="language-plaintext highlighter-rouge">SWAGGER_ENABLED=true</code>.</p>
+
+<hr />
+
+<h2 id="further-reading">Further Reading</h2>
+
+<ul>
+  <li>Source repository: <a href="https://github.com/EciWise/materials">EciWise/materials</a></li>
+  <li>Port interfaces: <code class="language-plaintext highlighter-rouge">src/common/ports/</code></li>
+  <li>Prisma schema: <code class="language-plaintext highlighter-rouge">prisma/schema.prisma</code></li>
+  <li>Swagger: <code class="language-plaintext highlighter-rouge">/api</code> at runtime</li>
+</ul>
+
+			<div class="page-footer">
+				<span>ECIWise Wiki</span>
+				<div>
+				
+				
+				</div>
+			</div>
+		</article>
+	</div>
+
+	<script type="module">
+		import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+		mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+		document.querySelectorAll('pre > code.language-mermaid').forEach(function(el) {
+			const div = document.createElement('div');
+			div.className = 'mermaid';
+			div.textContent = el.textContent;
+			el.parentNode.parentNode.replaceChild(div, el.parentNode);
+		});
+		mermaid.run();
+	</script>
+
+	<script>
+		function toggleSidebar() {
+			var sidebar = document.getElementById('sidebar');
+			var scrim   = document.getElementById('sidebar-scrim');
+			var isOpen  = sidebar.classList.toggle('open');
+			scrim.classList.toggle('visible', isOpen);
+			document.body.style.overflow = isOpen ? 'hidden' : '';
+		}
+
+		function closeSidebar() {
+			document.getElementById('sidebar').classList.remove('open');
+			document.getElementById('sidebar-scrim').classList.remove('visible');
+			document.body.style.overflow = '';
+		}
+
+		document.addEventListener('keydown', function(e) {
+			if (e.key === 'Escape') closeSidebar();
+		});
+
+		document.querySelectorAll('#sidebar .nav-section a').forEach(function(link) {
+			link.addEventListener('click', function() {
+				if (window.innerWidth < 900) closeSidebar();
+			});
+		});
+	</script>
+</body>
+</html>
