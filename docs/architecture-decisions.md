@@ -9,7 +9,7 @@ This page documents the key architectural decisions made throughout the ECIWise 
 
 ---
 
-## ADR-001 — Microservice Architecture
+## ADR-001 — Microservice Architecture + Event-Driven Architecture
 
 **Status:** Accepted
 
@@ -17,43 +17,73 @@ This page documents the key architectural decisions made throughout the ECIWise 
 
 ECIWise needed to support multiple independent domains: authentication, tutoring scheduling, academic materials, real-time chat, study practice, gamification, notifications, and AI predictions. A monolith would couple these domains, slow down team development, and make independent scaling impossible.
 
+Beyond isolation, several cross-domain concerns required one service to react to what happens in another — a confirmed booking should trigger a notification, a completed tutoring session should award gamification points, a student registration should dispatch a prediction request to the AI workers. Solving this with direct HTTP calls between services would create tight temporal coupling: if the notification service is down, the booking would fail. That is not acceptable.
+
 ### Decision
 
-Build each domain as an independent microservice with its **own database, own deployment, and own technology stack**. Services communicate synchronously via JWT-authenticated REST, and asynchronously via RabbitMQ for domain events.
+ECIWise combines two complementary architectural styles:
+
+**Microservice Architecture** — each domain is an independent service with its own database, deployment, and technology stack. No shared database. No direct inter-service database access.
+
+**Event-Driven Architecture** — services that produce significant domain events publish them to RabbitMQ. Interested services subscribe independently. Producers do not know who consumes their events. This decouples services in time and space: a consumer being down does not fail the producer.
+
+These two styles are not alternatives — microservices define the *decomposition boundary*, event-driven defines the *communication model* between those boundaries.
 
 ```mermaid
 graph TB
-  subgraph Services["Domain Services — each owns its own database"]
+  FE["Angular Frontend"]
+
+  subgraph Sync["Synchronous — REST + JWT"]
     AUTH["wise_auth"]
     TUT["tutoring"]
     MAT["materials"]
-    NOTIF["notifications"]
     STUDY["study"]
     TALK["talk"]
     TODO["todo"]
-    GAMIF["gamification"]
     GAME["game"]
     COMM["community"]
-    AI_D["AI dropout"]
-    AI_P["AI performance"]
   end
 
-  RMQ["RabbitMQ\nasync events"]
-  FE["Angular Frontend"]
+  subgraph AsyncBus["Asynchronous — RabbitMQ (Event Bus)"]
+    RMQ[["RabbitMQ\ndomain events"]]
+  end
 
-  FE -->|Bearer JWT| AUTH
-  FE -->|Bearer JWT| TUT & MAT & NOTIF & STUDY
-  FE -->|Bearer JWT| TALK & TODO & GAMIF & GAME & COMM
+  subgraph Consumers["Event Consumers"]
+    NOTIF["notifications\n(individual · rol · masivo)"]
+    GAMIF["gamification\n(points · achievements)"]
+    AI_D["AI dropout worker"]
+    AI_P["AI performance worker"]
+  end
 
-  AUTH -->|issues JWT| FE
-  AUTH & TUT & MAT & COMM -->|domain events| RMQ
-  RMQ --> NOTIF & GAMIF & AI_D & AI_P
+  FE -->|"Bearer JWT (REST)"| AUTH & TUT & MAT & STUDY
+  FE -->|"Bearer JWT (REST)"| TALK & TODO & GAME & COMM
+
+  AUTH -->|"auth events\n(register, role change)"| RMQ
+  AUTH -->|"ia.requests\n(rendimiento, desercion)"| RMQ
+  TUT -->|"tutoring events\n(booking confirmed, cancelled, completed)"| RMQ
+  MAT -->|"material events\n(upload, rating)"| RMQ
+  COMM -->|"community events\n(mention, new post)"| RMQ
+
+  RMQ -->|"notification.*"| NOTIF
+  RMQ -->|"gamification events"| GAMIF
+  RMQ -->|"ia.rendimiento.requests"| AI_P
+  RMQ -->|"ia.desercion.requests"| AI_D
 ```
+
+**When each communication style is used:**
+
+| Scenario | Style | Reason |
+|----------|-------|--------|
+| Frontend requests data or actions | REST + JWT | Synchronous, needs immediate response |
+| Booking confirmed → send email | Event-driven | Notification service failure must not fail the booking |
+| Session completed → award points | Event-driven | Gamification is a side effect, not part of the booking transaction |
+| Student registers → trigger AI prediction | Event-driven | Prediction is async; result arrives via a separate results exchange |
+| `wise_auth` issues token → any service validates it | JWT local validation | No inter-service call needed at request time |
 
 ### Consequences
 
-- **Good:** Independent deployments, isolated failures, team autonomy per service, technology flexibility.
-- **Accepted cost:** Operational complexity; distributed tracing and observability require explicit tooling. JWT-based JIT user provisioning avoids inter-service user-sync calls.
+- **Good:** Services are decoupled in time — a consumer being unavailable does not affect the producer. New consumers can subscribe to existing events with zero changes to producers. REST gives fast, predictable responses for user-facing interactions.
+- **Accepted cost:** Eventual consistency — the gamification or notification side effect may arrive milliseconds after the main action completes. Requires RabbitMQ cluster monitoring and dead-letter queue handling for failed deliveries.
 
 ---
 
