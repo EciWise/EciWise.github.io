@@ -62,6 +62,10 @@
 						
 					
 						
+							<li><a href="/docs/architecture-decisions.html" >Architecture Decisions</a></li>
+						
+					
+						
 					
 						
 					
@@ -97,6 +101,8 @@
 					
 						
 							<li><a href="/how/ai-service.html" >AI Service</a></li>
+						
+					
 						
 					
 						
@@ -219,7 +225,7 @@
 		<article>
 			<h1 id="eciwise">ECIWise<span class="eci-logo__plus-word">+</span></h1>
 
-<p>Plataforma institucional de apoyo al aprendizaje para estudiantes de Ingeniería de Sistemas de la ECI.</p>
+<p>Institutional academic support platform for Systems Engineering students at ECI.</p>
 
 <div style="width:140px;height:140px;margin:2rem auto;display:flex;align-items:center;justify-content:center;">
   <svg viewBox="0 0 48 48" width="140" height="140" aria-label="ECIWise">
@@ -227,37 +233,254 @@
     <path d="M24 17 V31 M17 24 H31" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
   </svg>
 </div>
-<hr />
-
-<h2 id="qué-es-eciwise">Qué es ECIWise</h2>
-
-<p>ECIWise es una plataforma institucional digital que centraliza y mejora el acceso de los estudiantes de Ingeniería de Sistemas de la ECI a herramientas de apoyo académico, integrando tutorías virtuales y presenciales, estudio interactivo, gamificación, comunicación y recomendaciones basadas en inteligencia artificial.</p>
 
 <hr />
 
-<h2 id="problema">Problema</h2>
+<h2 id="what-is-eciwise">What is ECIWise</h2>
+
+<p>ECIWise is an institutional digital platform that centralizes and improves access for Systems Engineering students at ECI to academic support tools, integrating virtual and in-person tutoring, interactive study, gamification, communication, and AI-based recommendations.</p>
+
+<hr />
+
+<h2 id="problem">Problem</h2>
 
 <ul>
-  <li>Los horarios de monitores están publicados físicamente pero no hay forma de consultarlos digitalmente.</li>
-  <li>El estudiante debe ir físicamente al salón sin saber si habrá cupo disponible.</li>
-  <li>No hay modalidad virtual para tutorías, todo es presencial.</li>
-  <li>El formulario de satisfacción es manual y no genera estadísticas útiles.</li>
-  <li>No hay historial de tutorías ni seguimiento del progreso del estudiante.</li>
-  <li>El estudiante no puede elegir el monitor según su reputación o especialidad.</li>
-  <li>No hay notificaciones de cambios de horario o cancelaciones.</li>
-  <li>No existe un ecosistema que integre estudio, comunicación y tutorías en un solo lugar.</li>
-  <li>No existe una herramienta institucional donde el estudiante pueda practicar y prepararse para parciales con preguntas propias de la ECI.</li>
+  <li>Monitor schedules are posted physically with no way to consult them digitally.</li>
+  <li>Students must go to the classroom in person without knowing if spots are available.</li>
+  <li>There is no virtual modality for tutoring — everything is in-person.</li>
+  <li>The satisfaction form is manual and generates no useful statistics.</li>
+  <li>There is no tutoring history or student progress tracking.</li>
+  <li>Students cannot choose a monitor based on reputation or specialty.</li>
+  <li>There are no notifications for schedule changes or cancellations.</li>
+  <li>There is no ecosystem that integrates study, communication, and tutoring in one place.</li>
+  <li>There is no institutional tool where students can practice with ECI-specific exam questions.</li>
 </ul>
 
 <hr />
 
-<h2 id="objetivo-general">Objetivo General</h2>
+<h2 id="general-objective">General Objective</h2>
 
-<p>Desarrollar una plataforma institucional digital que centralice y mejore el acceso de los estudiantes de Ingeniería de Sistemas de la ECI a herramientas de apoyo académico, integrando tutorías virtuales y presenciales, estudio interactivo, gamificación, comunicación y recomendaciones basadas en inteligencia artificial, con el fin de fortalecer el aprendizaje, el acompañamiento estudiantil y reducir la deserción académica.</p>
+<p>To develop an institutional digital platform that centralizes and improves access for Systems Engineering students at ECI to academic support tools — integrating virtual and in-person tutoring, interactive study, gamification, communication, and AI-based recommendations — in order to strengthen learning, academic support, and reduce student dropout.</p>
 
 <hr />
 
-<h2 id="equipo">Equipo</h2>
+<h2 id="system-architecture">System Architecture</h2>
+
+<p>ECIWise is built as a <strong>microservice architecture</strong>. Each service owns its own database and communicates asynchronously via RabbitMQ (and Azure Service Bus) for domain events. The Angular frontend authenticates through <code class="language-plaintext highlighter-rouge">wise_auth</code>, which issues HS256 JWTs validated locally by every downstream service — no round-trip to auth per request.</p>
+
+<pre><code class="language-mermaid">graph TB
+  FE["Angular Frontend\nECIWISE-Front"]
+
+  subgraph Auth["Identity &amp; Auth"]
+    WISE_AUTH["wise_auth\nNestJS · JWT HS256\nOAuth 2.0 Google · bcrypt\n─────\nown PostgreSQL"]
+  end
+
+  subgraph Domain["Domain Microservices — each owns its own database"]
+    TUT["tutoring\nNestJS · Hexagonal + DDD\nown PostgreSQL"]
+    MAT["materials\nNestJS · Hexagonal\nown PostgreSQL\nAzure Blob / S3"]
+    NOTIF["notifications\nNestJS · Hexagonal\nown PostgreSQL · SendGrid"]
+    STUDY["study\nSpring Boot\nown PostgreSQL"]
+    TALK["talk\nSpring Boot · WebSocket\nown PostgreSQL"]
+    TODO["todo\nSpring Boot\nown PostgreSQL"]
+    GAMIF["gamification\n.NET · C#\nown PostgreSQL"]
+    GAME["game\nGo · WebSocket\nin-memory state"]
+    COMM["community\nNestJS\nown PostgreSQL"]
+    AI_D["AI dropout\nPython worker"]
+    AI_P["AI performance\nPython worker"]
+  end
+
+  subgraph Broker["Async Messaging"]
+    RMQ["RabbitMQ\n(primary event bus)"]
+    ASB["Azure Service Bus\n(alternative / production)"]
+  end
+
+  subgraph External["External"]
+    SG["SendGrid\nEmail delivery"]
+    GOOGLE["Google OAuth 2.0"]
+  end
+
+  FE --&gt;|"Bearer JWT"| WISE_AUTH
+  FE --&gt;|"Bearer JWT"| TUT &amp; MAT &amp; STUDY &amp; TALK &amp; TODO
+  FE --&gt;|"Bearer JWT"| GAMIF &amp; GAME &amp; COMM &amp; NOTIF
+
+  WISE_AUTH --&gt;|"Issues JWT"| FE
+  WISE_AUTH -.-&gt;|OAuth| GOOGLE
+
+  TUT --&gt;|"tutoring events\n(booking, cancel, complete)"| RMQ
+  MAT --&gt;|"material events\n(upload, rating)"| RMQ
+  COMM --&gt;|"community events\n(forum, mention)"| RMQ
+  WISE_AUTH --&gt;|"auth events\n(register, role change)"| RMQ
+  WISE_AUTH --&gt;|"ia.requests (rendimiento / desercion)"| RMQ
+
+  TUT &amp; MAT &amp; COMM &amp; WISE_AUTH --&gt;|"notification queues"| ASB
+
+  RMQ --&gt; NOTIF
+  RMQ --&gt; AI_D &amp; AI_P
+  ASB --&gt; NOTIF
+  NOTIF --&gt; SG
+</code></pre>
+
+<hr />
+
+<h2 id="services">Services</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Service</th>
+      <th>Technology</th>
+      <th>Architecture</th>
+      <th>Responsibility</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">wise_auth</code></td>
+      <td>NestJS · Prisma · JWT HS256</td>
+      <td>Hexagonal</td>
+      <td>Authentication, registration, Google OAuth, JWT issuance, AI data, predictions</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tutoring</code></td>
+      <td>NestJS · Prisma</td>
+      <td>Hexagonal + DDD + Vertical Slicing</td>
+      <td>Tutor availability, slot materialization, bookings, cancellations</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">materials</code></td>
+      <td>NestJS · Prisma</td>
+      <td>Hexagonal</td>
+      <td>PDF repository, AI validation, cloud storage (Azure Blob / S3)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">notifications</code></td>
+      <td>NestJS · Prisma · SendGrid</td>
+      <td>Hexagonal</td>
+      <td>Transactional emails, in-app notification persistence</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">todo</code></td>
+      <td>Spring Boot · JPA</td>
+      <td>Hexagonal</td>
+      <td>Task and pending items management</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">gamification</code></td>
+      <td>.NET 10 · C#</td>
+      <td>Hexagonal (Clean Arch)</td>
+      <td>Points, achievements, leaderboard, reputation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">study</code></td>
+      <td>Spring Boot · JPA</td>
+      <td>Layered</td>
+      <td>Flashcards, Kahoot-style quiz, study history</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">talk</code></td>
+      <td>Spring Boot · WebSocket · Redis · MinIO</td>
+      <td>Layered</td>
+      <td>Real-time chat, conversations, reactions, attachments</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">game</code></td>
+      <td>Go · WebSocket</td>
+      <td>Event-driven goroutines</td>
+      <td>Real-time multiplayer game server (in-memory)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">community</code></td>
+      <td>NestJS</td>
+      <td>—</td>
+      <td>Forums, threads, replies, moderation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AI dropout</code></td>
+      <td>Python · RabbitMQ</td>
+      <td>Worker</td>
+      <td>Dropout risk prediction (22-feature model)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AI performance</code></td>
+      <td>Python · RabbitMQ</td>
+      <td>Worker</td>
+      <td>Academic performance prediction (11-feature model)</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="authentication-flow">Authentication Flow</h2>
+
+<pre><code class="language-mermaid">sequenceDiagram
+  participant U as User
+  participant FE as Frontend
+  participant AUTH as wise_auth
+  participant SVC as Any Microservice
+
+  U-&gt;&gt;FE: Login (email/password or Google OAuth)
+  FE-&gt;&gt;AUTH: POST /auth/login or GET /auth/google
+  AUTH--&gt;&gt;FE: Signed JWT { sub, email, nombre, apellido, rol }
+  FE-&gt;&gt;SVC: Request + Authorization: Bearer JWT
+  SVC-&gt;&gt;SVC: Validate JWT locally (HS256, no HTTP call to auth)
+  SVC--&gt;&gt;FE: Response
+</code></pre>
+
+<p>Every microservice validates the token locally using the shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code>. The <code class="language-plaintext highlighter-rouge">userId</code> is always extracted from the <code class="language-plaintext highlighter-rouge">sub</code> claim — never from the URL.</p>
+
+<hr />
+
+<h2 id="event-flow-rabbitmq">Event Flow (RabbitMQ)</h2>
+
+<pre><code class="language-mermaid">sequenceDiagram
+  participant P as Producer Service
+  participant RMQ as RabbitMQ
+  participant NOTIF as Notifications Service
+  participant SG as SendGrid
+  participant GAMIF as Gamification Service
+
+  P-&gt;&gt;RMQ: Publish domain event (booking confirmed, material uploaded, mention…)
+  RMQ-&gt;&gt;NOTIF: notification.individual / notification.rol / notification.masivo
+  NOTIF-&gt;&gt;SG: Send transactional email
+  NOTIF-&gt;&gt;NOTIF: Persist in-app notification (PostgreSQL)
+  RMQ-&gt;&gt;GAMIF: gamification event (points, achievement trigger)
+</code></pre>
+
+<hr />
+
+<h2 id="roles">Roles</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Value</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Student</td>
+      <td><code class="language-plaintext highlighter-rouge">estudiante</code></td>
+      <td>Default on registration. Access to tutoring, study, chat, forums, materials, and AI.</td>
+    </tr>
+    <tr>
+      <td>Tutor / Monitor</td>
+      <td><code class="language-plaintext highlighter-rouge">tutor</code></td>
+      <td>Manages availability and conducts tutoring sessions. Assigned by admin.</td>
+    </tr>
+    <tr>
+      <td>Administrator</td>
+      <td><code class="language-plaintext highlighter-rouge">admin</code></td>
+      <td>Full access. Manages users, content, and institutional statistics.</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="team">Team</h2>
 
 <ul>
   <li>Daniel Eduardo Useche Pinilla</li>

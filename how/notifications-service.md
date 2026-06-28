@@ -7,291 +7,400 @@ title: Notifications Service
 
 ## Overview
 
-The `notifications` service is the asynchronous messaging and email delivery backbone of the ECIWISE platform. It consumes events from multiple upstream microservices via message queues, renders Handlebars email templates with i18n support, sends emails through SendGrid, and persists notifications in PostgreSQL for REST API consumption.
+The `notifications` service is the asynchronous messaging and email delivery backbone of the ECIWISE platform. It follows a **hexagonal (ports and adapters)** architecture: the domain core defines port interfaces, the application layer orchestrates use cases, and the infrastructure layer wires concrete adapters — none of which the domain or application layers know about directly.
 
-- **Email Delivery**: Sends transactional emails (individual, role-based, and mass) via the SendGrid API with configurable sender identity and template-driven content.
-- **Template Engine**: Maintains 17 Handlebars HTML templates covering authentication events, tutoring lifecycle, materials, chat, and forum activity — with optional internationalization (es, en, de, pt, fr).
-- **Message Queue Consumer**: Consumes from Azure Service Bus or RabbitMQ (selectable at runtime) with a strategy-based broker abstraction, two-layer message validation, and dual action flags (`mandarCorreo` + `guardar`).
-
----
-
-## Notification Flow
-
-The notification lifecycle begins when an upstream service (Community, Materials, or Tutorships) publishes a message to a shared queue. The service validates the envelope and data, resolves the appropriate template, sends the email via SendGrid, and optionally persists a notification record in the database.
-
-[![Notification Lifecycle](notifications/cicloNotificacion.png)](notifications/cicloNotificacion.png)
-
-A notification passes through three phases:
-
-1. **Received** — The message enters via Azure Service Bus or RabbitMQ.
-2. **Validation** — The `NotificationEnvelopeValidator` checks the envelope structure, then a type-specific validator (`IndividualDataValidator`, `RolDataValidator`, or `MasivoDataValidator`) checks the data payload. Invalid messages are ACK'd and discarded with a warning log.
-3. **Processing** — If the user exists in the local database, the service evaluates two independent flags: `mandarCorreo` (send email via SendGrid) and `guardar` (persist a notification record). Both can be true, false, or independently set.
+- **Email Delivery**: Sends transactional emails (individual, role-based, and bulk) via the SendGrid API with configurable sender identity and template-driven content.
+- **Template Engine**: Maintains 17 Handlebars HTML templates covering authentication events, tutoring lifecycle, materials and forum activity — with optional internationalization (es, en, de, pt, fr).
+- **Message Queue Consumer**: Consumes from Azure Service Bus or RabbitMQ (selectable at runtime via `MESSAGING_BROKER`) with two-layer message validation.
+- **REST API**: Exposes notification management endpoints. All user identity is derived from the JWT `sub` claim — never from the URL — preventing IDOR attacks.
 
 ---
 
 ## Architecture
 
-The service follows a **modular NestJS architecture** with a strategy-based broker abstraction. The `MessagingOrchestratorService` selects between `AzureMessagingConsumer` and `RabbitMQMessagingConsumer` at startup based on the `MESSAGING_BROKER` environment variable. Only one broker is active per runtime instance.
+The service is structured as three layers with dependencies always pointing inward toward the domain core. The `NotificationsModule` is the **composition root** that wires each port (DI token) to its concrete adapter.
 
-[![Internal Architecture](notifications/notificacionArquitectura.png)](notifications/notificacionArquitectura.png)
+```mermaid
+graph LR
+  subgraph Driving["Inbound Adapters (Driving)"]
+    HTTP["NotificationController\n[REST /notificacion]"]
+    ORCH["MessagingOrchestratorService\n[selects broker via ENV]"]
+    AZ["AzureMessagingConsumer\n[mail.envio.*]"]
+    RMQ["RabbitMQMessagingConsumer\n[notification.*]"]
+  end
 
-### Runtime Environment
+  subgraph Hexagon["Hexagon — Notifications"]
+    subgraph App["application/ — use cases"]
+      MNS["ManageNotificationsService"]
+      DNS["DispatchNotificationService"]
+    end
+    subgraph Domain["domain/ — pure core, no framework"]
+      PIN["Inbound Ports\nManageNotificationsUseCase\nDispatchNotificationUseCase"]
+      POUT["Outbound Ports\nNotificationRepositoryPort · UserRepositoryPort\nEmailSenderPort · TemplateRendererPort"]
+    end
+  end
 
-The service is built with **NestJS 11** on **TypeScript**, using **Prisma 7** with the `@prisma/adapter-pg` adapter for PostgreSQL connection pooling. Email delivery is handled by **SendGrid** (`@sendgrid/mail` v8.x). Message consumption supports both **Azure Service Bus** (`@azure/service-bus` v7.9.5) and **RabbitMQ** (`amqplib` v2.0.1). Authentication uses **Passport-JWT** with HS256 validation against a shared `JWT_SECRET`.
+  subgraph Driven["Outbound Adapters (Driven)"]
+    PR_N["PrismaNotificationRepository\n[PostgreSQL]"]
+    PR_U["PrismaUserRepository\n[PostgreSQL]"]
+    SG["SendgridEmailSender\n[SendGrid API]"]
+    HBS["HandlebarsTemplateRenderer\n[*.hbs]"]
+  end
+
+  HTTP -->|"ManageNotificationsUseCase"| MNS
+  ORCH -->|"MESSAGING_BROKER=azure"| AZ
+  ORCH -->|"MESSAGING_BROKER=rabbitmq"| RMQ
+  AZ -->|"DispatchNotificationUseCase"| DNS
+  RMQ -->|"DispatchNotificationUseCase"| DNS
+
+  MNS --> POUT
+  DNS --> POUT
+  POUT --> PR_N
+  POUT --> PR_U
+  POUT --> SG
+  POUT --> HBS
+```
+
+### Ports and Adapters
+
+```mermaid
+classDiagram
+  direction LR
+
+  class ManageNotificationsUseCase {
+    <<interface — inbound port>>
+    +findByUser(userId) Notification[]
+    +countUnread(userId) number
+    +countUnreadChat(userId) number
+    +markAllRead(userId) number
+    +markRead(userId, id) Notification
+    +deleteById(userId, id) void
+  }
+  class DispatchNotificationUseCase {
+    <<interface — inbound port>>
+    +userExists(email) boolean
+    +sendIndividual(data, locale?) void
+    +saveIndividual(data) void
+    +sendByRole(data, locale?) void
+    +saveByRole(data) void
+    +sendBulk(emails, data, locale?) void
+  }
+  class NotificationRepositoryPort {
+    <<interface — outbound port>>
+    +findByUser(userId) Notification[]
+    +countUnread(userId) number
+    +countUnreadChat(userId) number
+    +markAllRead(userId) number
+    +markRead(userId, id) Notification
+    +deleteById(userId, id) void
+    +create(notification) void
+  }
+  class UserRepositoryPort {
+    <<interface — outbound port>>
+    +findByEmail(email) NotificationUser
+    +findByRole(role) NotificationUser[]
+  }
+  class EmailSenderPort {
+    <<interface — outbound port>>
+    +sendToRecipient(to, subject, html) void
+    +sendBulk(recipients, subject, html) void
+  }
+  class TemplateRendererPort {
+    <<interface — outbound port>>
+    +render(template, context, locale?) string
+  }
+
+  class ManageNotificationsService
+  class DispatchNotificationService
+  class NotificationController
+  class AzureMessagingConsumer
+  class RabbitMQMessagingConsumer
+  class PrismaNotificationRepository
+  class PrismaUserRepository
+  class SendgridEmailSender
+  class HandlebarsTemplateRenderer
+
+  ManageNotificationsService ..|> ManageNotificationsUseCase : implements
+  DispatchNotificationService ..|> DispatchNotificationUseCase : implements
+  PrismaNotificationRepository ..|> NotificationRepositoryPort : implements
+  PrismaUserRepository ..|> UserRepositoryPort : implements
+  SendgridEmailSender ..|> EmailSenderPort : implements
+  HandlebarsTemplateRenderer ..|> TemplateRendererPort : implements
+
+  NotificationController --> ManageNotificationsUseCase : uses
+  AzureMessagingConsumer --> DispatchNotificationUseCase : uses
+  RabbitMQMessagingConsumer --> DispatchNotificationUseCase : uses
+
+  ManageNotificationsService --> NotificationRepositoryPort : uses
+  DispatchNotificationService --> NotificationRepositoryPort : uses
+  DispatchNotificationService --> UserRepositoryPort : uses
+  DispatchNotificationService --> EmailSenderPort : uses
+  DispatchNotificationService --> TemplateRendererPort : uses
+```
 
 ### Package Structure
 
 ```
-notifications/
-├── src/
-│   ├── alerta/                    # REST API module
-│   │   ├── alerta.controller.ts   # 6 REST endpoints
-│   │   ├── alerta.service.ts      # Email sending, DB CRUD, template rendering
-│   │   ├── dto/                   # Data transfer objects
-│   │   │   ├── notificacion.dto.ts
-│   │   │   ├── rolMail.dto.ts
-│   │   │   └── unicoMail.dto.ts
-│   │   └── enums/
-│   │       ├── template.enum.ts   # 17 template keys → email subjects
-│   │       └── type.enum.ts       # Notification types
-│   ├── auth/                      # JWT authentication
-│   │   ├── jwt.strategy.ts        # HS256 token validation
-│   │   ├── jwt-auth.guard.ts      # Route protection
-│   │   ├── usuarios-sync.service.ts  # JIT user provisioning
-│   │   └── public.decorator.ts    # @Public() decorator
-│   ├── config/
-│   │   └── env.ts                 # Joi-validated environment variables
-│   ├── messaging/                 # Queue consumer layer
-│   │   ├── consumers/
-│   │   │   ├── base-messaging.consumer.ts       # Shared processing logic
-│   │   │   ├── azure-messaging.consumer.ts      # Azure Service Bus consumer
-│   │   │   └── rabbitmq-messaging.consumer.ts   # RabbitMQ consumer
-│   │   ├── contracts/             # Message schemas (Zod)
-│   │   │   ├── notification-envelope.schema.ts
-│   │   │   ├── individual.schema.ts
-│   │   │   ├── rol.schema.ts
-│   │   │   └── masivo.schema.ts
-│   │   ├── interfaces/
-│   │   │   └── messaging-provider.interface.ts  # IMessagingProvider
-│   │   ├── messaging.module.ts
-│   │   └── messaging.orchestrator.ts           # Broker selection
-│   ├── prisma/
-│   │   ├── prisma.module.ts
-│   │   └── prisma.service.ts
-│   ├── templates/                 # 17 Handlebars email templates
-│   │   ├── CancelacionTutoriaEstudiante.hbs
-│   │   ├── CancelacionTutoriaTutor.hbs
-│   │   ├── CompletacionTutoriaEstudiante.hbs
-│   │   ├── CompletacionTutoriaTutor.hbs
-│   │   ├── ConfirmacionTutoriaEstudiante.hbs
-│   │   ├── ConfirmacionTutoriaTutor.hbs
-│   │   ├── RechazoTutoriaEstudiante.hbs
-│   │   ├── RechazoTutoriaTutor.hbs
-│   │   ├── SolicitudTutoriaEstudiante.hbs
-│   │   ├── SolicitudTutoriaTutor.hbs
-│   │   ├── cambioDeRol.hbs
-│   │   ├── cuentaEliminada.hbs
-│   │   ├── mencionRespuesta.hbs
-│   │   ├── mencionThread.hbs
-│   │   ├── nuevoMaterialSubido.hbs
-│   │   ├── nuevoThreadEnForo.hbs
-│   │   └── nuevoUsuario.hbs
-│   ├── app.module.ts
-│   └── main.ts
-├── prisma/
-│   └── schema.prisma
-├── test/
-│   ├── app.e2e-spec.ts
-│   └── jest-e2e.json
-├── dockerfile
-└── package.json
+src/
+├── notifications/                        # Hexagon context (composition root: notifications.module.ts)
+│   ├── domain/                           # Pure core — no framework dependencies
+│   │   ├── model/
+│   │   │   ├── notification.entity.ts    # Notification, NewNotification interfaces
+│   │   │   ├── notification-user.ts      # NotificationUser interface
+│   │   │   ├── notification-type.enum.ts # TypeEnum (info, success, warning, error…)
+│   │   │   ├── template.ts              # TemplateEnum (17 keys)
+│   │   │   └── locale.ts                # SupportedLocale type
+│   │   └── ports/
+│   │       ├── inbound/
+│   │       │   ├── manage-notifications.use-case.ts    # ManageNotificationsUseCase
+│   │       │   └── dispatch-notification.use-case.ts   # DispatchNotificationUseCase
+│   │       └── outbound/
+│   │           ├── notification-repository.port.ts     # NotificationRepositoryPort
+│   │           ├── user-repository.port.ts             # UserRepositoryPort
+│   │           ├── email-sender.port.ts                # EmailSenderPort
+│   │           └── template-renderer.port.ts           # TemplateRendererPort
+│   ├── application/                      # Use cases — depend only on port interfaces
+│   │   ├── manage-notifications.service.ts
+│   │   └── dispatch-notification.service.ts
+│   ├── infrastructure/
+│   │   ├── inbound/                      # Driving adapters
+│   │   │   ├── http/
+│   │   │   │   ├── notification.controller.ts
+│   │   │   │   └── dto/notificacion.dto.ts
+│   │   │   └── messaging/
+│   │   │       ├── consumers/
+│   │   │       │   ├── base-messaging.consumer.ts
+│   │   │       │   ├── azure-messaging.consumer.ts
+│   │   │       │   └── rabbitmq-messaging.consumer.ts
+│   │   │       ├── contracts/            # Zod schemas: envelope, individual, rol, masivo
+│   │   │       ├── messaging.orchestrator.ts
+│   │   │       └── messaging-provider.port.ts
+│   │   └── outbound/                     # Driven adapters
+│   │       ├── persistence/
+│   │       │   ├── prisma-notification.repository.ts
+│   │       │   └── prisma-user.repository.ts
+│   │       ├── email/
+│   │       │   └── sendgrid-email-sender.adapter.ts
+│   │       └── templating/
+│   │           └── handlebars-template-renderer.adapter.ts
+│   └── notifications.module.ts           # Composition root: ports → adapters via DI
+├── auth/                                 # Shared infra: JWT strategy, guard, JIT provisioning
+├── config/env.ts                         # Joi-validated environment variables
+├── prisma/prisma.service.ts              # Shared Prisma singleton
+├── templates/                            # 17 Handlebars email templates
+├── app.module.ts
+└── main.ts
 ```
 
-### Runtime Dependencies
+### Runtime Environment
 
-| Dependency | Version | Purpose |
-|------------|---------|---------|
-| `@nestjs/common` | ^11.1.8 | NestJS core framework |
-| `@nestjs/core` | ^11.0.1 | NestJS core framework |
-| `@nestjs/jwt` | ^11.0.2 | JWT token handling |
-| `@nestjs/passport` | ^11.0.5 | Passport.js integration |
-| `@nestjs/swagger` | ^11.2.1 | API documentation (Swagger) |
-| `@prisma/client` | ^7.0.1 | Database ORM |
-| `@prisma/adapter-pg` | ^7.1.0 | PostgreSQL adapter for Prisma 7 |
-| `@azure/service-bus` | ^7.9.5 | Azure Service Bus client |
-| `amqplib` | ^2.0.1 | RabbitMQ client |
-| `@sendgrid/mail` | ^8.1.6 | SendGrid email API |
-| `class-validator` | ^0.14.2 | DTO validation |
-| `class-transformer` | ^0.5.1 | Object transformation |
-| `joi` | ^18.0.1 | Environment variable validation |
-| `passport-jwt` | ^4.0.1 | JWT Passport strategy |
+| Component | Technology |
+|-----------|------------|
+| Framework | NestJS 11 + TypeScript |
+| ORM | Prisma 7 + `@prisma/adapter-pg` |
+| Messaging | Azure Service Bus (`@azure/service-bus` 7.x) and RabbitMQ (`amqplib`) |
+| Email | SendGrid (`@sendgrid/mail` 8.x) |
+| Templates | Handlebars (`hbs`) with i18n (es, en, de, pt, fr) |
+| Auth | Passport-JWT HS256 with shared `JWT_SECRET` |
+| Validation | `class-validator`, `class-transformer`, Zod (contract schemas) |
 
 ---
 
-## JWT-based Identity
+## Notification Flow
 
-The service validates JWT tokens using HMAC-SHA256 with a shared `JWT_SECRET`. All routes are protected by `JwtAuthGuard` unless explicitly marked with the `@Public()` decorator.
+```mermaid
+sequenceDiagram
+  participant P as Producer Service
+  participant B as Broker (Azure SB / RabbitMQ)
+  participant C as Consumer
+  participant V as Validators
+  participant D as DispatchNotificationService
+  participant R as HandlebarsTemplateRenderer
+  participant E as SendGrid
+  participant DB as PostgreSQL
 
-[![JWT Model](notifications/jwt.png)](notifications/jwt.png)
+  P->>B: NotificationEnvelope {eventType, notificationType, language, data}
+  B->>C: Deliver message
+  C->>V: validateEnvelope()
+  alt Invalid envelope
+    V-->>C: errors[]
+    C-->>B: ACK (discarded, no retry)
+  else Valid envelope
+    V-->>C: ok
+    C->>V: validateData(individual | rol | masivo)
+    alt Invalid data
+      V-->>C: errors[]
+      C-->>B: ACK (discarded)
+    else Valid data
+      C->>D: sendIndividual / sendByRole / sendBulk
+      D->>R: render(template, context, locale?)
+      R-->>D: HTML
+      D->>E: sendToRecipient / sendBulk
+      E-->>D: 202 Accepted
+      opt save = true
+        D->>DB: notifications.create(...)
+      end
+      C-->>B: ACK (processed)
+    end
+  end
+```
 
-| Claim | Purpose |
-|-------|---------|
-| `sub` | User identifier (UUID) |
-| `email` | User email address |
-| `nombre` | First name |
-| `apellido` | Last name |
-| `rol` | Role name (e.g., `admin`, `tutor`, `estudiante`) |
+### Notification Lifecycle
 
-The `UsuariosSyncService` performs **Just-in-Time User Provisioning**: on each authenticated request, it upserts the JWT user into the local `usuarios` table, creating the role if it does not exist. This keeps the local user registry in sync with the central `auth` service without inter-service calls.
+```mermaid
+stateDiagram-v2
+  [*] --> Unread : saveIndividual / saveByRole (visto = false)
+  Unread --> Read : markRead(id) / markAllRead()
+  Unread --> [*] : deleteById(id)
+  Read --> [*] : deleteById(id)
+```
 
 ---
 
 ## Data Model
 
-The service uses three tables. The `notifications` table is owned by this service; `usuarios` and `roles` are shared with other microservices and kept in sync via JWT-based JIT provisioning.
+```mermaid
+erDiagram
+  roles {
+    Int    id     PK
+    String nombre UK
+  }
+  usuarios {
+    String   id          PK
+    String   email       UK
+    String   nombre
+    String   apellido
+    Int      rol_id      FK
+    DateTime created_at
+    DateTime updated_at
+  }
+  notifications {
+    Int      id            PK
+    String   userId        FK
+    DateTime fechaCreacion
+    String   asunto
+    String   resumen
+    String   type
+    Boolean  visto
+  }
 
-[![Database Schema](notifications/esquemaBaseDeDatos.png)](notifications/esquemaBaseDeDatos.png)
+  roles ||--o{ usuarios : "groups"
+  usuarios ||--o{ notifications : "owns"
+```
 
-### notifications
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | `@id @default(uuid())` |
-| `user_id` | String | FK to `usuarios.id` |
-| `fecha_creacion` | Timestamptz | `@default(now())` |
-| `asunto` | String | Email subject / notification title |
-| `resumen` | String | Notification body / summary |
-| `visto` | Boolean | `@default(false)` — read status |
-
-**Composite primary key**: `(id, user_id)`
-
-### usuarios
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | `@id` |
-| `email` | String | `@unique`, indexed |
-| `nombre` | String | First name |
-| `apellido` | String | Last name |
-| `rol_id` | Int | FK to `roles.id`, `@default(1)` |
-| `estado_id` | Int | Account status |
-
-### roles
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | Int | `@id @default(autoincrement())` |
-| `nombre` | String | `@unique` — role name |
-| `descripcion` | String? | Optional description |
-| `activo` | Boolean | Active status |
+| Table | Notes |
+|-------|-------|
+| `roles` | Shared with `auth/`. Created on-demand by `UsuariosSyncService` during JIT provisioning. |
+| `usuarios` | Mirror of the central auth registry. Populated JIT from JWT claims on each authenticated request. |
+| `notifications` | Owned exclusively by this service. `type` maps to `TypeEnum` (info, success, warning, error, achievement, denied). |
 
 ---
 
 ## Endpoints
 
-All endpoints are under the `/notificacion` prefix.
-
-### Notification Queries
+All endpoints are under the `/notificacion` prefix and require `Authorization: Bearer <jwt>`. The `userId` is derived from the token `sub` claim — never from the URL. Operations scoped to `:id` return `404` if the notification does not exist or does not belong to the authenticated user.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/notificacion/:userId` | Get all notifications for a user (sorted by date desc) |
-| `GET` | `/notificacion/unread-count/:userId` | Count unread notifications |
-| `GET` | `/notificacion/unread-chat-count/:userId` | Count unread chat notifications (subject starts with "Hay un nuevo mensaje") |
-| `PATCH` | `/notificacion/read-all/:userId` | Mark all notifications as read |
-| `PATCH` | `/notificacion/read/:id` | Mark a single notification as read |
-| `DELETE` | `/notificacion/:id` | Delete a notification |
+| `GET` | `/notificacion` | Get authenticated user's notifications (sorted by date desc) |
+| `GET` | `/notificacion/unread-count` | Count unread notifications |
+| `GET` | `/notificacion/unread-chat-count` | Count unread notifications of type `chat` |
+| `PATCH` | `/notificacion/read-all` | Mark all notifications as read |
+| `PATCH` | `/notificacion/read/:id` | Mark a single notification as read (owner-scoped) |
+| `DELETE` | `/notificacion/:id` | Delete a notification (owner-scoped) |
 
-### DTOs
-
-**NotificacionDto** (response):
-- `id: number`, `asunto: string`, `resumen: string`, `visto: boolean`, `fechaCreacion: Date`, `type: string`
-
-**UnicoMailDto** (individual email input):
-- Required: `email`, `template`, `resumen`, `guardar`, `type`
-- Optional: `name`, `mandarCorreo` (default true), `year` (default current year), `tema`, `material_author`, `link`, `oldRole`, `newRole`, `materia`, `fileName`, `fecha`, `tutor`, `estudiante`, `mensaje`, `modalidad`, `hora`, `nombreGrupo`, `taggedBy`, `threadTitle`, `createdBy`, `mentionedBy`
-
-**RolMailDto** (role-based email input):
-- Required: `rol`, `template`, `resumen`, `guardar`, `type`
-- Optional: `mandarCorreo` (default true), `material_name`, `material_subject`, `material_topic`, `material_author`, `link`
+**NotificacionDto** (response): `id: number`, `asunto: string`, `resumen: string`, `visto: boolean`, `fechaCreacion: Date`, `type: string`
 
 ---
 
 ## Message Broker Integration
 
-The service supports two mutually exclusive message brokers, selected at startup via the `MESSAGING_BROKER` environment variable (`'azure'` | `'rabbitmq'`, default `'azure'`).
+```mermaid
+graph LR
+  subgraph Producers
+    AUTH["auth/"]
+    COM["community/"]
+    MAT["materials/"]
+    TUT["tutorships/"]
+  end
 
-### Broker Selection
+  subgraph AzureSB["Azure Service Bus"]
+    Q1["mail.envio.individual"]
+    Q2["mail.envio.rol"]
+    Q3["mail.envio.masivo"]
+  end
 
-The `MessagingOrchestratorService` instantiates the appropriate consumer during `OnModuleInit` and stops it during `OnModuleDestroy`. Only one broker is active per instance.
+  subgraph RabbitMQ["RabbitMQ — exchange: notifications (topic)"]
+    RK1["notification.individual"]
+    RK2["notification.rol"]
+    RK3["notification.masivo"]
+  end
 
-### Queue Topology
+  subgraph SVC["Notifications Service"]
+    AZC["AzureMessagingConsumer"]
+    RMQC["RabbitMQMessagingConsumer"]
+  end
 
-| Broker | Queue / Exchange | Type | Purpose |
-|--------|------------------|------|---------|
-| **Azure Service Bus** | `mail.envio.individual` | Queue | Single-recipient emails |
-| | `mail.envio.rol` | Queue | Role-based emails |
-| | `mail.envio.masivo` | Queue | Mass/batch emails |
-| **RabbitMQ** | `notifications` | Exchange (topic, durable) | Message routing |
-| | `notification.individual` | Queue (bound to exchange) | Single-recipient emails |
-| | `notification.rol` | Queue (bound to exchange) | Role-based emails |
-| | `notification.masivo` | Queue (bound to exchange) | Mass/batch emails |
+  AUTH & COM & MAT & TUT -->|Azure SB| Q1 & Q2 & Q3
+  AUTH & COM & MAT & TUT -->|RabbitMQ| RK1 & RK2 & RK3
 
-### Message Envelope Structure
+  Q1 & Q2 & Q3 --> AZC
+  RK1 & RK2 & RK3 --> RMQC
+```
+
+`MessagingOrchestratorService` activates exactly one consumer at startup based on `MESSAGING_BROKER`. Only one broker is active per runtime instance.
+
+### Message Envelope
 
 Every message must conform to the `NotificationEnvelope` format:
 
 ```json
 {
   "eventType": "notification",
-  "notificationType": "individual" | "rol" | "masivo",
-  "language": "es" | "en" | "de" | "pt" | "fr",
+  "notificationType": "individual | rol | masivo",
+  "language": "es | en | de | pt | fr",
   "data": { ... }
 }
 ```
 
+### Notification Types
+
+| Type | Who receives | Key `data` fields |
+|------|-------------|-------------------|
+| `individual` | Single recipient by email | `email`, `template`, `subject` |
+| `rol` | All users with a given role | `rol`, `template`, `subject` |
+| `masivo` | Batch list (single SendGrid API call) | `emails[]`, `template`, `subject` |
+
 ### Validation Pipeline
 
-Messages go through a **two-layer validation** process:
+Messages go through a two-layer validation process:
 
 1. **Envelope layer** — `NotificationEnvelopeValidator` checks `eventType`, `notificationType`, `language`, and `data` presence.
-2. **Data layer** — Type-specific validators check required fields:
+2. **Data layer** — Type-specific Zod schemas check required fields per type.
 
-| Type | Required Fields |
-|------|-----------------|
-| `individual` | `email` (string), `template` (string), `resumen` (string), `guardar` (boolean, optional) |
-| `rol` | `rol` (string), `template` (string), `resumen` (string), `guardar` (boolean, optional) |
-| `masivo` | `emails` (non-empty string array), `template` (string), `resumen` (string), `guardar` (boolean, optional) |
+Failed validation results in the message being ACK'd (not retried) to prevent poison-pill scenarios.
 
-Failed validation results in the message being ACK'd (not retried) with a warning log to prevent poison pill scenarios.
+---
 
-### Sequence Diagrams
+## JWT-based Identity
 
-#### Individual Notification
+All routes are protected by `JwtAuthGuard` (global `APP_GUARD`) unless marked with `@Public()`. The service validates HS256 tokens using a shared `JWT_SECRET` — no HTTP call to the `auth` service.
 
-[![Individual Notification Sequence](notifications/notificacionIndividual.png)](notifications/notificacionIndividual.png)
+| Claim | Purpose |
+|-------|---------|
+| `sub` | User identifier (UUID) — used as `userId` for all data operations |
+| `email` | User email address |
+| `nombre` | First name |
+| `apellido` | Last name |
+| `rol` | Role name (e.g., `admin`, `tutor`, `estudiante`) |
 
-The upstream service publishes a message to `mail.envio.individual`. The orchestrator selects the active provider, delegates to `BaseMessagingConsumer.processEnvelope()`, validates the envelope and data, looks up the user by email, and conditionally sends the email and/or persists the notification.
-
-#### Role-Based Notification
-
-[![Role-Based Notification Sequence](notifications/notificacionRol.png)](notifications/notificacionRol.png)
-
-The upstream service publishes a message to `mail.envio.rol` with a role name. The service queries all users with that role and sends an individual email to each. If `guardar=true`, a notification record is created for each recipient.
-
-#### Mass Notification
-
-[![Mass Notification Sequence](notifications/notificacionMasiva.png)](notifications/notificacionMasiva.png)
-
-The upstream service publishes a message to `mail.envio.masivo` with an array of email addresses. SendGrid personalizations group all recipients into a single API call. If `guardar=true`, individual notification records are created for each email.
+`UsuariosSyncService` performs **Just-in-Time User Provisioning**: on each authenticated request it upserts the JWT user into the local `usuarios` table, keeping the local registry in sync with the central `auth` service without inter-service calls.
 
 ---
 
 ## Email Templates
 
-The service maintains **17 Handlebars HTML templates** in `src/templates/`. Each template is a full HTML email with inline CSS. A logo CID attachment (`cid:logo`) is loaded from `docs/logo.png` if the file exists.
-
-### Template Catalog
+The service maintains **17 Handlebars HTML templates** in `src/templates/`.
 
 | Template Key | Email Subject | Category |
 |-------------|---------------|----------|
@@ -309,145 +418,99 @@ The service maintains **17 Handlebars HTML templates** in `src/templates/`. Each
 | `CompletacionTutoriaEstudiante` | Su tutoria ha sido completada | Tutoring |
 | `CompletacionTutoriaTutor` | Se ha completado una tutoria | Tutoring |
 | `nuevoMaterialSubido` | Se ha subido un nuevo material | Materials |
-| `nuevoMensaje` | Hay un nuevo mensaje del Grupo: {name} | Chat |
 | `nuevoThreadEnForo` | Se ha creado un nuevo hilo en el foro | Forum |
 | `mencionThread` | Has sido mencionado en un hilo del foro | Forum |
 | `mencionRespuesta` | Has sido mencionado en una respuesta del foro | Forum |
 
-### Template Variables by Category
-
-**Auth templates**: `name`, `year`, `oldRole`, `newRole`
-
-**Tutoring templates**: `name`, `year`, `materia`, `fecha`, `hora`, `tutor`, `estudiante`, `modalidad`, `razon`, `mensaje`
-
-**Materials templates**: `name`, `year`, `fileName`, `materia`, `tema`, `material_author`, `link`
-
-**Chat templates**: `name`, `year`, `nombreGrupo`, `mensaje`
-
-**Forum templates**: `name`, `year`, `nombreGrupo`, `threadTitle`, `createdBy`, `mentionedBy`, `taggedBy`, `fecha`
-
 ### i18n Resolution
 
-Template resolution is controlled by `TRANSLATED_TEMPLATES_ENABLED` (default `false`). Supported locales: `es`, `en`, `de`, `pt`, `fr`. Resolution order:
+Template resolution is controlled by `TRANSLATED_TEMPLATES_ENABLED` (default `false`). Resolution order:
 
-1. `{templateName}.{locale}.hbs` (if locale enabled and file exists)
-2. `{templateName}.hbs` (fallback)
-3. Inline HTML `<p>Hola {{name}},</p><p>{{mensaje}}</p>` (hardcoded fallback)
+1. `{templateName}.{locale}.hbs` — if locale enabled and file exists
+2. `{templateName}.hbs` — fallback
 
-The fallback locale is configurable via `TRANSLATED_TEMPLATES_FALLBACK` (default `'es'`).
-
----
-
-## Service Communication
-
-[![Service Connections](notifications/notifications-service-connections.png)](notifications/notifications-service-connections.png)
-
-### Producers
-
-The following upstream services publish messages to the notification queues:
-
-| Producer Service | Broker | Queues | Message Types |
-|-----------------|--------|--------|---------------|
-| `community/` | Azure Service Bus | `mail.envio.*` | Individual, Rol, Masivo |
-| `materials/` | Azure Service Bus | `mail.envio.*` | Individual, Rol, Masivo |
-| `tutorships/` | Azure Service Bus | `mail.envio.*` | Individual, Rol, Masivo |
-
-### JWT Trust Model
-
-All backend services validate JWTs independently by verifying the HMAC-SHA256 signature against a shared `JWT_SECRET` — no callback to the `auth` service. The notifications service extracts user claims from the token and upserts them into the local `usuarios` table via `UsuariosSyncService`.
-
-### Database Sharing
-
-The service shares the `usuarios` and `roles` tables with `auth/`, `community/`, `materials/`, and `tutorships/`. The `notifications` table is unique to this service. User data is kept in sync through JIT provisioning from JWTs rather than direct inter-service database access.
-
----
-
-## C4 — Level 1: System Context
-
-[![System Context](notifications/notificaciones.png)](notifications/notificaciones.png)
-
-### Actors
-
-| Actor | Description |
-|-------|-------------|
-| Student | Receives email notifications and views in-app notifications |
-| Tutor | Receives email notifications and views in-app notifications |
-| Administrator | Receives system-wide email notifications |
-
-### Systems
-
-| System | Type | Description |
-|--------|------|-------------|
-| Notifications Service | Internal | Email delivery and notification persistence |
-| Auth Service | Internal | JWT authentication and user management |
-| Community Service | Internal | Forums, chat, content moderation |
-| Materials Service | Internal | Study materials management |
-| Tutorships Service | Internal | Tutoring session management |
-| SendGrid | External | Email delivery API |
-| PostgreSQL | External | Notification and user data persistence |
-
-### Relationships
-
-| From | To | Protocol | Description |
-|------|----|----------|-------------|
-| Community Service | Notifications Service | Azure Service Bus | Publishes notification events |
-| Materials Service | Notifications Service | Azure Service Bus | Publishes notification events |
-| Tutorships Service | Notifications Service | Azure Service Bus | Publishes notification events |
-| Notifications Service | SendGrid | HTTPS | Sends transactional emails |
-| Notifications Service | PostgreSQL | TCP | Reads/writes notification and user data |
-| Student / Tutor / Administrator | Notifications Service | HTTPS | Views notifications via REST API |
+Fallback locale is configurable via `TRANSLATED_TEMPLATES_FALLBACK` (default `'es'`).
 
 ---
 
 ## C4 — Level 2: Containers
 
-[![Containers](notifications/contenedores.png)](notifications/contenedores.png)
+```mermaid
+graph TB
+  subgraph Clients["Clients"]
+    FE["Frontend / REST Client"]
+    PROD["Producer Services\nauth · community · materials · tutorships"]
+  end
 
-### Containers
+  subgraph NotifService["Notifications Service — NestJS 11"]
+    CTRL["NotificationController\n[REST /notificacion]"]
+    ORCH["MessagingOrchestratorService\n[broker selection]"]
+    AZ_C["AzureMessagingConsumer"]
+    RMQ_C["RabbitMQMessagingConsumer"]
+    MNS["ManageNotificationsService\n[inbound use case]"]
+    DNS["DispatchNotificationService\n[inbound use case]"]
+    SYNC["UsuariosSyncService\n[JIT provisioning]"]
+    JWT["JwtStrategy\n[HS256 validation]"]
+    HBS_R["HandlebarsTemplateRenderer\n[outbound adapter]"]
+    PRISMA["PrismaService"]
+  end
 
-| Container | Technology | Description |
-|-----------|------------|-------------|
-| Notifications API | NestJS 11, TypeScript | REST API for notification queries and email sending |
-| AzureMessagingConsumer | `@azure/service-bus` | Consumes from Azure Service Bus queues |
-| RabbitMQMessagingConsumer | `amqplib` | Consumes from RabbitMQ exchange/queues |
-| MessagingOrchestrator | NestJS | Selects and manages the active broker provider |
-| BaseMessagingConsumer | NestJS | Shared message processing logic (validation, email, persistence) |
-| AlertaService | NestJS | Business logic for email sending and notification CRUD |
-| AlertaController | NestJS | REST endpoints for notification queries |
-| UsuariosSyncService | NestJS | JIT user provisioning from JWT |
-| JwtStrategy | Passport-JWT | HS256 token validation |
-| PrismaService | Prisma 7 | Database access layer |
+  subgraph External["External Systems"]
+    ASB["Azure Service Bus\n[3 queues]"]
+    RABBITMQ["RabbitMQ\n[exchange + 3 queues]"]
+    SENDGRID["SendGrid API"]
+    PG[("PostgreSQL\nnotifications · usuarios · roles")]
+  end
 
-### External Systems
+  FE -->|"Bearer JWT"| CTRL
+  PROD -->|AMQP| ASB
+  PROD -->|AMQP| RABBITMQ
 
-| System | Description |
-|--------|-------------|
-| Azure Service Bus | Default message broker (3 queues) |
-| RabbitMQ | Alternative message broker (exchange + 3 queues) |
-| SendGrid API | Email delivery provider |
-| PostgreSQL | Notification and user data persistence |
-
-### Relationships
-
-| From | To | Protocol | Description |
-|------|----|----------|-------------|
-| Community / Materials / Tutorships | Azure Service Bus | AMQP | Publishes `mail.envio.*` messages |
-| Community / Materials / Tutorships | RabbitMQ | AMQP | Publishes to `notifications` exchange |
-| AzureMessagingConsumer | Azure Service Bus | AMQP | Subscribes to 3 queues |
-| RabbitMQMessagingConsumer | RabbitMQ | AMQP | Subscribes to 3 queues |
-| BaseMessagingConsumer | AlertaService | Method call | Delegates email sending and persistence |
-| AlertaController | AlertaService | Method call | REST API business logic |
-| AlertaService | SendGrid API | HTTPS | Sends emails |
-| AlertaService | PrismaService | Method call | Database CRUD |
-| UsuariosSyncService | PrismaService | Method call | Upserts users from JWT |
+  CTRL --> MNS
+  ORCH -->|"MESSAGING_BROKER=azure"| AZ_C
+  ORCH -->|"MESSAGING_BROKER=rabbitmq"| RMQ_C
+  AZ_C --> ASB
+  RMQ_C --> RABBITMQ
+  AZ_C & RMQ_C --> DNS
+  DNS --> HBS_R
+  DNS --> SENDGRID
+  MNS --> PRISMA
+  DNS --> PRISMA
+  SYNC --> PRISMA
+  JWT --> SYNC
+  PRISMA --> PG
+```
 
 ---
 
 ## Deployment
 
-[![Deployment](notifications/despliegue.png)](notifications/despliegue.png)
+```mermaid
+graph TB
+  subgraph CICD["CI/CD — GitHub Actions"]
+    GHA["main_eciwise-alert.yml\nnpm install → build → test → deploy"]
+  end
 
-The service is deployed as an **Azure Web App** (`eciwise-alert`) running **Node.js 20**. The CI/CD pipeline uses **GitHub Actions** (`main_eciwise-alert.yml`) triggered on push to `main`. The pipeline runs `npm install`, `npm run build`, `npm test`, and deploys to Azure using OIDC authentication.
+  subgraph Azure["Azure Cloud"]
+    WEBAPP["Azure Web App\neciwise-alert · Node.js 20"]
+    ASB["Azure Service Bus\n[3 queues]"]
+  end
+
+  subgraph LocalDev["docker compose (local dev)"]
+    SVC["notifications :3000\n(NestJS + Prisma)"]
+    PG["postgres:16 :5432"]
+    RMQ["rabbitmq:3 :5672 / management :15672"]
+  end
+
+  SENDGRID["SendGrid API\n(external)"]
+
+  GHA -->|"Azure OIDC"| WEBAPP
+  WEBAPP -->|AMQP| ASB
+  WEBAPP -->|HTTPS| SENDGRID
+  SVC --> PG
+  SVC --> RMQ
+  SVC -->|HTTPS| SENDGRID
+```
 
 ### Environment Variables
 
@@ -456,30 +519,30 @@ The service is deployed as an **Azure Web App** (`eciwise-alert`) running **Node
 | `PORT` | yes | — | HTTP server port |
 | `MAIL_FROM` | yes | — | Sender email address |
 | `SENDGRID_API_KEY` | yes | — | SendGrid API key |
-| `JWT_SECRET` | yes | — | HMAC secret for JWT verification |
+| `JWT_SECRET` | yes (min 16 chars) | — | HMAC secret for JWT verification |
 | `MESSAGING_BROKER` | no | `'azure'` | `'azure'` or `'rabbitmq'` |
-| `SWAGGER_ENABLED` | no | `true` | Enable Swagger docs at `/api` |
+| `SERVICE_BUS_CONNECTION_STRING` | if azure | — | Azure Service Bus connection string |
+| `RABBITMQ_URL` | if rabbitmq | `amqp://guest:guest@localhost:5672` | RabbitMQ connection URL |
+| `DATABASE_URL` | yes | — | PostgreSQL session-mode pooler URL |
+| `DIRECT_URL` | no | — | PostgreSQL transaction-mode pooler URL |
+| `SWAGGER_ENABLED` | no | `true` | Enable Swagger at `/api` |
 | `TRANSLATED_TEMPLATES_ENABLED` | no | `false` | Enable i18n template resolution |
 | `TRANSLATED_TEMPLATES_FALLBACK` | no | `'es'` | Fallback locale |
-| `SERVICE_BUS_CONNECTION_STRING` | conditional | — | Required when `MESSAGING_BROKER=azure` |
-| `RABBITMQ_URL` | conditional | `'amqp://guest:guest@localhost:5672'` | Required when `MESSAGING_BROKER=rabbitmq` |
-| `DATABASE_URL` | yes | — | PostgreSQL session-mode pooler URL |
-| `DIRECT_URL` | yes | — | PostgreSQL transaction-mode pooler URL |
+| `THROTTLE_TTL` | no | `60` | Rate-limit window in seconds |
+| `THROTTLE_LIMIT` | no | `100` | Max requests per window per client |
 
 ---
 
-## Design Patterns & Best Practices
+## Design Principles
 
-- **Strategy Pattern (Broker Selection)**: The `IMessagingProvider` interface defines `start()` and `stop()` methods. `AzureMessagingConsumer` and `RabbitMQMessagingConsumer` are concrete implementations selected at runtime by `MessagingOrchestratorService` based on the `MESSAGING_BROKER` environment variable. Only one broker is active per instance.
+- **Hexagonal Architecture (Ports and Adapters)**: The domain and application layers only depend on port interfaces — never on Prisma, SendGrid, Handlebars, or any broker. The `NotificationsModule` is the only place where ports are bound to concrete adapters.
 
-- **Template Method Pattern (Message Processing)**: `BaseMessagingConsumer` contains the shared processing logic (`processEnvelope`, `processIndividualMessage`, `processRolMessage`, `processMasivoMessage`). Concrete consumers only implement broker-specific connection handling, inheriting all validation and dispatch logic.
+- **Two-Layer Validation**: Messages are validated at the envelope level first, then at the type-specific data level. Invalid messages are ACK'd (not retried) to avoid poison-pill queue scenarios.
 
-- **Two-Layer Validation**: Messages are validated first at the envelope level (structure, event type, notification type) and then at the data level (type-specific required fields). This separation ensures well-formed messages before business logic executes, and invalid messages are safely ACK'd to prevent poison pill scenarios.
+- **Anti-IDOR by Design**: The `userId` is always extracted from the JWT `sub` claim via `@GetUser('id')`, never from the request URL. All `read/:id` and `DELETE /:id` operations are owner-scoped and return `404` for unauthorized access.
 
-- **Dual Action Flags**: Each message can independently trigger email sending (`mandarCorreo`) and database persistence (`guardar`). This allows upstream producers to control notification behavior precisely — e.g., send email only, persist only, or both.
+- **Strategy Pattern (Broker Selection)**: `MessagingOrchestratorService` selects `AzureMessagingConsumer` or `RabbitMQMessagingConsumer` at startup. Only one is active per instance. The common dispatch logic lives in `BaseMessagingConsumer`.
 
-- **Graceful Degradation**: Failed template lookups fall back to inline HTML; logo attachment failures are logged but do not block email sending; invalid messages are ACK'd (not retried) to avoid queue poisoning. RabbitMQ consumers handle connection loss with automatic reconnection every 5 seconds.
+- **Just-in-Time User Provisioning**: `UsuariosSyncService` upserts JWT user data into the local `usuarios` table on each authenticated request, eliminating inter-service synchronization calls.
 
-- **Just-in-Time User Provisioning**: The `UsuariosSyncService` upserts JWT user data into the local `usuarios` table on each authenticated request, eliminating the need for inter-service user synchronization calls while keeping the local registry current.
-
-- **Connection Pooling with Prisma 7**: Uses `@prisma/adapter-pg` for session-mode and transaction-mode connection pooling via `DATABASE_URL` and `DIRECT_URL`, optimizing database connection management in a cloud environment.
+- **Graceful Degradation**: Failed template lookups fall back to the default locale template. Logo attachment failures are logged but do not block email sending. RabbitMQ consumers reconnect automatically every 5 seconds after connection loss.

@@ -62,6 +62,10 @@
 						
 					
 						
+							<li><a href="/docs/architecture-decisions.html" >Architecture Decisions</a></li>
+						
+					
+						
 					
 						
 					
@@ -97,6 +101,8 @@
 					
 						
 							<li><a href="/how/ai-service.html" >AI Service</a></li>
+						
+					
 						
 					
 						
@@ -224,60 +230,315 @@
 		<article>
 			<h1 id="actors-roles--permissions">Actors, Roles &amp; Permissions</h1>
 
-<p>Actors represent the external entities that interact with the ECIWise system. Each actor performs specific actions within the platform according to their role and permissions.</p>
+<p>Actors represent the external entities that interact with the ECIWise system. Identity and authorization are managed centrally by the <code class="language-plaintext highlighter-rouge">wise_auth</code> microservice, which issues HS256 JWTs consumed by every downstream service without a round-trip to Auth.</p>
 
-<h2 id="table-of-actors">Table of Actors</h2>
+<hr />
 
-<p>The following actors interact with the ECIWise web application:</p>
+<h2 id="roles">Roles</h2>
+
+<p>The <code class="language-plaintext highlighter-rouge">wise_auth</code> service defines three roles in <code class="language-plaintext highlighter-rouge">Role</code> enum:</p>
+
+<pre><code class="language-mermaid">graph LR
+  subgraph Roles["Role enum — wise_auth"]
+    EST["estudiante\n(default on registration)"]
+    TUT["tutor\n(assigned by admin)"]
+    ADM["admin\n(full platform access)"]
+  end
+
+  ADM --&gt;|"can promote to"| TUT
+  ADM --&gt;|"can manage"| EST
+</code></pre>
 
 <table>
   <thead>
     <tr>
       <th>Role</th>
+      <th>Value</th>
       <th>Description</th>
+      <th>Assigned by</th>
     </tr>
   </thead>
   <tbody>
     <tr>
       <td>Student</td>
-      <td>User who registers in the system to access academic support tools such as tutoring, study resources, forums, and gamification.</td>
+      <td><code class="language-plaintext highlighter-rouge">estudiante</code></td>
+      <td>Default role on registration. Access to academic support tools, tutoring booking, study, forums, and AI recommendations.</td>
+      <td>Automatic on registration</td>
     </tr>
     <tr>
-      <td>Monitor</td>
-      <td>Authorized user who offers academic tutoring sessions to students.</td>
-    </tr>
-    <tr>
+      <td>Tutor</td>
+      <td><code class="language-plaintext highlighter-rouge">tutor</code></td>
+      <td>Authorized user (monitor) who offers academic tutoring sessions. Manages availability and conducts sessions.</td>
       <td>Administrator</td>
-      <td>User responsible for system administration, content management, and institutional statistics.</td>
+    </tr>
+    <tr>
+      <td>Admin</td>
+      <td><code class="language-plaintext highlighter-rouge">admin</code></td>
+      <td>Full platform access. Manages users, content, monitors, and institutional statistics.</td>
+      <td>System / manual</td>
     </tr>
   </tbody>
 </table>
 
-<h2 id="description-of-the-actors">Description of the Actors</h2>
+<hr />
 
-<h3 id="student">Student</h3>
-<p>A user who registers in the platform to access academic support tools. Students can search and book tutoring sessions, practice with study tools, participate in forums, send messages, join video calls, and receive personalized AI-based recommendations.</p>
+<h2 id="account-states">Account States</h2>
 
-<h3 id="monitor">Monitor</h3>
-<p>A student authorized by the institution to offer academic tutoring sessions. Monitors can publish and manage their availability, conduct tutoring sessions, register attendance and observations, and evaluate student participation.</p>
+<pre><code class="language-mermaid">stateDiagram-v2
+  [*] --&gt; pendiente_activacion : Email/password registration
+  [*] --&gt; activo : Google OAuth registration
+  pendiente_activacion --&gt; activo : Email verified
+  activo --&gt; suspendido : Admin suspends account
+  activo --&gt; inactivo : Account deactivated
+  suspendido --&gt; activo : Admin reactivates
+  inactivo --&gt; activo : Admin reactivates
+</code></pre>
 
-<h3 id="administrator">Administrator</h3>
-<p>The administrator manages system-level operations such as user management, authorized monitor management, institutional statistics, question collection management, and audit monitoring.</p>
+<table>
+  <thead>
+    <tr>
+      <th>State</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pendiente_activacion</code></td>
+      <td>Registered via email, awaiting email verification</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">activo</code></td>
+      <td>Active account with full access</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">inactivo</code></td>
+      <td>Deactivated account</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">suspendido</code></td>
+      <td>Suspended by administrator</td>
+    </tr>
+  </tbody>
+</table>
 
 <hr />
 
-<h2 id="roles--permissions-matrix">Roles &amp; Permissions Matrix</h2>
+<h2 id="authentication--jwt">Authentication &amp; JWT</h2>
+
+<p>All services receive and validate the JWT locally (HS256, shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code>) — no HTTP call to <code class="language-plaintext highlighter-rouge">wise_auth</code> per request.</p>
+
+<pre><code class="language-mermaid">sequenceDiagram
+  participant U as User
+  participant FE as Frontend
+  participant AUTH as wise_auth
+  participant SVC as Any Microservice
+
+  U-&gt;&gt;FE: Login (email/password or Google OAuth)
+  FE-&gt;&gt;AUTH: POST /auth/login or GET /auth/google
+  AUTH--&gt;&gt;FE: JWT { sub, email, nombre, apellido, rol }
+  FE-&gt;&gt;SVC: Request + Bearer JWT
+  SVC-&gt;&gt;SVC: Validate JWT locally (HS256)
+  SVC--&gt;&gt;FE: Response (identity from token claims)
+</code></pre>
+
+<p><strong>JWT Claims:</strong></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Claim</th>
+      <th>Type</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sub</code></td>
+      <td>UUID</td>
+      <td>User identifier — used as <code class="language-plaintext highlighter-rouge">userId</code> in all services</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">email</code></td>
+      <td>string</td>
+      <td>User email address</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nombre</code></td>
+      <td>string</td>
+      <td>First name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">apellido</code></td>
+      <td>string</td>
+      <td>Last name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rol</code></td>
+      <td>string</td>
+      <td>Role (<code class="language-plaintext highlighter-rouge">estudiante</code>, <code class="language-plaintext highlighter-rouge">tutor</code>, <code class="language-plaintext highlighter-rouge">admin</code>)</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="use-case-estudiante">Use Case: Estudiante</h2>
+
+<pre><code class="language-mermaid">graph LR
+  ST(("Estudiante"))
+
+  subgraph Tutorias["Tutorias"]
+    T1["Buscar tutorias disponibles"]
+    T2["Reservar tutoria"]
+    T3["Cancelar / reprogramar reserva"]
+    T4["Calificar tutoria"]
+    T5["Ver historial de tutorias"]
+    T6["Ver reputacion del tutor"]
+  end
+
+  subgraph Estudio["Estudio y Practica"]
+    E1["Practicar con Flashcards"]
+    E2["Participar en Quiz"]
+    E3["Ver leaderboard"]
+    E4["Recibir recomendaciones IA"]
+  end
+
+  subgraph Comunicacion["Comunicacion"]
+    C1["Enviar mensajes de chat"]
+    C2["Unirse a videollamada"]
+    C3["Crear / responder en foros"]
+  end
+
+  subgraph Materiales["Materiales"]
+    M1["Buscar y descargar materiales"]
+    M2["Subir materiales"]
+    M3["Calificar materiales"]
+  end
+
+  subgraph Cuenta["Cuenta"]
+    A1["Registrarse / Iniciar sesion"]
+    A2["Ver notificaciones"]
+    A3["Gestionar perfil"]
+    A4["Gestionar tareas pendientes"]
+  end
+
+  ST --&gt; Tutorias
+  ST --&gt; Estudio
+  ST --&gt; Comunicacion
+  ST --&gt; Materiales
+  ST --&gt; Cuenta
+</code></pre>
+
+<hr />
+
+<h2 id="use-case-tutor--monitor">Use Case: Tutor / Monitor</h2>
+
+<pre><code class="language-mermaid">graph LR
+  TU(("Tutor / Monitor"))
+
+  subgraph Disponibilidad["Disponibilidad"]
+    D1["Publicar disponibilidad recurrente"]
+    D2["Modificar disponibilidad"]
+    D3["Cancelar disponibilidad"]
+  end
+
+  subgraph GestionTutorias["Gestion de Tutorias"]
+    G1["Ver tutorias programadas"]
+    G2["Registrar asistencia"]
+    G3["Registrar observaciones"]
+    G4["Evaluar participacion del estudiante"]
+    G5["Cancelar tutoria"]
+  end
+
+  subgraph Comunicacion["Comunicacion"]
+    C1["Enviar mensajes de chat"]
+    C2["Unirse a videollamada"]
+    C3["Crear / responder en foros"]
+  end
+
+  subgraph Materiales["Materiales"]
+    M1["Buscar y descargar materiales"]
+    M2["Ver historial de tutorias"]
+    M3["Ver reputacion de estudiantes"]
+  end
+
+  TU --&gt; Disponibilidad
+  TU --&gt; GestionTutorias
+  TU --&gt; Comunicacion
+  TU --&gt; Materiales
+</code></pre>
+
+<hr />
+
+<h2 id="use-case-administrador">Use Case: Administrador</h2>
+
+<pre><code class="language-mermaid">graph LR
+  AD(("Administrador"))
+
+  subgraph Usuarios["Gestion de Usuarios"]
+    U1["Gestionar usuarios"]
+    U2["Cambiar rol de usuarios"]
+    U3["Gestionar tutores autorizados"]
+    U4["Activar / suspender cuentas"]
+    U5["Enviar mensajes a tutores"]
+  end
+
+  subgraph Contenido["Gestion de Contenido"]
+    C1["Subir colecciones de preguntas"]
+    C2["Modificar colecciones de preguntas"]
+    C3["Eliminar colecciones de preguntas"]
+  end
+
+  subgraph Estadisticas["Estadisticas e Informes"]
+    E1["Ver estadisticas institucionales"]
+    E2["Ver historial de tutorias del sistema"]
+    E3["Generar reportes"]
+    E4["Ver reputacion de tutores y estudiantes"]
+  end
+
+  AD --&gt; Usuarios
+  AD --&gt; Contenido
+  AD --&gt; Estadisticas
+</code></pre>
+
+<hr />
+
+<h2 id="permissions-matrix">Permissions Matrix</h2>
 
 <table>
   <thead>
     <tr>
       <th>Functionality</th>
-      <th style="text-align: center">Student</th>
-      <th style="text-align: center">Monitor</th>
-      <th style="text-align: center">Administrator</th>
+      <th style="text-align: center">Estudiante</th>
+      <th style="text-align: center">Tutor</th>
+      <th style="text-align: center">Admin</th>
     </tr>
   </thead>
   <tbody>
+    <tr>
+      <td>Register / Login (email or Google)</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Manage own profile</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>View notifications</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td><strong>Tutorias</strong></td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
     <tr>
       <td>Search available tutoring sessions</td>
       <td style="text-align: center">x</td>
@@ -309,16 +570,76 @@
       <td style="text-align: center"> </td>
     </tr>
     <tr>
-      <td>View tutoring history</td>
+      <td>View own tutoring history</td>
       <td style="text-align: center">x</td>
       <td style="text-align: center">x</td>
       <td style="text-align: center">x</td>
     </tr>
     <tr>
-      <td>View monitor reputation</td>
+      <td>View tutor reputation</td>
       <td style="text-align: center">x</td>
       <td style="text-align: center"> </td>
       <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>View student reputation</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Publish / modify / cancel availability</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>View scheduled sessions</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Register attendance</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Register observations</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Evaluate student participation</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Cancel a tutoria (as tutor)</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>View system-wide tutoring history</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Manage authorized tutors</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td><strong>Study &amp; Practice</strong></td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
     </tr>
     <tr>
       <td>Practice with FlashCards</td>
@@ -327,8 +648,32 @@
       <td style="text-align: center"> </td>
     </tr>
     <tr>
-      <td>Participate in Kahoot-style quizzes</td>
+      <td>Participate in Quiz</td>
       <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>View leaderboard</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Receive AI recommendations</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Manage own tasks (Todo)</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td><strong>Communication</strong></td>
+      <td style="text-align: center"> </td>
       <td style="text-align: center"> </td>
       <td style="text-align: center"> </td>
     </tr>
@@ -357,73 +702,55 @@
       <td style="text-align: center"> </td>
     </tr>
     <tr>
-      <td>View leaderboard</td>
+      <td>Send messages to tutors (admin)</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
       <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td><strong>Materials</strong></td>
+      <td style="text-align: center"> </td>
       <td style="text-align: center"> </td>
       <td style="text-align: center"> </td>
     </tr>
     <tr>
-      <td>Receive personalized recommendations</td>
+      <td>Search and download materials</td>
       <td style="text-align: center">x</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center"> </td>
-    </tr>
-    <tr>
-      <td>Publish availability</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-      <td style="text-align: center"> </td>
-    </tr>
-    <tr>
-      <td>Modify availability</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-      <td style="text-align: center"> </td>
-    </tr>
-    <tr>
-      <td>Cancel availability</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-      <td style="text-align: center"> </td>
-    </tr>
-    <tr>
-      <td>View scheduled tutoring sessions</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-      <td style="text-align: center"> </td>
-    </tr>
-    <tr>
-      <td>Register attendance</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-      <td style="text-align: center"> </td>
-    </tr>
-    <tr>
-      <td>Register observations</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-      <td style="text-align: center"> </td>
-    </tr>
-    <tr>
-      <td>Evaluate student participation</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-      <td style="text-align: center"> </td>
-    </tr>
-    <tr>
-      <td>View student reputation</td>
-      <td style="text-align: center"> </td>
       <td style="text-align: center">x</td>
       <td style="text-align: center">x</td>
     </tr>
     <tr>
-      <td>View institutional statistics</td>
+      <td>Upload materials</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Rate materials</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center">x</td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td><strong>Administration</strong></td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+    </tr>
+    <tr>
+      <td>Manage users (roles, status)</td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center"> </td>
+      <td style="text-align: center">x</td>
+    </tr>
+    <tr>
+      <td>Upload / modify / delete question collections</td>
       <td style="text-align: center"> </td>
       <td style="text-align: center"> </td>
       <td style="text-align: center">x</td>
     </tr>
     <tr>
-      <td>Manage users</td>
+      <td>View institutional statistics</td>
       <td style="text-align: center"> </td>
       <td style="text-align: center"> </td>
       <td style="text-align: center">x</td>
@@ -434,58 +761,8 @@
       <td style="text-align: center"> </td>
       <td style="text-align: center">x</td>
     </tr>
-    <tr>
-      <td>Upload question collections</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-    </tr>
-    <tr>
-      <td>Modify question collections</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-    </tr>
-    <tr>
-      <td>Delete question collections</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-    </tr>
-    <tr>
-      <td>View system tutoring history</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-    </tr>
-    <tr>
-      <td>Manage authorized monitors</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-    </tr>
-    <tr>
-      <td>Send messages to monitors</td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center"> </td>
-      <td style="text-align: center">x</td>
-    </tr>
   </tbody>
 </table>
-
-<hr />
-
-<h3 id="use-case-student">Use Case Student</h3>
-
-<p><img src="/assets/usecase-student.png" alt="Use Case Student" /></p>
-
-<h3 id="use-case-monitor">Use Case Monitor</h3>
-
-<p><img src="/assets/usecase-monitor.png" alt="Use Case Monitor" /></p>
-
-<h3 id="use-case-administrator">Use Case Administrator</h3>
-
-<p><img src="/assets/usecase-admin.png" alt="Use Case Administrator" /></p>
 
 			<div class="page-footer">
 				<span>ECIWise Wiki</span>

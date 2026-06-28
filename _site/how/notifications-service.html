@@ -62,6 +62,10 @@
 						
 					
 						
+							<li><a href="/docs/architecture-decisions.html" >Architecture Decisions</a></li>
+						
+					
+						
 					
 						
 					
@@ -97,6 +101,8 @@
 					
 						
 							<li><a href="/how/ai-service.html" >AI Service</a></li>
+						
+					
 						
 					
 						
@@ -226,200 +232,480 @@
 
 <h2 id="overview">Overview</h2>
 
-<p>The <code class="language-plaintext highlighter-rouge">notifications</code> service is the asynchronous messaging and email delivery backbone of the ECIWISE platform. It consumes events from multiple upstream microservices via message queues, renders Handlebars email templates with i18n support, sends emails through SendGrid, and persists notifications in PostgreSQL for REST API consumption.</p>
+<p>The <code class="language-plaintext highlighter-rouge">notifications</code> service is the asynchronous messaging and email delivery backbone of the ECIWISE platform. It follows a <strong>hexagonal (ports and adapters)</strong> architecture: the domain core defines port interfaces, the application layer orchestrates use cases, and the infrastructure layer wires concrete adapters — none of which the domain or application layers know about directly.</p>
 
 <ul>
-  <li><strong>Email Delivery</strong>: Sends transactional emails (individual, role-based, and mass) via the SendGrid API with configurable sender identity and template-driven content.</li>
-  <li><strong>Template Engine</strong>: Maintains 17 Handlebars HTML templates covering authentication events, tutoring lifecycle, materials, chat, and forum activity — with optional internationalization (es, en, de, pt, fr).</li>
-  <li><strong>Message Queue Consumer</strong>: Consumes from Azure Service Bus or RabbitMQ (selectable at runtime) with a strategy-based broker abstraction, two-layer message validation, and dual action flags (<code class="language-plaintext highlighter-rouge">mandarCorreo</code> + <code class="language-plaintext highlighter-rouge">guardar</code>).</li>
+  <li><strong>Email Delivery</strong>: Sends transactional emails (individual, role-based, and bulk) via the SendGrid API with configurable sender identity and template-driven content.</li>
+  <li><strong>Template Engine</strong>: Maintains 17 Handlebars HTML templates covering authentication events, tutoring lifecycle, materials and forum activity — with optional internationalization (es, en, de, pt, fr).</li>
+  <li><strong>Message Queue Consumer</strong>: Consumes from Azure Service Bus or RabbitMQ (selectable at runtime via <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER</code>) with two-layer message validation.</li>
+  <li><strong>REST API</strong>: Exposes notification management endpoints. All user identity is derived from the JWT <code class="language-plaintext highlighter-rouge">sub</code> claim — never from the URL — preventing IDOR attacks.</li>
 </ul>
-
-<hr />
-
-<h2 id="notification-flow">Notification Flow</h2>
-
-<p>The notification lifecycle begins when an upstream service (Community, Materials, or Tutorships) publishes a message to a shared queue. The service validates the envelope and data, resolves the appropriate template, sends the email via SendGrid, and optionally persists a notification record in the database.</p>
-
-<p><a href="notifications/cicloNotificacion.png"><img src="/how/notifications/cicloNotificacion.png" alt="Notification Lifecycle" /></a></p>
-
-<p>A notification passes through three phases:</p>
-
-<ol>
-  <li><strong>Received</strong> — The message enters via Azure Service Bus or RabbitMQ.</li>
-  <li><strong>Validation</strong> — The <code class="language-plaintext highlighter-rouge">NotificationEnvelopeValidator</code> checks the envelope structure, then a type-specific validator (<code class="language-plaintext highlighter-rouge">IndividualDataValidator</code>, <code class="language-plaintext highlighter-rouge">RolDataValidator</code>, or <code class="language-plaintext highlighter-rouge">MasivoDataValidator</code>) checks the data payload. Invalid messages are ACK’d and discarded with a warning log.</li>
-  <li><strong>Processing</strong> — If the user exists in the local database, the service evaluates two independent flags: <code class="language-plaintext highlighter-rouge">mandarCorreo</code> (send email via SendGrid) and <code class="language-plaintext highlighter-rouge">guardar</code> (persist a notification record). Both can be true, false, or independently set.</li>
-</ol>
 
 <hr />
 
 <h2 id="architecture">Architecture</h2>
 
-<p>The service follows a <strong>modular NestJS architecture</strong> with a strategy-based broker abstraction. The <code class="language-plaintext highlighter-rouge">MessagingOrchestratorService</code> selects between <code class="language-plaintext highlighter-rouge">AzureMessagingConsumer</code> and <code class="language-plaintext highlighter-rouge">RabbitMQMessagingConsumer</code> at startup based on the <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER</code> environment variable. Only one broker is active per runtime instance.</p>
+<p>The service is structured as three layers with dependencies always pointing inward toward the domain core. The <code class="language-plaintext highlighter-rouge">NotificationsModule</code> is the <strong>composition root</strong> that wires each port (DI token) to its concrete adapter.</p>
 
-<p><a href="notifications/notificacionArquitectura.png"><img src="/how/notifications/notificacionArquitectura.png" alt="Internal Architecture" /></a></p>
+<pre><code class="language-mermaid">graph LR
+  subgraph Driving["Inbound Adapters (Driving)"]
+    HTTP["NotificationController\n[REST /notificacion]"]
+    ORCH["MessagingOrchestratorService\n[selects broker via ENV]"]
+    AZ["AzureMessagingConsumer\n[mail.envio.*]"]
+    RMQ["RabbitMQMessagingConsumer\n[notification.*]"]
+  end
 
-<h3 id="runtime-environment">Runtime Environment</h3>
+  subgraph Hexagon["Hexagon — Notifications"]
+    subgraph App["application/ — use cases"]
+      MNS["ManageNotificationsService"]
+      DNS["DispatchNotificationService"]
+    end
+    subgraph Domain["domain/ — pure core, no framework"]
+      PIN["Inbound Ports\nManageNotificationsUseCase\nDispatchNotificationUseCase"]
+      POUT["Outbound Ports\nNotificationRepositoryPort · UserRepositoryPort\nEmailSenderPort · TemplateRendererPort"]
+    end
+  end
 
-<p>The service is built with <strong>NestJS 11</strong> on <strong>TypeScript</strong>, using <strong>Prisma 7</strong> with the <code class="language-plaintext highlighter-rouge">@prisma/adapter-pg</code> adapter for PostgreSQL connection pooling. Email delivery is handled by <strong>SendGrid</strong> (<code class="language-plaintext highlighter-rouge">@sendgrid/mail</code> v8.x). Message consumption supports both <strong>Azure Service Bus</strong> (<code class="language-plaintext highlighter-rouge">@azure/service-bus</code> v7.9.5) and <strong>RabbitMQ</strong> (<code class="language-plaintext highlighter-rouge">amqplib</code> v2.0.1). Authentication uses <strong>Passport-JWT</strong> with HS256 validation against a shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code>.</p>
+  subgraph Driven["Outbound Adapters (Driven)"]
+    PR_N["PrismaNotificationRepository\n[PostgreSQL]"]
+    PR_U["PrismaUserRepository\n[PostgreSQL]"]
+    SG["SendgridEmailSender\n[SendGrid API]"]
+    HBS["HandlebarsTemplateRenderer\n[*.hbs]"]
+  end
+
+  HTTP --&gt;|"ManageNotificationsUseCase"| MNS
+  ORCH --&gt;|"MESSAGING_BROKER=azure"| AZ
+  ORCH --&gt;|"MESSAGING_BROKER=rabbitmq"| RMQ
+  AZ --&gt;|"DispatchNotificationUseCase"| DNS
+  RMQ --&gt;|"DispatchNotificationUseCase"| DNS
+
+  MNS --&gt; POUT
+  DNS --&gt; POUT
+  POUT --&gt; PR_N
+  POUT --&gt; PR_U
+  POUT --&gt; SG
+  POUT --&gt; HBS
+</code></pre>
+
+<h3 id="ports-and-adapters">Ports and Adapters</h3>
+
+<pre><code class="language-mermaid">classDiagram
+  direction LR
+
+  class ManageNotificationsUseCase {
+    &lt;&lt;interface — inbound port&gt;&gt;
+    +findByUser(userId) Notification[]
+    +countUnread(userId) number
+    +countUnreadChat(userId) number
+    +markAllRead(userId) number
+    +markRead(userId, id) Notification
+    +deleteById(userId, id) void
+  }
+  class DispatchNotificationUseCase {
+    &lt;&lt;interface — inbound port&gt;&gt;
+    +userExists(email) boolean
+    +sendIndividual(data, locale?) void
+    +saveIndividual(data) void
+    +sendByRole(data, locale?) void
+    +saveByRole(data) void
+    +sendBulk(emails, data, locale?) void
+  }
+  class NotificationRepositoryPort {
+    &lt;&lt;interface — outbound port&gt;&gt;
+    +findByUser(userId) Notification[]
+    +countUnread(userId) number
+    +countUnreadChat(userId) number
+    +markAllRead(userId) number
+    +markRead(userId, id) Notification
+    +deleteById(userId, id) void
+    +create(notification) void
+  }
+  class UserRepositoryPort {
+    &lt;&lt;interface — outbound port&gt;&gt;
+    +findByEmail(email) NotificationUser
+    +findByRole(role) NotificationUser[]
+  }
+  class EmailSenderPort {
+    &lt;&lt;interface — outbound port&gt;&gt;
+    +sendToRecipient(to, subject, html) void
+    +sendBulk(recipients, subject, html) void
+  }
+  class TemplateRendererPort {
+    &lt;&lt;interface — outbound port&gt;&gt;
+    +render(template, context, locale?) string
+  }
+
+  class ManageNotificationsService
+  class DispatchNotificationService
+  class NotificationController
+  class AzureMessagingConsumer
+  class RabbitMQMessagingConsumer
+  class PrismaNotificationRepository
+  class PrismaUserRepository
+  class SendgridEmailSender
+  class HandlebarsTemplateRenderer
+
+  ManageNotificationsService ..|&gt; ManageNotificationsUseCase : implements
+  DispatchNotificationService ..|&gt; DispatchNotificationUseCase : implements
+  PrismaNotificationRepository ..|&gt; NotificationRepositoryPort : implements
+  PrismaUserRepository ..|&gt; UserRepositoryPort : implements
+  SendgridEmailSender ..|&gt; EmailSenderPort : implements
+  HandlebarsTemplateRenderer ..|&gt; TemplateRendererPort : implements
+
+  NotificationController --&gt; ManageNotificationsUseCase : uses
+  AzureMessagingConsumer --&gt; DispatchNotificationUseCase : uses
+  RabbitMQMessagingConsumer --&gt; DispatchNotificationUseCase : uses
+
+  ManageNotificationsService --&gt; NotificationRepositoryPort : uses
+  DispatchNotificationService --&gt; NotificationRepositoryPort : uses
+  DispatchNotificationService --&gt; UserRepositoryPort : uses
+  DispatchNotificationService --&gt; EmailSenderPort : uses
+  DispatchNotificationService --&gt; TemplateRendererPort : uses
+</code></pre>
 
 <h3 id="package-structure">Package Structure</h3>
 
-<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>notifications/
-├── src/
-│   ├── alerta/                    # REST API module
-│   │   ├── alerta.controller.ts   # 6 REST endpoints
-│   │   ├── alerta.service.ts      # Email sending, DB CRUD, template rendering
-│   │   ├── dto/                   # Data transfer objects
-│   │   │   ├── notificacion.dto.ts
-│   │   │   ├── rolMail.dto.ts
-│   │   │   └── unicoMail.dto.ts
-│   │   └── enums/
-│   │       ├── template.enum.ts   # 17 template keys → email subjects
-│   │       └── type.enum.ts       # Notification types
-│   ├── auth/                      # JWT authentication
-│   │   ├── jwt.strategy.ts        # HS256 token validation
-│   │   ├── jwt-auth.guard.ts      # Route protection
-│   │   ├── usuarios-sync.service.ts  # JIT user provisioning
-│   │   └── public.decorator.ts    # @Public() decorator
-│   ├── config/
-│   │   └── env.ts                 # Joi-validated environment variables
-│   ├── messaging/                 # Queue consumer layer
-│   │   ├── consumers/
-│   │   │   ├── base-messaging.consumer.ts       # Shared processing logic
-│   │   │   ├── azure-messaging.consumer.ts      # Azure Service Bus consumer
-│   │   │   └── rabbitmq-messaging.consumer.ts   # RabbitMQ consumer
-│   │   ├── contracts/             # Message schemas (Zod)
-│   │   │   ├── notification-envelope.schema.ts
-│   │   │   ├── individual.schema.ts
-│   │   │   ├── rol.schema.ts
-│   │   │   └── masivo.schema.ts
-│   │   ├── interfaces/
-│   │   │   └── messaging-provider.interface.ts  # IMessagingProvider
-│   │   ├── messaging.module.ts
-│   │   └── messaging.orchestrator.ts           # Broker selection
-│   ├── prisma/
-│   │   ├── prisma.module.ts
-│   │   └── prisma.service.ts
-│   ├── templates/                 # 17 Handlebars email templates
-│   │   ├── CancelacionTutoriaEstudiante.hbs
-│   │   ├── CancelacionTutoriaTutor.hbs
-│   │   ├── CompletacionTutoriaEstudiante.hbs
-│   │   ├── CompletacionTutoriaTutor.hbs
-│   │   ├── ConfirmacionTutoriaEstudiante.hbs
-│   │   ├── ConfirmacionTutoriaTutor.hbs
-│   │   ├── RechazoTutoriaEstudiante.hbs
-│   │   ├── RechazoTutoriaTutor.hbs
-│   │   ├── SolicitudTutoriaEstudiante.hbs
-│   │   ├── SolicitudTutoriaTutor.hbs
-│   │   ├── cambioDeRol.hbs
-│   │   ├── cuentaEliminada.hbs
-│   │   ├── mencionRespuesta.hbs
-│   │   ├── mencionThread.hbs
-│   │   ├── nuevoMaterialSubido.hbs
-│   │   ├── nuevoThreadEnForo.hbs
-│   │   └── nuevoUsuario.hbs
-│   ├── app.module.ts
-│   └── main.ts
-├── prisma/
-│   └── schema.prisma
-├── test/
-│   ├── app.e2e-spec.ts
-│   └── jest-e2e.json
-├── dockerfile
-└── package.json
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>src/
+├── notifications/                        # Hexagon context (composition root: notifications.module.ts)
+│   ├── domain/                           # Pure core — no framework dependencies
+│   │   ├── model/
+│   │   │   ├── notification.entity.ts    # Notification, NewNotification interfaces
+│   │   │   ├── notification-user.ts      # NotificationUser interface
+│   │   │   ├── notification-type.enum.ts # TypeEnum (info, success, warning, error…)
+│   │   │   ├── template.ts              # TemplateEnum (17 keys)
+│   │   │   └── locale.ts                # SupportedLocale type
+│   │   └── ports/
+│   │       ├── inbound/
+│   │       │   ├── manage-notifications.use-case.ts    # ManageNotificationsUseCase
+│   │       │   └── dispatch-notification.use-case.ts   # DispatchNotificationUseCase
+│   │       └── outbound/
+│   │           ├── notification-repository.port.ts     # NotificationRepositoryPort
+│   │           ├── user-repository.port.ts             # UserRepositoryPort
+│   │           ├── email-sender.port.ts                # EmailSenderPort
+│   │           └── template-renderer.port.ts           # TemplateRendererPort
+│   ├── application/                      # Use cases — depend only on port interfaces
+│   │   ├── manage-notifications.service.ts
+│   │   └── dispatch-notification.service.ts
+│   ├── infrastructure/
+│   │   ├── inbound/                      # Driving adapters
+│   │   │   ├── http/
+│   │   │   │   ├── notification.controller.ts
+│   │   │   │   └── dto/notificacion.dto.ts
+│   │   │   └── messaging/
+│   │   │       ├── consumers/
+│   │   │       │   ├── base-messaging.consumer.ts
+│   │   │       │   ├── azure-messaging.consumer.ts
+│   │   │       │   └── rabbitmq-messaging.consumer.ts
+│   │   │       ├── contracts/            # Zod schemas: envelope, individual, rol, masivo
+│   │   │       ├── messaging.orchestrator.ts
+│   │   │       └── messaging-provider.port.ts
+│   │   └── outbound/                     # Driven adapters
+│   │       ├── persistence/
+│   │       │   ├── prisma-notification.repository.ts
+│   │       │   └── prisma-user.repository.ts
+│   │       ├── email/
+│   │       │   └── sendgrid-email-sender.adapter.ts
+│   │       └── templating/
+│   │           └── handlebars-template-renderer.adapter.ts
+│   └── notifications.module.ts           # Composition root: ports → adapters via DI
+├── auth/                                 # Shared infra: JWT strategy, guard, JIT provisioning
+├── config/env.ts                         # Joi-validated environment variables
+├── prisma/prisma.service.ts              # Shared Prisma singleton
+├── templates/                            # 17 Handlebars email templates
+├── app.module.ts
+└── main.ts
 </code></pre></div></div>
 
-<h3 id="runtime-dependencies">Runtime Dependencies</h3>
+<h3 id="runtime-environment">Runtime Environment</h3>
 
 <table>
   <thead>
     <tr>
-      <th>Dependency</th>
-      <th>Version</th>
-      <th>Purpose</th>
+      <th>Component</th>
+      <th>Technology</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">@nestjs/common</code></td>
-      <td>^11.1.8</td>
-      <td>NestJS core framework</td>
+      <td>Framework</td>
+      <td>NestJS 11 + TypeScript</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">@nestjs/core</code></td>
-      <td>^11.0.1</td>
-      <td>NestJS core framework</td>
+      <td>ORM</td>
+      <td>Prisma 7 + <code class="language-plaintext highlighter-rouge">@prisma/adapter-pg</code></td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">@nestjs/jwt</code></td>
-      <td>^11.0.2</td>
-      <td>JWT token handling</td>
+      <td>Messaging</td>
+      <td>Azure Service Bus (<code class="language-plaintext highlighter-rouge">@azure/service-bus</code> 7.x) and RabbitMQ (<code class="language-plaintext highlighter-rouge">amqplib</code>)</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">@nestjs/passport</code></td>
-      <td>^11.0.5</td>
-      <td>Passport.js integration</td>
+      <td>Email</td>
+      <td>SendGrid (<code class="language-plaintext highlighter-rouge">@sendgrid/mail</code> 8.x)</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">@nestjs/swagger</code></td>
-      <td>^11.2.1</td>
-      <td>API documentation (Swagger)</td>
+      <td>Templates</td>
+      <td>Handlebars (<code class="language-plaintext highlighter-rouge">hbs</code>) with i18n (es, en, de, pt, fr)</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">@prisma/client</code></td>
-      <td>^7.0.1</td>
-      <td>Database ORM</td>
+      <td>Auth</td>
+      <td>Passport-JWT HS256 with shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code></td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">@prisma/adapter-pg</code></td>
-      <td>^7.1.0</td>
-      <td>PostgreSQL adapter for Prisma 7</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">@azure/service-bus</code></td>
-      <td>^7.9.5</td>
-      <td>Azure Service Bus client</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">amqplib</code></td>
-      <td>^2.0.1</td>
-      <td>RabbitMQ client</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">@sendgrid/mail</code></td>
-      <td>^8.1.6</td>
-      <td>SendGrid email API</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">class-validator</code></td>
-      <td>^0.14.2</td>
-      <td>DTO validation</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">class-transformer</code></td>
-      <td>^0.5.1</td>
-      <td>Object transformation</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">joi</code></td>
-      <td>^18.0.1</td>
-      <td>Environment variable validation</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">passport-jwt</code></td>
-      <td>^4.0.1</td>
-      <td>JWT Passport strategy</td>
+      <td>Validation</td>
+      <td><code class="language-plaintext highlighter-rouge">class-validator</code>, <code class="language-plaintext highlighter-rouge">class-transformer</code>, Zod (contract schemas)</td>
     </tr>
   </tbody>
 </table>
 
 <hr />
 
+<h2 id="notification-flow">Notification Flow</h2>
+
+<pre><code class="language-mermaid">sequenceDiagram
+  participant P as Producer Service
+  participant B as Broker (Azure SB / RabbitMQ)
+  participant C as Consumer
+  participant V as Validators
+  participant D as DispatchNotificationService
+  participant R as HandlebarsTemplateRenderer
+  participant E as SendGrid
+  participant DB as PostgreSQL
+
+  P-&gt;&gt;B: NotificationEnvelope {eventType, notificationType, language, data}
+  B-&gt;&gt;C: Deliver message
+  C-&gt;&gt;V: validateEnvelope()
+  alt Invalid envelope
+    V--&gt;&gt;C: errors[]
+    C--&gt;&gt;B: ACK (discarded, no retry)
+  else Valid envelope
+    V--&gt;&gt;C: ok
+    C-&gt;&gt;V: validateData(individual | rol | masivo)
+    alt Invalid data
+      V--&gt;&gt;C: errors[]
+      C--&gt;&gt;B: ACK (discarded)
+    else Valid data
+      C-&gt;&gt;D: sendIndividual / sendByRole / sendBulk
+      D-&gt;&gt;R: render(template, context, locale?)
+      R--&gt;&gt;D: HTML
+      D-&gt;&gt;E: sendToRecipient / sendBulk
+      E--&gt;&gt;D: 202 Accepted
+      opt save = true
+        D-&gt;&gt;DB: notifications.create(...)
+      end
+      C--&gt;&gt;B: ACK (processed)
+    end
+  end
+</code></pre>
+
+<h3 id="notification-lifecycle">Notification Lifecycle</h3>
+
+<pre><code class="language-mermaid">stateDiagram-v2
+  [*] --&gt; Unread : saveIndividual / saveByRole (visto = false)
+  Unread --&gt; Read : markRead(id) / markAllRead()
+  Unread --&gt; [*] : deleteById(id)
+  Read --&gt; [*] : deleteById(id)
+</code></pre>
+
+<hr />
+
+<h2 id="data-model">Data Model</h2>
+
+<pre><code class="language-mermaid">erDiagram
+  roles {
+    Int    id     PK
+    String nombre UK
+  }
+  usuarios {
+    String   id          PK
+    String   email       UK
+    String   nombre
+    String   apellido
+    Int      rol_id      FK
+    DateTime created_at
+    DateTime updated_at
+  }
+  notifications {
+    Int      id            PK
+    String   userId        FK
+    DateTime fechaCreacion
+    String   asunto
+    String   resumen
+    String   type
+    Boolean  visto
+  }
+
+  roles ||--o{ usuarios : "groups"
+  usuarios ||--o{ notifications : "owns"
+</code></pre>
+
+<table>
+  <thead>
+    <tr>
+      <th>Table</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">roles</code></td>
+      <td>Shared with <code class="language-plaintext highlighter-rouge">auth/</code>. Created on-demand by <code class="language-plaintext highlighter-rouge">UsuariosSyncService</code> during JIT provisioning.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">usuarios</code></td>
+      <td>Mirror of the central auth registry. Populated JIT from JWT claims on each authenticated request.</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">notifications</code></td>
+      <td>Owned exclusively by this service. <code class="language-plaintext highlighter-rouge">type</code> maps to <code class="language-plaintext highlighter-rouge">TypeEnum</code> (info, success, warning, error, achievement, denied).</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="endpoints">Endpoints</h2>
+
+<p>All endpoints are under the <code class="language-plaintext highlighter-rouge">/notificacion</code> prefix and require <code class="language-plaintext highlighter-rouge">Authorization: Bearer &lt;jwt&gt;</code>. The <code class="language-plaintext highlighter-rouge">userId</code> is derived from the token <code class="language-plaintext highlighter-rouge">sub</code> claim — never from the URL. Operations scoped to <code class="language-plaintext highlighter-rouge">:id</code> return <code class="language-plaintext highlighter-rouge">404</code> if the notification does not exist or does not belong to the authenticated user.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Path</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion</code></td>
+      <td>Get authenticated user’s notifications (sorted by date desc)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion/unread-count</code></td>
+      <td>Count unread notifications</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion/unread-chat-count</code></td>
+      <td>Count unread notifications of type <code class="language-plaintext highlighter-rouge">chat</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PATCH</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion/read-all</code></td>
+      <td>Mark all notifications as read</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PATCH</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion/read/:id</code></td>
+      <td>Mark a single notification as read (owner-scoped)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DELETE</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/notificacion/:id</code></td>
+      <td>Delete a notification (owner-scoped)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>NotificacionDto</strong> (response): <code class="language-plaintext highlighter-rouge">id: number</code>, <code class="language-plaintext highlighter-rouge">asunto: string</code>, <code class="language-plaintext highlighter-rouge">resumen: string</code>, <code class="language-plaintext highlighter-rouge">visto: boolean</code>, <code class="language-plaintext highlighter-rouge">fechaCreacion: Date</code>, <code class="language-plaintext highlighter-rouge">type: string</code></p>
+
+<hr />
+
+<h2 id="message-broker-integration">Message Broker Integration</h2>
+
+<pre><code class="language-mermaid">graph LR
+  subgraph Producers
+    AUTH["auth/"]
+    COM["community/"]
+    MAT["materials/"]
+    TUT["tutorships/"]
+  end
+
+  subgraph AzureSB["Azure Service Bus"]
+    Q1["mail.envio.individual"]
+    Q2["mail.envio.rol"]
+    Q3["mail.envio.masivo"]
+  end
+
+  subgraph RabbitMQ["RabbitMQ — exchange: notifications (topic)"]
+    RK1["notification.individual"]
+    RK2["notification.rol"]
+    RK3["notification.masivo"]
+  end
+
+  subgraph SVC["Notifications Service"]
+    AZC["AzureMessagingConsumer"]
+    RMQC["RabbitMQMessagingConsumer"]
+  end
+
+  AUTH &amp; COM &amp; MAT &amp; TUT --&gt;|Azure SB| Q1 &amp; Q2 &amp; Q3
+  AUTH &amp; COM &amp; MAT &amp; TUT --&gt;|RabbitMQ| RK1 &amp; RK2 &amp; RK3
+
+  Q1 &amp; Q2 &amp; Q3 --&gt; AZC
+  RK1 &amp; RK2 &amp; RK3 --&gt; RMQC
+</code></pre>
+
+<p><code class="language-plaintext highlighter-rouge">MessagingOrchestratorService</code> activates exactly one consumer at startup based on <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER</code>. Only one broker is active per runtime instance.</p>
+
+<h3 id="message-envelope">Message Envelope</h3>
+
+<p>Every message must conform to the <code class="language-plaintext highlighter-rouge">NotificationEnvelope</code> format:</p>
+
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"notification"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"notificationType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"individual | rol | masivo"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"language"</span><span class="p">:</span><span class="w"> </span><span class="s2">"es | en | de | pt | fr"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<h3 id="notification-types">Notification Types</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Who receives</th>
+      <th>Key <code class="language-plaintext highlighter-rouge">data</code> fields</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">individual</code></td>
+      <td>Single recipient by email</td>
+      <td><code class="language-plaintext highlighter-rouge">email</code>, <code class="language-plaintext highlighter-rouge">template</code>, <code class="language-plaintext highlighter-rouge">subject</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rol</code></td>
+      <td>All users with a given role</td>
+      <td><code class="language-plaintext highlighter-rouge">rol</code>, <code class="language-plaintext highlighter-rouge">template</code>, <code class="language-plaintext highlighter-rouge">subject</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">masivo</code></td>
+      <td>Batch list (single SendGrid API call)</td>
+      <td><code class="language-plaintext highlighter-rouge">emails[]</code>, <code class="language-plaintext highlighter-rouge">template</code>, <code class="language-plaintext highlighter-rouge">subject</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="validation-pipeline">Validation Pipeline</h3>
+
+<p>Messages go through a two-layer validation process:</p>
+
+<ol>
+  <li><strong>Envelope layer</strong> — <code class="language-plaintext highlighter-rouge">NotificationEnvelopeValidator</code> checks <code class="language-plaintext highlighter-rouge">eventType</code>, <code class="language-plaintext highlighter-rouge">notificationType</code>, <code class="language-plaintext highlighter-rouge">language</code>, and <code class="language-plaintext highlighter-rouge">data</code> presence.</li>
+  <li><strong>Data layer</strong> — Type-specific Zod schemas check required fields per type.</li>
+</ol>
+
+<p>Failed validation results in the message being ACK’d (not retried) to prevent poison-pill scenarios.</p>
+
+<hr />
+
 <h2 id="jwt-based-identity">JWT-based Identity</h2>
 
-<p>The service validates JWT tokens using HMAC-SHA256 with a shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code>. All routes are protected by <code class="language-plaintext highlighter-rouge">JwtAuthGuard</code> unless explicitly marked with the <code class="language-plaintext highlighter-rouge">@Public()</code> decorator.</p>
-
-<p><a href="notifications/jwt.png"><img src="/how/notifications/jwt.png" alt="JWT Model" /></a></p>
+<p>All routes are protected by <code class="language-plaintext highlighter-rouge">JwtAuthGuard</code> (global <code class="language-plaintext highlighter-rouge">APP_GUARD</code>) unless marked with <code class="language-plaintext highlighter-rouge">@Public()</code>. The service validates HS256 tokens using a shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code> — no HTTP call to the <code class="language-plaintext highlighter-rouge">auth</code> service.</p>
 
 <table>
   <thead>
@@ -431,7 +717,7 @@
   <tbody>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">sub</code></td>
-      <td>User identifier (UUID)</td>
+      <td>User identifier (UUID) — used as <code class="language-plaintext highlighter-rouge">userId</code> for all data operations</td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">email</code></td>
@@ -452,356 +738,13 @@
   </tbody>
 </table>
 
-<p>The <code class="language-plaintext highlighter-rouge">UsuariosSyncService</code> performs <strong>Just-in-Time User Provisioning</strong>: on each authenticated request, it upserts the JWT user into the local <code class="language-plaintext highlighter-rouge">usuarios</code> table, creating the role if it does not exist. This keeps the local user registry in sync with the central <code class="language-plaintext highlighter-rouge">auth</code> service without inter-service calls.</p>
-
-<hr />
-
-<h2 id="data-model">Data Model</h2>
-
-<p>The service uses three tables. The <code class="language-plaintext highlighter-rouge">notifications</code> table is owned by this service; <code class="language-plaintext highlighter-rouge">usuarios</code> and <code class="language-plaintext highlighter-rouge">roles</code> are shared with other microservices and kept in sync via JWT-based JIT provisioning.</p>
-
-<p><a href="notifications/esquemaBaseDeDatos.png"><img src="/how/notifications/esquemaBaseDeDatos.png" alt="Database Schema" /></a></p>
-
-<h3 id="notifications">notifications</h3>
-
-<table>
-  <thead>
-    <tr>
-      <th>Column</th>
-      <th>Type</th>
-      <th>Notes</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">id</code></td>
-      <td>UUID</td>
-      <td><code class="language-plaintext highlighter-rouge">@id @default(uuid())</code></td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">user_id</code></td>
-      <td>String</td>
-      <td>FK to <code class="language-plaintext highlighter-rouge">usuarios.id</code></td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">fecha_creacion</code></td>
-      <td>Timestamptz</td>
-      <td><code class="language-plaintext highlighter-rouge">@default(now())</code></td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">asunto</code></td>
-      <td>String</td>
-      <td>Email subject / notification title</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">resumen</code></td>
-      <td>String</td>
-      <td>Notification body / summary</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">visto</code></td>
-      <td>Boolean</td>
-      <td><code class="language-plaintext highlighter-rouge">@default(false)</code> — read status</td>
-    </tr>
-  </tbody>
-</table>
-
-<p><strong>Composite primary key</strong>: <code class="language-plaintext highlighter-rouge">(id, user_id)</code></p>
-
-<h3 id="usuarios">usuarios</h3>
-
-<table>
-  <thead>
-    <tr>
-      <th>Column</th>
-      <th>Type</th>
-      <th>Notes</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">id</code></td>
-      <td>UUID</td>
-      <td><code class="language-plaintext highlighter-rouge">@id</code></td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">email</code></td>
-      <td>String</td>
-      <td><code class="language-plaintext highlighter-rouge">@unique</code>, indexed</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">nombre</code></td>
-      <td>String</td>
-      <td>First name</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">apellido</code></td>
-      <td>String</td>
-      <td>Last name</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">rol_id</code></td>
-      <td>Int</td>
-      <td>FK to <code class="language-plaintext highlighter-rouge">roles.id</code>, <code class="language-plaintext highlighter-rouge">@default(1)</code></td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">estado_id</code></td>
-      <td>Int</td>
-      <td>Account status</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="roles">roles</h3>
-
-<table>
-  <thead>
-    <tr>
-      <th>Column</th>
-      <th>Type</th>
-      <th>Notes</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">id</code></td>
-      <td>Int</td>
-      <td><code class="language-plaintext highlighter-rouge">@id @default(autoincrement())</code></td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">nombre</code></td>
-      <td>String</td>
-      <td><code class="language-plaintext highlighter-rouge">@unique</code> — role name</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">descripcion</code></td>
-      <td>String?</td>
-      <td>Optional description</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">activo</code></td>
-      <td>Boolean</td>
-      <td>Active status</td>
-    </tr>
-  </tbody>
-</table>
-
-<hr />
-
-<h2 id="endpoints">Endpoints</h2>
-
-<p>All endpoints are under the <code class="language-plaintext highlighter-rouge">/notificacion</code> prefix.</p>
-
-<h3 id="notification-queries">Notification Queries</h3>
-
-<table>
-  <thead>
-    <tr>
-      <th>Method</th>
-      <th>Path</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
-      <td><code class="language-plaintext highlighter-rouge">/notificacion/:userId</code></td>
-      <td>Get all notifications for a user (sorted by date desc)</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
-      <td><code class="language-plaintext highlighter-rouge">/notificacion/unread-count/:userId</code></td>
-      <td>Count unread notifications</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
-      <td><code class="language-plaintext highlighter-rouge">/notificacion/unread-chat-count/:userId</code></td>
-      <td>Count unread chat notifications (subject starts with “Hay un nuevo mensaje”)</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">PATCH</code></td>
-      <td><code class="language-plaintext highlighter-rouge">/notificacion/read-all/:userId</code></td>
-      <td>Mark all notifications as read</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">PATCH</code></td>
-      <td><code class="language-plaintext highlighter-rouge">/notificacion/read/:id</code></td>
-      <td>Mark a single notification as read</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">DELETE</code></td>
-      <td><code class="language-plaintext highlighter-rouge">/notificacion/:id</code></td>
-      <td>Delete a notification</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="dtos">DTOs</h3>
-
-<p><strong>NotificacionDto</strong> (response):</p>
-<ul>
-  <li><code class="language-plaintext highlighter-rouge">id: number</code>, <code class="language-plaintext highlighter-rouge">asunto: string</code>, <code class="language-plaintext highlighter-rouge">resumen: string</code>, <code class="language-plaintext highlighter-rouge">visto: boolean</code>, <code class="language-plaintext highlighter-rouge">fechaCreacion: Date</code>, <code class="language-plaintext highlighter-rouge">type: string</code></li>
-</ul>
-
-<p><strong>UnicoMailDto</strong> (individual email input):</p>
-<ul>
-  <li>Required: <code class="language-plaintext highlighter-rouge">email</code>, <code class="language-plaintext highlighter-rouge">template</code>, <code class="language-plaintext highlighter-rouge">resumen</code>, <code class="language-plaintext highlighter-rouge">guardar</code>, <code class="language-plaintext highlighter-rouge">type</code></li>
-  <li>Optional: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">mandarCorreo</code> (default true), <code class="language-plaintext highlighter-rouge">year</code> (default current year), <code class="language-plaintext highlighter-rouge">tema</code>, <code class="language-plaintext highlighter-rouge">material_author</code>, <code class="language-plaintext highlighter-rouge">link</code>, <code class="language-plaintext highlighter-rouge">oldRole</code>, <code class="language-plaintext highlighter-rouge">newRole</code>, <code class="language-plaintext highlighter-rouge">materia</code>, <code class="language-plaintext highlighter-rouge">fileName</code>, <code class="language-plaintext highlighter-rouge">fecha</code>, <code class="language-plaintext highlighter-rouge">tutor</code>, <code class="language-plaintext highlighter-rouge">estudiante</code>, <code class="language-plaintext highlighter-rouge">mensaje</code>, <code class="language-plaintext highlighter-rouge">modalidad</code>, <code class="language-plaintext highlighter-rouge">hora</code>, <code class="language-plaintext highlighter-rouge">nombreGrupo</code>, <code class="language-plaintext highlighter-rouge">taggedBy</code>, <code class="language-plaintext highlighter-rouge">threadTitle</code>, <code class="language-plaintext highlighter-rouge">createdBy</code>, <code class="language-plaintext highlighter-rouge">mentionedBy</code></li>
-</ul>
-
-<p><strong>RolMailDto</strong> (role-based email input):</p>
-<ul>
-  <li>Required: <code class="language-plaintext highlighter-rouge">rol</code>, <code class="language-plaintext highlighter-rouge">template</code>, <code class="language-plaintext highlighter-rouge">resumen</code>, <code class="language-plaintext highlighter-rouge">guardar</code>, <code class="language-plaintext highlighter-rouge">type</code></li>
-  <li>Optional: <code class="language-plaintext highlighter-rouge">mandarCorreo</code> (default true), <code class="language-plaintext highlighter-rouge">material_name</code>, <code class="language-plaintext highlighter-rouge">material_subject</code>, <code class="language-plaintext highlighter-rouge">material_topic</code>, <code class="language-plaintext highlighter-rouge">material_author</code>, <code class="language-plaintext highlighter-rouge">link</code></li>
-</ul>
-
-<hr />
-
-<h2 id="message-broker-integration">Message Broker Integration</h2>
-
-<table>
-  <tbody>
-    <tr>
-      <td>The service supports two mutually exclusive message brokers, selected at startup via the <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER</code> environment variable (<code class="language-plaintext highlighter-rouge">'azure'</code></td>
-      <td><code class="language-plaintext highlighter-rouge">'rabbitmq'</code>, default <code class="language-plaintext highlighter-rouge">'azure'</code>).</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="broker-selection">Broker Selection</h3>
-
-<p>The <code class="language-plaintext highlighter-rouge">MessagingOrchestratorService</code> instantiates the appropriate consumer during <code class="language-plaintext highlighter-rouge">OnModuleInit</code> and stops it during <code class="language-plaintext highlighter-rouge">OnModuleDestroy</code>. Only one broker is active per instance.</p>
-
-<h3 id="queue-topology">Queue Topology</h3>
-
-<table>
-  <thead>
-    <tr>
-      <th>Broker</th>
-      <th>Queue / Exchange</th>
-      <th>Type</th>
-      <th>Purpose</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><strong>Azure Service Bus</strong></td>
-      <td><code class="language-plaintext highlighter-rouge">mail.envio.individual</code></td>
-      <td>Queue</td>
-      <td>Single-recipient emails</td>
-    </tr>
-    <tr>
-      <td> </td>
-      <td><code class="language-plaintext highlighter-rouge">mail.envio.rol</code></td>
-      <td>Queue</td>
-      <td>Role-based emails</td>
-    </tr>
-    <tr>
-      <td> </td>
-      <td><code class="language-plaintext highlighter-rouge">mail.envio.masivo</code></td>
-      <td>Queue</td>
-      <td>Mass/batch emails</td>
-    </tr>
-    <tr>
-      <td><strong>RabbitMQ</strong></td>
-      <td><code class="language-plaintext highlighter-rouge">notifications</code></td>
-      <td>Exchange (topic, durable)</td>
-      <td>Message routing</td>
-    </tr>
-    <tr>
-      <td> </td>
-      <td><code class="language-plaintext highlighter-rouge">notification.individual</code></td>
-      <td>Queue (bound to exchange)</td>
-      <td>Single-recipient emails</td>
-    </tr>
-    <tr>
-      <td> </td>
-      <td><code class="language-plaintext highlighter-rouge">notification.rol</code></td>
-      <td>Queue (bound to exchange)</td>
-      <td>Role-based emails</td>
-    </tr>
-    <tr>
-      <td> </td>
-      <td><code class="language-plaintext highlighter-rouge">notification.masivo</code></td>
-      <td>Queue (bound to exchange)</td>
-      <td>Mass/batch emails</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="message-envelope-structure">Message Envelope Structure</h3>
-
-<p>Every message must conform to the <code class="language-plaintext highlighter-rouge">NotificationEnvelope</code> format:</p>
-
-<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
-  </span><span class="nl">"eventType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"notification"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"notificationType"</span><span class="p">:</span><span class="w"> </span><span class="s2">"individual"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"rol"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"masivo"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"language"</span><span class="p">:</span><span class="w"> </span><span class="s2">"es"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"en"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"de"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"pt"</span><span class="w"> </span><span class="err">|</span><span class="w"> </span><span class="s2">"fr"</span><span class="p">,</span><span class="w">
-  </span><span class="nl">"data"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">}</span><span class="w">
-</span><span class="p">}</span><span class="w">
-</span></code></pre></div></div>
-
-<h3 id="validation-pipeline">Validation Pipeline</h3>
-
-<p>Messages go through a <strong>two-layer validation</strong> process:</p>
-
-<ol>
-  <li><strong>Envelope layer</strong> — <code class="language-plaintext highlighter-rouge">NotificationEnvelopeValidator</code> checks <code class="language-plaintext highlighter-rouge">eventType</code>, <code class="language-plaintext highlighter-rouge">notificationType</code>, <code class="language-plaintext highlighter-rouge">language</code>, and <code class="language-plaintext highlighter-rouge">data</code> presence.</li>
-  <li><strong>Data layer</strong> — Type-specific validators check required fields:</li>
-</ol>
-
-<table>
-  <thead>
-    <tr>
-      <th>Type</th>
-      <th>Required Fields</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">individual</code></td>
-      <td><code class="language-plaintext highlighter-rouge">email</code> (string), <code class="language-plaintext highlighter-rouge">template</code> (string), <code class="language-plaintext highlighter-rouge">resumen</code> (string), <code class="language-plaintext highlighter-rouge">guardar</code> (boolean, optional)</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">rol</code></td>
-      <td><code class="language-plaintext highlighter-rouge">rol</code> (string), <code class="language-plaintext highlighter-rouge">template</code> (string), <code class="language-plaintext highlighter-rouge">resumen</code> (string), <code class="language-plaintext highlighter-rouge">guardar</code> (boolean, optional)</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">masivo</code></td>
-      <td><code class="language-plaintext highlighter-rouge">emails</code> (non-empty string array), <code class="language-plaintext highlighter-rouge">template</code> (string), <code class="language-plaintext highlighter-rouge">resumen</code> (string), <code class="language-plaintext highlighter-rouge">guardar</code> (boolean, optional)</td>
-    </tr>
-  </tbody>
-</table>
-
-<p>Failed validation results in the message being ACK’d (not retried) with a warning log to prevent poison pill scenarios.</p>
-
-<h3 id="sequence-diagrams">Sequence Diagrams</h3>
-
-<h4 id="individual-notification">Individual Notification</h4>
-
-<p><a href="notifications/notificacionIndividual.png"><img src="/how/notifications/notificacionIndividual.png" alt="Individual Notification Sequence" /></a></p>
-
-<p>The upstream service publishes a message to <code class="language-plaintext highlighter-rouge">mail.envio.individual</code>. The orchestrator selects the active provider, delegates to <code class="language-plaintext highlighter-rouge">BaseMessagingConsumer.processEnvelope()</code>, validates the envelope and data, looks up the user by email, and conditionally sends the email and/or persists the notification.</p>
-
-<h4 id="role-based-notification">Role-Based Notification</h4>
-
-<p><a href="notifications/notificacionRol.png"><img src="/how/notifications/notificacionRol.png" alt="Role-Based Notification Sequence" /></a></p>
-
-<p>The upstream service publishes a message to <code class="language-plaintext highlighter-rouge">mail.envio.rol</code> with a role name. The service queries all users with that role and sends an individual email to each. If <code class="language-plaintext highlighter-rouge">guardar=true</code>, a notification record is created for each recipient.</p>
-
-<h4 id="mass-notification">Mass Notification</h4>
-
-<p><a href="notifications/notificacionMasiva.png"><img src="/how/notifications/notificacionMasiva.png" alt="Mass Notification Sequence" /></a></p>
-
-<p>The upstream service publishes a message to <code class="language-plaintext highlighter-rouge">mail.envio.masivo</code> with an array of email addresses. SendGrid personalizations group all recipients into a single API call. If <code class="language-plaintext highlighter-rouge">guardar=true</code>, individual notification records are created for each email.</p>
+<p><code class="language-plaintext highlighter-rouge">UsuariosSyncService</code> performs <strong>Just-in-Time User Provisioning</strong>: on each authenticated request it upserts the JWT user into the local <code class="language-plaintext highlighter-rouge">usuarios</code> table, keeping the local registry in sync with the central <code class="language-plaintext highlighter-rouge">auth</code> service without inter-service calls.</p>
 
 <hr />
 
 <h2 id="email-templates">Email Templates</h2>
 
-<p>The service maintains <strong>17 Handlebars HTML templates</strong> in <code class="language-plaintext highlighter-rouge">src/templates/</code>. Each template is a full HTML email with inline CSS. A logo CID attachment (<code class="language-plaintext highlighter-rouge">cid:logo</code>) is loaded from <code class="language-plaintext highlighter-rouge">docs/logo.png</code> if the file exists.</p>
-
-<h3 id="template-catalog">Template Catalog</h3>
+<p>The service maintains <strong>17 Handlebars HTML templates</strong> in <code class="language-plaintext highlighter-rouge">src/templates/</code>.</p>
 
 <table>
   <thead>
@@ -883,11 +826,6 @@
       <td>Materials</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">nuevoMensaje</code></td>
-      <td>Hay un nuevo mensaje del Grupo: {name}</td>
-      <td>Chat</td>
-    </tr>
-    <tr>
       <td><code class="language-plaintext highlighter-rouge">nuevoThreadEnForo</code></td>
       <td>Se ha creado un nuevo hilo en el foro</td>
       <td>Forum</td>
@@ -905,385 +843,95 @@
   </tbody>
 </table>
 
-<h3 id="template-variables-by-category">Template Variables by Category</h3>
-
-<p><strong>Auth templates</strong>: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">year</code>, <code class="language-plaintext highlighter-rouge">oldRole</code>, <code class="language-plaintext highlighter-rouge">newRole</code></p>
-
-<p><strong>Tutoring templates</strong>: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">year</code>, <code class="language-plaintext highlighter-rouge">materia</code>, <code class="language-plaintext highlighter-rouge">fecha</code>, <code class="language-plaintext highlighter-rouge">hora</code>, <code class="language-plaintext highlighter-rouge">tutor</code>, <code class="language-plaintext highlighter-rouge">estudiante</code>, <code class="language-plaintext highlighter-rouge">modalidad</code>, <code class="language-plaintext highlighter-rouge">razon</code>, <code class="language-plaintext highlighter-rouge">mensaje</code></p>
-
-<p><strong>Materials templates</strong>: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">year</code>, <code class="language-plaintext highlighter-rouge">fileName</code>, <code class="language-plaintext highlighter-rouge">materia</code>, <code class="language-plaintext highlighter-rouge">tema</code>, <code class="language-plaintext highlighter-rouge">material_author</code>, <code class="language-plaintext highlighter-rouge">link</code></p>
-
-<p><strong>Chat templates</strong>: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">year</code>, <code class="language-plaintext highlighter-rouge">nombreGrupo</code>, <code class="language-plaintext highlighter-rouge">mensaje</code></p>
-
-<p><strong>Forum templates</strong>: <code class="language-plaintext highlighter-rouge">name</code>, <code class="language-plaintext highlighter-rouge">year</code>, <code class="language-plaintext highlighter-rouge">nombreGrupo</code>, <code class="language-plaintext highlighter-rouge">threadTitle</code>, <code class="language-plaintext highlighter-rouge">createdBy</code>, <code class="language-plaintext highlighter-rouge">mentionedBy</code>, <code class="language-plaintext highlighter-rouge">taggedBy</code>, <code class="language-plaintext highlighter-rouge">fecha</code></p>
-
 <h3 id="i18n-resolution">i18n Resolution</h3>
 
-<p>Template resolution is controlled by <code class="language-plaintext highlighter-rouge">TRANSLATED_TEMPLATES_ENABLED</code> (default <code class="language-plaintext highlighter-rouge">false</code>). Supported locales: <code class="language-plaintext highlighter-rouge">es</code>, <code class="language-plaintext highlighter-rouge">en</code>, <code class="language-plaintext highlighter-rouge">de</code>, <code class="language-plaintext highlighter-rouge">pt</code>, <code class="language-plaintext highlighter-rouge">fr</code>. Resolution order:</p>
+<p>Template resolution is controlled by <code class="language-plaintext highlighter-rouge">TRANSLATED_TEMPLATES_ENABLED</code> (default <code class="language-plaintext highlighter-rouge">false</code>). Resolution order:</p>
 
 <ol>
-  <li><code class="language-plaintext highlighter-rouge">{templateName}.{locale}.hbs</code> (if locale enabled and file exists)</li>
-  <li><code class="language-plaintext highlighter-rouge">{templateName}.hbs</code> (fallback)</li>
-  <li>Inline HTML <code class="language-plaintext highlighter-rouge">&lt;p&gt;Hola ,&lt;/p&gt;&lt;p&gt;&lt;/p&gt;</code> (hardcoded fallback)</li>
+  <li><code class="language-plaintext highlighter-rouge">{templateName}.{locale}.hbs</code> — if locale enabled and file exists</li>
+  <li><code class="language-plaintext highlighter-rouge">{templateName}.hbs</code> — fallback</li>
 </ol>
 
-<p>The fallback locale is configurable via <code class="language-plaintext highlighter-rouge">TRANSLATED_TEMPLATES_FALLBACK</code> (default <code class="language-plaintext highlighter-rouge">'es'</code>).</p>
-
-<hr />
-
-<h2 id="service-communication">Service Communication</h2>
-
-<p><a href="notifications/notifications-service-connections.png"><img src="/how/notifications/notifications-service-connections.png" alt="Service Connections" /></a></p>
-
-<h3 id="producers">Producers</h3>
-
-<p>The following upstream services publish messages to the notification queues:</p>
-
-<table>
-  <thead>
-    <tr>
-      <th>Producer Service</th>
-      <th>Broker</th>
-      <th>Queues</th>
-      <th>Message Types</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">community/</code></td>
-      <td>Azure Service Bus</td>
-      <td><code class="language-plaintext highlighter-rouge">mail.envio.*</code></td>
-      <td>Individual, Rol, Masivo</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">materials/</code></td>
-      <td>Azure Service Bus</td>
-      <td><code class="language-plaintext highlighter-rouge">mail.envio.*</code></td>
-      <td>Individual, Rol, Masivo</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">tutorships/</code></td>
-      <td>Azure Service Bus</td>
-      <td><code class="language-plaintext highlighter-rouge">mail.envio.*</code></td>
-      <td>Individual, Rol, Masivo</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="jwt-trust-model">JWT Trust Model</h3>
-
-<p>All backend services validate JWTs independently by verifying the HMAC-SHA256 signature against a shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code> — no callback to the <code class="language-plaintext highlighter-rouge">auth</code> service. The notifications service extracts user claims from the token and upserts them into the local <code class="language-plaintext highlighter-rouge">usuarios</code> table via <code class="language-plaintext highlighter-rouge">UsuariosSyncService</code>.</p>
-
-<h3 id="database-sharing">Database Sharing</h3>
-
-<p>The service shares the <code class="language-plaintext highlighter-rouge">usuarios</code> and <code class="language-plaintext highlighter-rouge">roles</code> tables with <code class="language-plaintext highlighter-rouge">auth/</code>, <code class="language-plaintext highlighter-rouge">community/</code>, <code class="language-plaintext highlighter-rouge">materials/</code>, and <code class="language-plaintext highlighter-rouge">tutorships/</code>. The <code class="language-plaintext highlighter-rouge">notifications</code> table is unique to this service. User data is kept in sync through JIT provisioning from JWTs rather than direct inter-service database access.</p>
-
-<hr />
-
-<h2 id="c4--level-1-system-context">C4 — Level 1: System Context</h2>
-
-<p><a href="notifications/notificaciones.png"><img src="/how/notifications/notificaciones.png" alt="System Context" /></a></p>
-
-<h3 id="actors">Actors</h3>
-
-<table>
-  <thead>
-    <tr>
-      <th>Actor</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Student</td>
-      <td>Receives email notifications and views in-app notifications</td>
-    </tr>
-    <tr>
-      <td>Tutor</td>
-      <td>Receives email notifications and views in-app notifications</td>
-    </tr>
-    <tr>
-      <td>Administrator</td>
-      <td>Receives system-wide email notifications</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="systems">Systems</h3>
-
-<table>
-  <thead>
-    <tr>
-      <th>System</th>
-      <th>Type</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Notifications Service</td>
-      <td>Internal</td>
-      <td>Email delivery and notification persistence</td>
-    </tr>
-    <tr>
-      <td>Auth Service</td>
-      <td>Internal</td>
-      <td>JWT authentication and user management</td>
-    </tr>
-    <tr>
-      <td>Community Service</td>
-      <td>Internal</td>
-      <td>Forums, chat, content moderation</td>
-    </tr>
-    <tr>
-      <td>Materials Service</td>
-      <td>Internal</td>
-      <td>Study materials management</td>
-    </tr>
-    <tr>
-      <td>Tutorships Service</td>
-      <td>Internal</td>
-      <td>Tutoring session management</td>
-    </tr>
-    <tr>
-      <td>SendGrid</td>
-      <td>External</td>
-      <td>Email delivery API</td>
-    </tr>
-    <tr>
-      <td>PostgreSQL</td>
-      <td>External</td>
-      <td>Notification and user data persistence</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="relationships">Relationships</h3>
-
-<table>
-  <thead>
-    <tr>
-      <th>From</th>
-      <th>To</th>
-      <th>Protocol</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Community Service</td>
-      <td>Notifications Service</td>
-      <td>Azure Service Bus</td>
-      <td>Publishes notification events</td>
-    </tr>
-    <tr>
-      <td>Materials Service</td>
-      <td>Notifications Service</td>
-      <td>Azure Service Bus</td>
-      <td>Publishes notification events</td>
-    </tr>
-    <tr>
-      <td>Tutorships Service</td>
-      <td>Notifications Service</td>
-      <td>Azure Service Bus</td>
-      <td>Publishes notification events</td>
-    </tr>
-    <tr>
-      <td>Notifications Service</td>
-      <td>SendGrid</td>
-      <td>HTTPS</td>
-      <td>Sends transactional emails</td>
-    </tr>
-    <tr>
-      <td>Notifications Service</td>
-      <td>PostgreSQL</td>
-      <td>TCP</td>
-      <td>Reads/writes notification and user data</td>
-    </tr>
-    <tr>
-      <td>Student / Tutor / Administrator</td>
-      <td>Notifications Service</td>
-      <td>HTTPS</td>
-      <td>Views notifications via REST API</td>
-    </tr>
-  </tbody>
-</table>
+<p>Fallback locale is configurable via <code class="language-plaintext highlighter-rouge">TRANSLATED_TEMPLATES_FALLBACK</code> (default <code class="language-plaintext highlighter-rouge">'es'</code>).</p>
 
 <hr />
 
 <h2 id="c4--level-2-containers">C4 — Level 2: Containers</h2>
 
-<p><a href="notifications/contenedores.png"><img src="/how/notifications/contenedores.png" alt="Containers" /></a></p>
+<pre><code class="language-mermaid">graph TB
+  subgraph Clients["Clients"]
+    FE["Frontend / REST Client"]
+    PROD["Producer Services\nauth · community · materials · tutorships"]
+  end
 
-<h3 id="containers">Containers</h3>
+  subgraph NotifService["Notifications Service — NestJS 11"]
+    CTRL["NotificationController\n[REST /notificacion]"]
+    ORCH["MessagingOrchestratorService\n[broker selection]"]
+    AZ_C["AzureMessagingConsumer"]
+    RMQ_C["RabbitMQMessagingConsumer"]
+    MNS["ManageNotificationsService\n[inbound use case]"]
+    DNS["DispatchNotificationService\n[inbound use case]"]
+    SYNC["UsuariosSyncService\n[JIT provisioning]"]
+    JWT["JwtStrategy\n[HS256 validation]"]
+    HBS_R["HandlebarsTemplateRenderer\n[outbound adapter]"]
+    PRISMA["PrismaService"]
+  end
 
-<table>
-  <thead>
-    <tr>
-      <th>Container</th>
-      <th>Technology</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Notifications API</td>
-      <td>NestJS 11, TypeScript</td>
-      <td>REST API for notification queries and email sending</td>
-    </tr>
-    <tr>
-      <td>AzureMessagingConsumer</td>
-      <td><code class="language-plaintext highlighter-rouge">@azure/service-bus</code></td>
-      <td>Consumes from Azure Service Bus queues</td>
-    </tr>
-    <tr>
-      <td>RabbitMQMessagingConsumer</td>
-      <td><code class="language-plaintext highlighter-rouge">amqplib</code></td>
-      <td>Consumes from RabbitMQ exchange/queues</td>
-    </tr>
-    <tr>
-      <td>MessagingOrchestrator</td>
-      <td>NestJS</td>
-      <td>Selects and manages the active broker provider</td>
-    </tr>
-    <tr>
-      <td>BaseMessagingConsumer</td>
-      <td>NestJS</td>
-      <td>Shared message processing logic (validation, email, persistence)</td>
-    </tr>
-    <tr>
-      <td>AlertaService</td>
-      <td>NestJS</td>
-      <td>Business logic for email sending and notification CRUD</td>
-    </tr>
-    <tr>
-      <td>AlertaController</td>
-      <td>NestJS</td>
-      <td>REST endpoints for notification queries</td>
-    </tr>
-    <tr>
-      <td>UsuariosSyncService</td>
-      <td>NestJS</td>
-      <td>JIT user provisioning from JWT</td>
-    </tr>
-    <tr>
-      <td>JwtStrategy</td>
-      <td>Passport-JWT</td>
-      <td>HS256 token validation</td>
-    </tr>
-    <tr>
-      <td>PrismaService</td>
-      <td>Prisma 7</td>
-      <td>Database access layer</td>
-    </tr>
-  </tbody>
-</table>
+  subgraph External["External Systems"]
+    ASB["Azure Service Bus\n[3 queues]"]
+    RABBITMQ["RabbitMQ\n[exchange + 3 queues]"]
+    SENDGRID["SendGrid API"]
+    PG[("PostgreSQL\nnotifications · usuarios · roles")]
+  end
 
-<h3 id="external-systems">External Systems</h3>
+  FE --&gt;|"Bearer JWT"| CTRL
+  PROD --&gt;|AMQP| ASB
+  PROD --&gt;|AMQP| RABBITMQ
 
-<table>
-  <thead>
-    <tr>
-      <th>System</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Azure Service Bus</td>
-      <td>Default message broker (3 queues)</td>
-    </tr>
-    <tr>
-      <td>RabbitMQ</td>
-      <td>Alternative message broker (exchange + 3 queues)</td>
-    </tr>
-    <tr>
-      <td>SendGrid API</td>
-      <td>Email delivery provider</td>
-    </tr>
-    <tr>
-      <td>PostgreSQL</td>
-      <td>Notification and user data persistence</td>
-    </tr>
-  </tbody>
-</table>
-
-<h3 id="relationships-1">Relationships</h3>
-
-<table>
-  <thead>
-    <tr>
-      <th>From</th>
-      <th>To</th>
-      <th>Protocol</th>
-      <th>Description</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Community / Materials / Tutorships</td>
-      <td>Azure Service Bus</td>
-      <td>AMQP</td>
-      <td>Publishes <code class="language-plaintext highlighter-rouge">mail.envio.*</code> messages</td>
-    </tr>
-    <tr>
-      <td>Community / Materials / Tutorships</td>
-      <td>RabbitMQ</td>
-      <td>AMQP</td>
-      <td>Publishes to <code class="language-plaintext highlighter-rouge">notifications</code> exchange</td>
-    </tr>
-    <tr>
-      <td>AzureMessagingConsumer</td>
-      <td>Azure Service Bus</td>
-      <td>AMQP</td>
-      <td>Subscribes to 3 queues</td>
-    </tr>
-    <tr>
-      <td>RabbitMQMessagingConsumer</td>
-      <td>RabbitMQ</td>
-      <td>AMQP</td>
-      <td>Subscribes to 3 queues</td>
-    </tr>
-    <tr>
-      <td>BaseMessagingConsumer</td>
-      <td>AlertaService</td>
-      <td>Method call</td>
-      <td>Delegates email sending and persistence</td>
-    </tr>
-    <tr>
-      <td>AlertaController</td>
-      <td>AlertaService</td>
-      <td>Method call</td>
-      <td>REST API business logic</td>
-    </tr>
-    <tr>
-      <td>AlertaService</td>
-      <td>SendGrid API</td>
-      <td>HTTPS</td>
-      <td>Sends emails</td>
-    </tr>
-    <tr>
-      <td>AlertaService</td>
-      <td>PrismaService</td>
-      <td>Method call</td>
-      <td>Database CRUD</td>
-    </tr>
-    <tr>
-      <td>UsuariosSyncService</td>
-      <td>PrismaService</td>
-      <td>Method call</td>
-      <td>Upserts users from JWT</td>
-    </tr>
-  </tbody>
-</table>
+  CTRL --&gt; MNS
+  ORCH --&gt;|"MESSAGING_BROKER=azure"| AZ_C
+  ORCH --&gt;|"MESSAGING_BROKER=rabbitmq"| RMQ_C
+  AZ_C --&gt; ASB
+  RMQ_C --&gt; RABBITMQ
+  AZ_C &amp; RMQ_C --&gt; DNS
+  DNS --&gt; HBS_R
+  DNS --&gt; SENDGRID
+  MNS --&gt; PRISMA
+  DNS --&gt; PRISMA
+  SYNC --&gt; PRISMA
+  JWT --&gt; SYNC
+  PRISMA --&gt; PG
+</code></pre>
 
 <hr />
 
 <h2 id="deployment">Deployment</h2>
 
-<p><a href="notifications/despliegue.png"><img src="/how/notifications/despliegue.png" alt="Deployment" /></a></p>
+<pre><code class="language-mermaid">graph TB
+  subgraph CICD["CI/CD — GitHub Actions"]
+    GHA["main_eciwise-alert.yml\nnpm install → build → test → deploy"]
+  end
 
-<p>The service is deployed as an <strong>Azure Web App</strong> (<code class="language-plaintext highlighter-rouge">eciwise-alert</code>) running <strong>Node.js 20</strong>. The CI/CD pipeline uses <strong>GitHub Actions</strong> (<code class="language-plaintext highlighter-rouge">main_eciwise-alert.yml</code>) triggered on push to <code class="language-plaintext highlighter-rouge">main</code>. The pipeline runs <code class="language-plaintext highlighter-rouge">npm install</code>, <code class="language-plaintext highlighter-rouge">npm run build</code>, <code class="language-plaintext highlighter-rouge">npm test</code>, and deploys to Azure using OIDC authentication.</p>
+  subgraph Azure["Azure Cloud"]
+    WEBAPP["Azure Web App\neciwise-alert · Node.js 20"]
+    ASB["Azure Service Bus\n[3 queues]"]
+  end
+
+  subgraph LocalDev["docker compose (local dev)"]
+    SVC["notifications :3000\n(NestJS + Prisma)"]
+    PG["postgres:16 :5432"]
+    RMQ["rabbitmq:3 :5672 / management :15672"]
+  end
+
+  SENDGRID["SendGrid API\n(external)"]
+
+  GHA --&gt;|"Azure OIDC"| WEBAPP
+  WEBAPP --&gt;|AMQP| ASB
+  WEBAPP --&gt;|HTTPS| SENDGRID
+  SVC --&gt; PG
+  SVC --&gt; RMQ
+  SVC --&gt;|HTTPS| SENDGRID
+</code></pre>
 
 <h3 id="environment-variables">Environment Variables</h3>
 
@@ -1317,7 +965,7 @@
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">JWT_SECRET</code></td>
-      <td>yes</td>
+      <td>yes (min 16 chars)</td>
       <td>—</td>
       <td>HMAC secret for JWT verification</td>
     </tr>
@@ -1328,10 +976,34 @@
       <td><code class="language-plaintext highlighter-rouge">'azure'</code> or <code class="language-plaintext highlighter-rouge">'rabbitmq'</code></td>
     </tr>
     <tr>
+      <td><code class="language-plaintext highlighter-rouge">SERVICE_BUS_CONNECTION_STRING</code></td>
+      <td>if azure</td>
+      <td>—</td>
+      <td>Azure Service Bus connection string</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">RABBITMQ_URL</code></td>
+      <td>if rabbitmq</td>
+      <td><code class="language-plaintext highlighter-rouge">amqp://guest:guest@localhost:5672</code></td>
+      <td>RabbitMQ connection URL</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DATABASE_URL</code></td>
+      <td>yes</td>
+      <td>—</td>
+      <td>PostgreSQL session-mode pooler URL</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DIRECT_URL</code></td>
+      <td>no</td>
+      <td>—</td>
+      <td>PostgreSQL transaction-mode pooler URL</td>
+    </tr>
+    <tr>
       <td><code class="language-plaintext highlighter-rouge">SWAGGER_ENABLED</code></td>
       <td>no</td>
       <td><code class="language-plaintext highlighter-rouge">true</code></td>
-      <td>Enable Swagger docs at <code class="language-plaintext highlighter-rouge">/api</code></td>
+      <td>Enable Swagger at <code class="language-plaintext highlighter-rouge">/api</code></td>
     </tr>
     <tr>
       <td><code class="language-plaintext highlighter-rouge">TRANSLATED_TEMPLATES_ENABLED</code></td>
@@ -1346,57 +1018,42 @@
       <td>Fallback locale</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">SERVICE_BUS_CONNECTION_STRING</code></td>
-      <td>conditional</td>
-      <td>—</td>
-      <td>Required when <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER=azure</code></td>
+      <td><code class="language-plaintext highlighter-rouge">THROTTLE_TTL</code></td>
+      <td>no</td>
+      <td><code class="language-plaintext highlighter-rouge">60</code></td>
+      <td>Rate-limit window in seconds</td>
     </tr>
     <tr>
-      <td><code class="language-plaintext highlighter-rouge">RABBITMQ_URL</code></td>
-      <td>conditional</td>
-      <td><code class="language-plaintext highlighter-rouge">'amqp://guest:guest@localhost:5672'</code></td>
-      <td>Required when <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER=rabbitmq</code></td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">DATABASE_URL</code></td>
-      <td>yes</td>
-      <td>—</td>
-      <td>PostgreSQL session-mode pooler URL</td>
-    </tr>
-    <tr>
-      <td><code class="language-plaintext highlighter-rouge">DIRECT_URL</code></td>
-      <td>yes</td>
-      <td>—</td>
-      <td>PostgreSQL transaction-mode pooler URL</td>
+      <td><code class="language-plaintext highlighter-rouge">THROTTLE_LIMIT</code></td>
+      <td>no</td>
+      <td><code class="language-plaintext highlighter-rouge">100</code></td>
+      <td>Max requests per window per client</td>
     </tr>
   </tbody>
 </table>
 
 <hr />
 
-<h2 id="design-patterns--best-practices">Design Patterns &amp; Best Practices</h2>
+<h2 id="design-principles">Design Principles</h2>
 
 <ul>
   <li>
-    <p><strong>Strategy Pattern (Broker Selection)</strong>: The <code class="language-plaintext highlighter-rouge">IMessagingProvider</code> interface defines <code class="language-plaintext highlighter-rouge">start()</code> and <code class="language-plaintext highlighter-rouge">stop()</code> methods. <code class="language-plaintext highlighter-rouge">AzureMessagingConsumer</code> and <code class="language-plaintext highlighter-rouge">RabbitMQMessagingConsumer</code> are concrete implementations selected at runtime by <code class="language-plaintext highlighter-rouge">MessagingOrchestratorService</code> based on the <code class="language-plaintext highlighter-rouge">MESSAGING_BROKER</code> environment variable. Only one broker is active per instance.</p>
+    <p><strong>Hexagonal Architecture (Ports and Adapters)</strong>: The domain and application layers only depend on port interfaces — never on Prisma, SendGrid, Handlebars, or any broker. The <code class="language-plaintext highlighter-rouge">NotificationsModule</code> is the only place where ports are bound to concrete adapters.</p>
   </li>
   <li>
-    <p><strong>Template Method Pattern (Message Processing)</strong>: <code class="language-plaintext highlighter-rouge">BaseMessagingConsumer</code> contains the shared processing logic (<code class="language-plaintext highlighter-rouge">processEnvelope</code>, <code class="language-plaintext highlighter-rouge">processIndividualMessage</code>, <code class="language-plaintext highlighter-rouge">processRolMessage</code>, <code class="language-plaintext highlighter-rouge">processMasivoMessage</code>). Concrete consumers only implement broker-specific connection handling, inheriting all validation and dispatch logic.</p>
+    <p><strong>Two-Layer Validation</strong>: Messages are validated at the envelope level first, then at the type-specific data level. Invalid messages are ACK’d (not retried) to avoid poison-pill queue scenarios.</p>
   </li>
   <li>
-    <p><strong>Two-Layer Validation</strong>: Messages are validated first at the envelope level (structure, event type, notification type) and then at the data level (type-specific required fields). This separation ensures well-formed messages before business logic executes, and invalid messages are safely ACK’d to prevent poison pill scenarios.</p>
+    <p><strong>Anti-IDOR by Design</strong>: The <code class="language-plaintext highlighter-rouge">userId</code> is always extracted from the JWT <code class="language-plaintext highlighter-rouge">sub</code> claim via <code class="language-plaintext highlighter-rouge">@GetUser('id')</code>, never from the request URL. All <code class="language-plaintext highlighter-rouge">read/:id</code> and <code class="language-plaintext highlighter-rouge">DELETE /:id</code> operations are owner-scoped and return <code class="language-plaintext highlighter-rouge">404</code> for unauthorized access.</p>
   </li>
   <li>
-    <p><strong>Dual Action Flags</strong>: Each message can independently trigger email sending (<code class="language-plaintext highlighter-rouge">mandarCorreo</code>) and database persistence (<code class="language-plaintext highlighter-rouge">guardar</code>). This allows upstream producers to control notification behavior precisely — e.g., send email only, persist only, or both.</p>
+    <p><strong>Strategy Pattern (Broker Selection)</strong>: <code class="language-plaintext highlighter-rouge">MessagingOrchestratorService</code> selects <code class="language-plaintext highlighter-rouge">AzureMessagingConsumer</code> or <code class="language-plaintext highlighter-rouge">RabbitMQMessagingConsumer</code> at startup. Only one is active per instance. The common dispatch logic lives in <code class="language-plaintext highlighter-rouge">BaseMessagingConsumer</code>.</p>
   </li>
   <li>
-    <p><strong>Graceful Degradation</strong>: Failed template lookups fall back to inline HTML; logo attachment failures are logged but do not block email sending; invalid messages are ACK’d (not retried) to avoid queue poisoning. RabbitMQ consumers handle connection loss with automatic reconnection every 5 seconds.</p>
+    <p><strong>Just-in-Time User Provisioning</strong>: <code class="language-plaintext highlighter-rouge">UsuariosSyncService</code> upserts JWT user data into the local <code class="language-plaintext highlighter-rouge">usuarios</code> table on each authenticated request, eliminating inter-service synchronization calls.</p>
   </li>
   <li>
-    <p><strong>Just-in-Time User Provisioning</strong>: The <code class="language-plaintext highlighter-rouge">UsuariosSyncService</code> upserts JWT user data into the local <code class="language-plaintext highlighter-rouge">usuarios</code> table on each authenticated request, eliminating the need for inter-service user synchronization calls while keeping the local registry current.</p>
-  </li>
-  <li>
-    <p><strong>Connection Pooling with Prisma 7</strong>: Uses <code class="language-plaintext highlighter-rouge">@prisma/adapter-pg</code> for session-mode and transaction-mode connection pooling via <code class="language-plaintext highlighter-rouge">DATABASE_URL</code> and <code class="language-plaintext highlighter-rouge">DIRECT_URL</code>, optimizing database connection management in a cloud environment.</p>
+    <p><strong>Graceful Degradation</strong>: Failed template lookups fall back to the default locale template. Logo attachment failures are logged but do not block email sending. RabbitMQ consumers reconnect automatically every 5 seconds after connection loss.</p>
   </li>
 </ul>
 
