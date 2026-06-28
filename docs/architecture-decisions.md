@@ -571,3 +571,134 @@ graph TB
 
 - **Good:** Services are fully independent. Schema migrations, performance tuning, and technology choices (ORM, indexing) are local to each service.
 - **Accepted cost:** No cross-service JOINs. Reporting that needs data from multiple services requires aggregation at the application level or a dedicated analytics pipeline.
+
+---
+
+## ADR-009 — Vector Database in the AI Service for Semantic Search and RAG
+
+**Status:** Accepted
+
+### Context
+
+The current AI service handles two structured ML predictions (dropout and academic performance) over fixed feature sets consumed from RabbitMQ. As the platform matures, new functional requirements emerge that cannot be satisfied by a traditional relational database or by fixed-feature ML models:
+
+- **Personalized content recommendations**: students need to discover academic materials, study collections, and tutoring sessions semantically related to their current topics — not just by keyword match or category filter.
+- **Tutoring session summarization and retrieval**: session notes, transcripts, and feedback accumulate over time and must be searchable by meaning, not by exact phrase.
+- **Contextual AI responses (RAG)**: future AI assistant features require retrieving relevant platform context (materials, past sessions, peer performance patterns) before generating a response — retrieval-augmented generation requires a fast, high-dimensional similarity index.
+- **Student similarity matching**: grouping students with similar academic profiles for peer study recommendations requires embedding-based nearest-neighbour queries, which relational databases cannot efficiently express.
+
+A relational database cannot efficiently answer questions such as *"find the 10 materials most semantically similar to this student's current struggle"* because those queries live in dense vector space, not in row-and-column space. Adding vector search to PostgreSQL via `pgvector` is a partial solution but does not scale to millions of embeddings and lacks the index structures (HNSW, IVF) required for sub-millisecond approximate nearest-neighbour (ANN) search at platform scale.
+
+### Decision
+
+**Add [Qdrant](https://qdrant.tech/) as a dedicated vector store owned exclusively by the AI service.** Qdrant is an open-source, self-hostable vector database written in Rust that exposes a gRPC and REST API, supports HNSW indexing for ANN queries, and runs identically in Docker locally and on any VM or managed cloud in production.
+
+The AI service is the sole writer and reader of Qdrant. Other services do not access it directly — they publish events or call REST endpoints on the AI service, which decides whether to embed and store or to query the vector index.
+
+```mermaid
+graph TB
+  subgraph AIService["AI Service — Python"]
+    EMBED["Embedding Worker\n(sentence-transformers / OpenAI Ada)"]
+    PRED["Prediction Workers\n(dropout · performance — unchanged)"]
+    RAG["RAG Query Handler\n(retrieve → augment → generate)"]
+    SIM["Similarity Matcher\n(student profiling)"]
+  end
+
+  subgraph VectorStore["Vector Store — Qdrant"]
+    C_MAT["Collection: materials\n(title + content embeddings)"]
+    C_SESS["Collection: tutoring_sessions\n(notes + transcript embeddings)"]
+    C_STUD["Collection: student_profiles\n(feature vector embeddings)"]
+  end
+
+  subgraph RelationalDBs["Relational Databases (unchanged)"]
+    DB_AUTH[("wise_auth DB")]
+    DB_MAT[("materials DB")]
+    DB_TUT[("tutoring DB")]
+  end
+
+  subgraph Consumers["Service Consumers (REST)"]
+    FE["Angular Frontend"]
+    STUDY_SVC["study service"]
+    MAT_SVC["materials service"]
+  end
+
+  RMQ["RabbitMQ\ndomain events"]
+
+  RMQ -->|"material.uploaded\ntutoring.session.completed\nstudent.ia.updated"| EMBED
+  EMBED -->|"upsert embedding"| C_MAT & C_SESS & C_STUD
+
+  FE -->|"GET /ai/recommendations?query=…"| RAG
+  FE -->|"GET /ai/similar-students/:id"| SIM
+  STUDY_SVC -->|"GET /ai/related-materials"| RAG
+
+  RAG -->|"ANN search"| C_MAT & C_SESS
+  SIM -->|"ANN search"| C_STUD
+
+  RAG -.->|"fetch metadata"| DB_MAT & DB_TUT
+  PRED -.->|"structured features"| DB_AUTH
+```
+
+**Embedding pipeline:**
+
+```mermaid
+sequenceDiagram
+  participant MAT as materials service
+  participant RMQ as RabbitMQ
+  participant EMB as Embedding Worker (AI service)
+  participant QDR as Qdrant
+
+  MAT->>RMQ: material.uploaded { materialId, title, contentText }
+  RMQ->>EMB: consume event
+  EMB->>EMB: encode(title + contentText) → float[768]
+  EMB->>QDR: upsert point { id: materialId, vector: […], payload: { title, url, subject } }
+  Note over QDR: HNSW index updated — queryable within milliseconds
+```
+
+**RAG query flow:**
+
+```mermaid
+sequenceDiagram
+  participant FE as Angular Frontend
+  participant AI as AI Service (RAG handler)
+  participant QDR as Qdrant
+  participant LLM as LLM (Claude / OpenAI)
+
+  FE->>AI: GET /ai/ask?q="como mejorar cálculo diferencial"
+  AI->>AI: encode(query) → float[768]
+  AI->>QDR: search collection:materials top_k=5 with vector
+  QDR-->>AI: [{ materialId, score, payload }]
+  AI->>LLM: prompt = context(top 5 materials) + user query
+  LLM-->>AI: grounded answer with citations
+  AI-->>FE: { answer, sources: [materialId, …] }
+```
+
+**Collections and index configuration:**
+
+| Collection | Embedding model | Dimension | Index | Use case |
+|-----------|----------------|-----------|-------|----------|
+| `materials` | `paraphrase-multilingual-mpnet-base-v2` | 768 | HNSW | Content recommendation, RAG retrieval |
+| `tutoring_sessions` | `paraphrase-multilingual-mpnet-base-v2` | 768 | HNSW | Session search, context for RAG |
+| `student_profiles` | Custom feature encoder (MLP) | 128 | HNSW | Peer similarity matching |
+
+**Events that trigger embedding upserts:**
+
+| Event | Source service | Collection updated |
+|-------|---------------|-------------------|
+| `material.uploaded` | `materials` | `materials` |
+| `material.updated` | `materials` | `materials` |
+| `tutoring.session.completed` | `tutoring` | `tutoring_sessions` |
+| `student.ia.updated` | `wise_auth` | `student_profiles` |
+
+**New AI service REST endpoints:**
+
+| Endpoint | Consumer | Description |
+|----------|----------|-------------|
+| `GET /ai/recommendations` | Frontend, `study` | Top-K semantically similar materials to a query |
+| `GET /ai/ask` | Frontend | RAG answer grounded in platform materials |
+| `GET /ai/similar-students/:id` | Admin, tutors | Students with similar academic profiles |
+| `GET /ai/session-search` | Frontend | Semantic search over tutoring session notes |
+
+### Consequences
+
+- **Good:** Enables semantic search and RAG without changing the relational schema of any other service. The AI service remains the single owner of all vector data — no new coupling is introduced between existing services. Qdrant runs in Docker identically to production; onboarding cost is minimal. HNSW index gives sub-10ms ANN queries at scale. Existing prediction workers (dropout, performance) are untouched.
+- **Accepted cost:** Adds a new infrastructure component (Qdrant) to operate and monitor. Embeddings must be kept in sync with source data — a delayed or failed `material.uploaded` event means stale search results until the event is reprocessed from the dead-letter queue. Embedding inference adds latency to the upload pipeline (acceptable because it is async via RabbitMQ). LLM calls for RAG introduce external API costs and latency that must be managed with caching and rate limiting.
