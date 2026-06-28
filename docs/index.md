@@ -3,11 +3,16 @@ layout: default
 title: Home
 ---
 
-# ECIWise
+# ECIWise<span class="eci-logo__plus-word">+</span>
 
 Plataforma institucional de apoyo al aprendizaje para estudiantes de Ingeniería de Sistemas de la ECI.
 
-<img src="/assets/logo.png" alt="ECIWise Logo" style="width:350px; margin: 24px auto; display:block; image-rendering: crisp-edges;">
+<div style="width:140px;height:140px;margin:2rem auto;display:flex;align-items:center;justify-content:center;">
+  <svg viewBox="0 0 48 48" width="140" height="140" aria-label="ECIWise">
+    <path d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z" fill="#c8102e"/>
+    <path d="M24 17 V31 M17 24 H31" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+  </svg>
+</div>
 ---
 
 ## Qué es ECIWise

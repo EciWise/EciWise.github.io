@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Tutoring Service — ECIWise+</title>
+	<link rel="stylesheet" href="/wiki.css">
+	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
+</head>
+<body>
+	<!-- ── Sidebar overlay scrim (mobile) ── -->
+	<div id="sidebar-scrim" onclick="closeSidebar()"></div>
+
+	<!-- ── Sidebar — mirrors shell__nav + side-nav ── -->
+	<aside id="sidebar">
+
+		<!-- Math decoration: menu variant (behind nav content) -->
+		<div class="sidebar-math-decor" aria-hidden="true">
+			<span class="mds mds--a" style="top:4%;right:14%;font-size:1.4rem;--mdf-dur:12s;--mdf-dl:-1s">π</span>
+			<span class="mds mds--b" style="top:12%;left:12%;font-size:1.1rem;--mdf-dur:10s;--mdf-dl:-4s">α</span>
+			<span class="mds mds--a" style="top:22%;right:17%;font-size:1.2rem;--mdf-dur:14s;--mdf-dl:-7s">∂</span>
+			<span class="mds mds--b" style="top:31%;left:10%;font-size:1.0rem;--mdf-dur:11s;--mdf-dl:-2s">λ</span>
+			<span class="mds mds--p" style="top:40%;right:13%;font-size:1.5rem;--mdf-dur:13s;--mdf-dl:-9s">Σ</span>
+			<span class="mds mds--a" style="top:50%;left:13%;font-size:1.1rem;--mdf-dur:9s;--mdf-dl:-5s">θ</span>
+			<span class="mds mds--b" style="top:59%;right:15%;font-size:1.3rem;--mdf-dur:15s;--mdf-dl:-8s">∫</span>
+			<span class="mds mds--a" style="top:68%;left:11%;font-size:1.0rem;--mdf-dur:12s;--mdf-dl:-3s">ε</span>
+			<span class="mds mds--b" style="top:77%;right:13%;font-size:1.4rem;--mdf-dur:11s;--mdf-dl:-6s">ω</span>
+			<span class="mds mds--p" style="bottom:8%;left:12%;font-size:1.1rem;--mdf-dur:10s;--mdf-dl:-11s">δ</span>
+		</div>
+
+		<!-- Header -->
+		<div class="sidebar-header">
+			<svg class="sidebar-logo" viewBox="0 0 48 48" aria-hidden="true">
+				<path class="sidebar-logo__astroid" d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z"/>
+				<path class="sidebar-logo__plus" d="M24 17 V31 M17 24 H31"/>
+			</svg>
+			<div class="sidebar-brand">
+				<div class="wiki-title">ECIWISE<span class="eci-logo__plus-word">+</span></div>
+				<div class="wiki-subtitle">ECIWise+</div>
+			</div>
+		</div>
+
+		<!-- Navigation — mirrors side-nav__list -->
+		<nav class="sidebar-nav" aria-label="Navegación">
+
+			<div class="nav-section">
+				<span class="nav-section-title">General</span>
+				<ul>
+					<li><a href="/" >Home</a></li>
+				</ul>
+			</div>
+
+			<div class="nav-section">
+				<span class="nav-section-title">Docs</span>
+				<ul>
+					<li><a href="/docs/" >Overview</a></li>
+					
+						
+							<li><a href="/docs/actors-roles-permissions.html" >Actors, Roles & Permissions</a></li>
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+				</ul>
+			</div>
+
+			<div class="nav-section">
+				<span class="nav-section-title">How</span>
+				<ul>
+					<li><a href="/how/" >Overview</a></li>
+					
+						
+					
+						
+							<li><a href="/how/ai-service.html" >AI Service</a></li>
+						
+					
+						
+							<li><a href="/how/community-service.html" >Community Service</a></li>
+						
+					
+						
+							<li><a href="/how/gamification-service.html" >Gamification Service</a></li>
+						
+					
+						
+					
+						
+					
+						
+					
+						
+							<li><a href="/how/notifications-service.html" >Notifications Service</a></li>
+						
+					
+						
+							<li><a href="/how/study-service.html" >Study Service</a></li>
+						
+					
+						
+							<li><a href="/how/tutoring-service.html" class="active">Tutoring Service</a></li>
+						
+					
+				</ul>
+			</div>
+
+		</nav>
+
+		<div class="sidebar-footer">
+			Last updated: Jun 2026 ·
+			<a href="https://github.com/eciwise">GitHub</a>
+		</div>
+	</aside>
+
+	<!-- ── Main ── -->
+	<div id="content">
+
+		<!-- Topbar — mirrors ECIWISE-Front top-bar -->
+		<div id="topbar">
+
+			<!-- Math decoration: bar variant -->
+			<div class="topbar-math-decor" aria-hidden="true">
+				<span class="mds mds--p" style="top:45%;left:27%;font-size:0.90rem;--mdf-dur:9s;--mdf-dl:-2s">δ</span>
+				<span class="mds mds--a" style="top:22%;left:34%;font-size:0.78rem;--mdf-dur:11s;--mdf-dl:-5s">∂</span>
+				<span class="mds mds--b" style="top:68%;left:42%;font-size:0.95rem;--mdf-dur:10s;--mdf-dl:-8s">λ</span>
+				<span class="mds mds--p" style="top:25%;left:51%;font-size:0.82rem;--mdf-dur:12s;--mdf-dl:-1s">ε</span>
+				<span class="mds mds--a" style="top:65%;left:60%;font-size:0.88rem;--mdf-dur:9s;--mdf-dl:-6s">∑</span>
+				<span class="mds mds--b" style="top:28%;left:69%;font-size:0.72rem;--mdf-dur:11s;--mdf-dl:-3s">θ</span>
+				<span class="mds mds--a" style="top:30%;left:86%;font-size:0.95rem;--mdf-dur:10s;--mdf-dl:-4s">π</span>
+			</div>
+
+			<!-- Left: menu toggle + logo + tagline -->
+			<div class="top-bar__left">
+				<button class="icon-button top-bar__menu" onclick="toggleSidebar()" aria-label="Abrir navegación">
+					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<line x1="3" y1="6" x2="21" y2="6"/>
+						<line x1="3" y1="12" x2="21" y2="12"/>
+						<line x1="3" y1="18" x2="21" y2="18"/>
+					</svg>
+				</button>
+
+				<a href="/" class="eci-logo" aria-label="ECIWise — Inicio">
+					<svg class="eci-logo__mark" viewBox="0 0 48 48" aria-hidden="true">
+						<path class="eci-logo__astroid" d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z"/>
+						<path class="eci-logo__plus" d="M24 17 V31 M17 24 H31"/>
+					</svg>
+					<span class="eci-logo__word">ECIWISE<span class="eci-logo__plus-word">+</span></span>
+				</a>
+
+				<span class="top-bar__tagline">Documentación</span>
+			</div>
+
+			<!-- Center: breadcrumb -->
+			<div class="top-bar__center">
+				<nav class="breadcrumb" aria-label="Breadcrumb">
+					<a href="/">Home</a>
+					
+					
+						
+					
+						
+							<span>/</span>
+							<a href="/how/">How</a>
+						
+					
+						
+							<span>/</span>
+							<span>Tutoring Service</span>
+						
+					
+				</nav>
+			</div>
+
+			<!-- Right: GitHub -->
+			<div class="top-bar__right">
+				<a href="https://github.com/eciwise" class="icon-button" title="GitHub" target="_blank" rel="noopener">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+						<path d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.184 6.839 9.504.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.021C22 6.484 17.522 2 12 2z"/>
+					</svg>
+				</a>
+			</div>
+		</div>
+
+		<article>
+			<h1 id="tutoring-service">Tutoring Service</h1>
+
+<h2 id="overview">Overview</h2>
+
+<p><code class="language-plaintext highlighter-rouge">tutoring</code> is the microservice responsible for managing academic tutoring within the ECIWise platform. It allows tutors to publish recurring availability, automatically converts that availability into bookable tutoring slots, and enables students to search, reserve, cancel, and reschedule sessions.</p>
+
+<p>The service handles three core domains:</p>
+
+<ul>
+  <li><strong>Institutional scheduling</strong>: administrators manage subjects, rooms, time slots, and tutor–subject authorization.</li>
+  <li><strong>Tutor availability</strong>: tutors publish recurring availability templates with subject, modality, capacity, and validity dates. A scheduled job materializes concrete tutoring sessions from those templates.</li>
+  <li><strong>Student reservations</strong>: students search available sessions and reserve, cancel, or reschedule their participation with transactional capacity control.</li>
+</ul>
+
+<p>The current implementation also maintains a local user projection from JWT claims and publishes domain events in-process. Attendance, evaluations, and reputation have database support but no active API or use cases yet.</p>
+
+<hr />
+
+<h2 id="tutoring-module-flow">Tutoring Module Flow</h2>
+
+<p>The tutoring lifecycle starts with institutional configuration and ends with a student reservation:</p>
+
+<ol>
+  <li>An administrator creates subjects, rooms, and institutional time slots.</li>
+  <li>An administrator assigns and authorizes a tutor for a subject.</li>
+  <li>The tutor publishes a recurring availability template.</li>
+  <li>The daily materialization job creates concrete <code class="language-plaintext highlighter-rouge">Tutoria</code> slots within a moving time window.</li>
+  <li>A student searches programmed sessions with available capacity.</li>
+  <li>The student reserves a slot; PostgreSQL increments capacity conditionally inside a transaction.</li>
+  <li>The student may cancel or atomically reschedule the reservation.</li>
+  <li>The tutor or an administrator may cancel the entire tutoring session and release its reservations.</li>
+</ol>
+
+<h3 id="user-capabilities">User Capabilities</h3>
+
+<p><strong>Students</strong> can search sessions by subject, modality, date, or tutor; inspect session details; reserve available capacity; cancel their reservation; and reschedule to another compatible session.</p>
+
+<p><strong>Tutors</strong> can publish, list, edit, and deactivate their own availability. They can also cancel tutoring sessions assigned to them.</p>
+
+<p><strong>Administrators</strong> manage institutional catalogs and tutor–subject assignments, can manage availability on behalf of tutors, and can trigger materialization manually.</p>
+
+<h3 id="materialization">Materialization</h3>
+
+<p><code class="language-plaintext highlighter-rouge">MaterializacionJob</code> runs every day at <strong>01:00</strong> in the process timezone. It executes the same <code class="language-plaintext highlighter-rouge">MaterializarVentana</code> use case exposed by the administrative endpoint.</p>
+
+<ul>
+  <li>Active availability templates are expanded into matching calendar dates.</li>
+  <li>The configured window is controlled by <code class="language-plaintext highlighter-rouge">MATERIALIZACION_VENTANA_SEMANAS</code>.</li>
+  <li>The unique key <code class="language-plaintext highlighter-rouge">(tutorUserId, franjaId, fecha)</code> makes the operation idempotent.</li>
+  <li>Duplicate attempts are reported as omitted instead of creating another session.</li>
+  <li>Editing an availability template does not modify sessions already materialized.</li>
+</ul>
+
+<hr />
+
+<h2 id="architecture">Architecture</h2>
+
+<p><a href="tutoring/c4-componentes.svg"><img src="/how/tutoring/c4-componentes.svg" alt="Tutoring Service internal architecture" /></a></p>
+
+<p>The service follows <strong>Hexagonal Architecture (Ports &amp; Adapters)</strong> combined with <strong>Vertical Slicing</strong> and <strong>Domain-Driven Design</strong>. Each business capability owns its domain, application use cases, and infrastructure adapters.</p>
+
+<p>HTTP controllers and the materialization job are inbound adapters. Application use cases coordinate domain entities and outbound ports. Prisma repositories, the local user repository, and the in-memory event publisher are outbound adapters. The domain layer is plain TypeScript and does not depend on NestJS or Prisma.</p>
+
+<h3 id="runtime-environment">Runtime Environment</h3>
+
+<p>The service is built with <strong>NestJS 11</strong> and <strong>TypeScript</strong> on <strong>Node.js 20+</strong>. It uses <strong>Prisma 7</strong> with <code class="language-plaintext highlighter-rouge">@prisma/adapter-pg</code> to connect to PostgreSQL; the current hosted database target is Neon. JWT authentication is implemented with Passport JWT and HS256.</p>
+
+<p>API documentation is generated at runtime with Swagger and exposed at <code class="language-plaintext highlighter-rouge">/api/docs</code>.</p>
+
+<h3 id="package-structure">Package Structure</h3>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>src/
+├── auth/                         # JWT strategy, guards, roles, decorators
+├── config/                       # environment validation
+├── shared/
+│   ├── domain/                   # value objects, enums, errors, events
+│   └── infrastructure/           # Prisma, filters, in-memory publisher
+└── modules/
+    ├── identidad/                # local user projection from JWT claims
+    ├── catalogos/                # subjects, rooms, time slots, tutor subjects
+    ├── disponibilidad/           # recurring availability and materialization
+    ├── tutorias/                 # session search and detail queries
+    └── reservas/                 # reserve, cancel, reschedule, cancel session
+
+prisma/
+├── schema.prisma                 # relational model
+├── migrations/                   # migration history
+└── seed.ts                       # institutional time slots and rooms
+</code></pre></div></div>
+
+<p>Each vertical slice follows this internal shape:</p>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>domain/{entities,value-objects,events,ports/outbound}
+application/use-cases
+infrastructure/{persistence,http/{controllers,dto}}
+&lt;slice&gt;.module.ts
+</code></pre></div></div>
+
+<h3 id="runtime-dependencies">Runtime Dependencies</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Dependency</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>NestJS 11</td>
+      <td>HTTP application and dependency injection</td>
+    </tr>
+    <tr>
+      <td>Prisma 7</td>
+      <td>ORM and generated database client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@prisma/adapter-pg</code></td>
+      <td>PostgreSQL driver adapter</td>
+    </tr>
+    <tr>
+      <td>PostgreSQL / Neon</td>
+      <td>Persistent relational storage</td>
+    </tr>
+    <tr>
+      <td>Passport JWT</td>
+      <td>Bearer JWT validation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">class-validator</code></td>
+      <td>Request DTO validation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@nestjs/schedule</code></td>
+      <td>Daily materialization job</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@nestjs/event-emitter</code></td>
+      <td>In-process domain event delivery</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@nestjs/swagger</code></td>
+      <td>Runtime OpenAPI documentation</td>
+    </tr>
+    <tr>
+      <td>Jest</td>
+      <td>Unit and application tests</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="database-migrations">Database Migrations</h3>
+
+<p>Prisma Migrate manages the schema under <code class="language-plaintext highlighter-rouge">prisma/migrations</code>. The generated Prisma client uses a custom output directory, so it must be regenerated after schema changes.</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>npx prisma migrate deploy
+npx prisma generate
+npm run seed
+</code></pre></div></div>
+
+<p>The seed is idempotent and creates the institutional weekday time-slot grid and room catalog used by local environments.</p>
+
+<hr />
+
+<h2 id="jwt-based-identity">JWT-based Identity</h2>
+
+<p>All functional routes require a Bearer JWT except the root health response at <code class="language-plaintext highlighter-rouge">GET /</code>.</p>
+
+<p>The service validates:</p>
+
+<ul>
+  <li>signature using the shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code>;</li>
+  <li>algorithm fixed to <code class="language-plaintext highlighter-rouge">HS256</code>;</li>
+  <li>token expiration;</li>
+  <li>required <code class="language-plaintext highlighter-rouge">sub</code>, <code class="language-plaintext highlighter-rouge">email</code>, and <code class="language-plaintext highlighter-rouge">rol</code> claims.</li>
+</ul>
+
+<h3 id="jwt-claims">JWT Claims</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Claim</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sub</code></td>
+      <td>External user identifier</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">email</code></td>
+      <td>User email</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nombre</code></td>
+      <td>User first name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">apellido</code></td>
+      <td>User last name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rol</code></td>
+      <td><code class="language-plaintext highlighter-rouge">estudiante</code>, <code class="language-plaintext highlighter-rouge">tutor</code>, or <code class="language-plaintext highlighter-rouge">admin</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p><code class="language-plaintext highlighter-rouge">JwtAuthGuard</code> authenticates requests and <code class="language-plaintext highlighter-rouge">RolesGuard</code> enforces handler-level roles. The service does not call the authentication service during normal requests; Auth and Tutoring share a JWT contract.</p>
+
+<h3 id="just-in-time-user-projection">Just-in-time User Projection</h3>
+
+<p><code class="language-plaintext highlighter-rouge">JwtCaptureInterceptor</code> asynchronously upserts authenticated users into <code class="language-plaintext highlighter-rouge">usuario_local</code> using the most recent JWT claims. A synchronization failure is logged but does not block the main request.</p>
+
+<p>This projection allows read models to display local user data without a synchronous Auth dependency. External user IDs stored in domain tables are intentionally not foreign keys to <code class="language-plaintext highlighter-rouge">usuario_local</code>.</p>
+
+<hr />
+
+<h2 id="data-model">Data Model</h2>
+
+<p>The source of truth is <code class="language-plaintext highlighter-rouge">prisma/schema.prisma</code>.</p>
+
+<p><a href="tutoring/modelo-er.svg"><img src="/how/tutoring/modelo-er.svg" alt="Tutoring Service entity relationship diagram" /></a></p>
+
+<h3 id="institutional-catalogs">Institutional Catalogs</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Model</th>
+      <th>Purpose</th>
+      <th>Important constraints</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Materia</code></td>
+      <td>Subject catalog</td>
+      <td>Unique <code class="language-plaintext highlighter-rouge">codigo</code>; logical activation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Sala</code></td>
+      <td>Physical room catalog</td>
+      <td>Unique <code class="language-plaintext highlighter-rouge">codigo</code>; optional building metadata</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">FranjaHoraria</code></td>
+      <td>Institutional weekday time slot</td>
+      <td>Day, start/end time, ordering, activation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">TutorMateria</code></td>
+      <td>Tutor authorization for a subject</td>
+      <td>Unique tutor–subject pair; authorization flag</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="scheduling">Scheduling</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Model</th>
+      <th>Purpose</th>
+      <th>Important constraints</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DisponibilidadTutor</code></td>
+      <td>Recurring availability template</td>
+      <td>Tutor, slot, subject, modality, capacity, validity</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Tutoria</code></td>
+      <td>Concrete materialized session</td>
+      <td>Unique tutor–slot–date; state and occupied capacity</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><code class="language-plaintext highlighter-rouge">DisponibilidadTutor</code> supports <code class="language-plaintext highlighter-rouge">PRESENCIAL</code> and <code class="language-plaintext highlighter-rouge">VIRTUAL</code> modalities. Physical availability references a room, while virtual sessions may expose an <code class="language-plaintext highlighter-rouge">enlaceVirtual</code> when available.</p>
+
+<h3 id="reservations">Reservations</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Model</th>
+      <th>Purpose</th>
+      <th>Important constraints</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">Participante</code></td>
+      <td>Student reservation for a session</td>
+      <td>Unique student–session pair; reservation/cancellation state</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Capacity is stored in <code class="language-plaintext highlighter-rouge">Tutoria</code> as <code class="language-plaintext highlighter-rouge">cuposMaximos</code> and <code class="language-plaintext highlighter-rouge">cuposOcupados</code>. Reservation persistence updates this counter conditionally to prevent overbooking under concurrency.</p>
+
+<h3 id="identity-evaluations-and-reputation">Identity, Evaluations, and Reputation</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Model</th>
+      <th>Current status</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">UsuarioLocal</code></td>
+      <td>Active local projection populated from JWT claims</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">EvaluacionTutoria</code></td>
+      <td>Schema support only; no active endpoint or use case</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">EvaluacionParticipante</code></td>
+      <td>Schema support only; no active endpoint or use case</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ReputacionTutor</code></td>
+      <td>Schema support only; no active projection or query API</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ReputacionEstudiante</code></td>
+      <td>Schema support only; no active projection or query API</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="business-rules">Business Rules</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Rule</th>
+      <th>Status</th>
+      <th>Enforcement</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>RN-01 — A student must not overlap tutoring sessions</td>
+      <td>Implemented</td>
+      <td>Overlap query before reserving or rescheduling</td>
+    </tr>
+    <tr>
+      <td>RN-02 — A tutor has one availability per time slot</td>
+      <td>Implemented</td>
+      <td>Database unique constraint</td>
+    </tr>
+    <tr>
+      <td>RN-03 — The subject must exist and be assigned</td>
+      <td>Implemented</td>
+      <td>Foreign key and tutor authorization check</td>
+    </tr>
+    <tr>
+      <td>RN-04 — Only students can reserve</td>
+      <td>Implemented through JWT</td>
+      <td>Required <code class="language-plaintext highlighter-rouge">estudiante</code> role</td>
+    </tr>
+    <tr>
+      <td>RN-05 — Only authorized tutors publish availability</td>
+      <td>Implemented</td>
+      <td>Authorized <code class="language-plaintext highlighter-rouge">TutorMateria</code> validation</td>
+    </tr>
+    <tr>
+      <td>RN-06 — Evaluate only completed tutoring sessions</td>
+      <td>Pending</td>
+      <td>No evaluation use case</td>
+    </tr>
+    <tr>
+      <td>RN-07 — One evaluation per participant</td>
+      <td>Partial</td>
+      <td>Prisma uniqueness, no executable flow</td>
+    </tr>
+    <tr>
+      <td>RN-08 — Cancellation requires a reason</td>
+      <td>Implemented</td>
+      <td>DTO and domain validation</td>
+    </tr>
+    <tr>
+      <td>RN-09 — Capacity must never be exceeded</td>
+      <td>Implemented</td>
+      <td>Conditional transactional update</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>RN-09 is concurrency-safe because PostgreSQL increments capacity only while <code class="language-plaintext highlighter-rouge">cupos_ocupados &lt; cupos_maximos</code>. RN-01 currently uses a prior read rather than a serializable database constraint, so concurrent overlapping reservations by the same student remain an integration scenario worth testing explicitly.</p>
+
+<hr />
+
+<h2 id="endpoints">Endpoints</h2>
+
+<p>The live OpenAPI contract is available at <code class="language-plaintext highlighter-rouge">/api/docs</code> while the service is running.</p>
+
+<h3 id="identity">Identity</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Access</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>GET</td>
+      <td><code class="language-plaintext highlighter-rouge">/identidad/me</code></td>
+      <td>Authenticated</td>
+      <td>Return normalized JWT claims</td>
+    </tr>
+    <tr>
+      <td>GET</td>
+      <td><code class="language-plaintext highlighter-rouge">/identidad/usuarios/:userId</code></td>
+      <td>Authenticated</td>
+      <td>Read a captured local user</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="subjects">Subjects</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Access</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>POST</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/materias</code></td>
+      <td>Admin</td>
+      <td>Create a subject</td>
+    </tr>
+    <tr>
+      <td>GET</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/materias</code></td>
+      <td>Authenticated</td>
+      <td>List subjects; optionally active only</td>
+    </tr>
+    <tr>
+      <td>PATCH</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/materias/:id/activar</code></td>
+      <td>Admin</td>
+      <td>Activate a subject</td>
+    </tr>
+    <tr>
+      <td>PATCH</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/materias/:id/desactivar</code></td>
+      <td>Admin</td>
+      <td>Deactivate a subject</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="rooms-and-time-slots">Rooms and Time Slots</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Access</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>POST</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/salas</code></td>
+      <td>Admin</td>
+      <td>Create a room</td>
+    </tr>
+    <tr>
+      <td>GET</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/salas</code></td>
+      <td>Authenticated</td>
+      <td>List rooms</td>
+    </tr>
+    <tr>
+      <td>POST</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/franjas</code></td>
+      <td>Admin</td>
+      <td>Create an institutional time slot</td>
+    </tr>
+    <tr>
+      <td>GET</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/franjas</code></td>
+      <td>Authenticated</td>
+      <td>List time slots; optionally filter by day</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="tutorsubject-assignments">Tutor–Subject Assignments</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Access</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>POST</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/tutor-materias</code></td>
+      <td>Admin</td>
+      <td>Assign a subject to a tutor</td>
+    </tr>
+    <tr>
+      <td>GET</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/tutor-materias</code></td>
+      <td>Authenticated</td>
+      <td>List assignments for a tutor</td>
+    </tr>
+    <tr>
+      <td>PATCH</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/tutor-materias/:id/autorizar</code></td>
+      <td>Admin</td>
+      <td>Authorize an assignment</td>
+    </tr>
+    <tr>
+      <td>PATCH</td>
+      <td><code class="language-plaintext highlighter-rouge">/catalogos/tutor-materias/:id/desautorizar</code></td>
+      <td>Admin</td>
+      <td>Revoke authorization</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="availability-and-materialization">Availability and Materialization</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Access</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>POST</td>
+      <td><code class="language-plaintext highlighter-rouge">/disponibilidad</code></td>
+      <td>Tutor, admin</td>
+      <td>Publish recurring availability</td>
+    </tr>
+    <tr>
+      <td>GET</td>
+      <td><code class="language-plaintext highlighter-rouge">/disponibilidad</code></td>
+      <td>Tutor, admin</td>
+      <td>List tutor availability</td>
+    </tr>
+    <tr>
+      <td>PATCH</td>
+      <td><code class="language-plaintext highlighter-rouge">/disponibilidad/:id</code></td>
+      <td>Owner, admin</td>
+      <td>Edit availability</td>
+    </tr>
+    <tr>
+      <td>PATCH</td>
+      <td><code class="language-plaintext highlighter-rouge">/disponibilidad/:id/desactivar</code></td>
+      <td>Owner, admin</td>
+      <td>Deactivate availability</td>
+    </tr>
+    <tr>
+      <td>POST</td>
+      <td><code class="language-plaintext highlighter-rouge">/disponibilidad/materializacion</code></td>
+      <td>Admin</td>
+      <td>Run materialization manually</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="tutoring-sessions">Tutoring Sessions</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Access</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>GET</td>
+      <td><code class="language-plaintext highlighter-rouge">/tutorias</code></td>
+      <td>Authenticated</td>
+      <td>Search programmed sessions with capacity</td>
+    </tr>
+    <tr>
+      <td>GET</td>
+      <td><code class="language-plaintext highlighter-rouge">/tutorias/:id</code></td>
+      <td>Authenticated</td>
+      <td>Read session details</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Supported search filters are <code class="language-plaintext highlighter-rouge">materiaId</code>, <code class="language-plaintext highlighter-rouge">modalidad</code>, <code class="language-plaintext highlighter-rouge">fecha</code>, and <code class="language-plaintext highlighter-rouge">tutorUserId</code>.</p>
+
+<h3 id="reservations-1">Reservations</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Access</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>POST</td>
+      <td><code class="language-plaintext highlighter-rouge">/reservas</code></td>
+      <td>Student</td>
+      <td>Reserve a tutoring session</td>
+    </tr>
+    <tr>
+      <td>POST</td>
+      <td><code class="language-plaintext highlighter-rouge">/reservas/:tutoriaId/cancelar</code></td>
+      <td>Student</td>
+      <td>Cancel the student’s reservation</td>
+    </tr>
+    <tr>
+      <td>POST</td>
+      <td><code class="language-plaintext highlighter-rouge">/reservas/reprogramar</code></td>
+      <td>Student</td>
+      <td>Atomically move to another session</td>
+    </tr>
+    <tr>
+      <td>POST</td>
+      <td><code class="language-plaintext highlighter-rouge">/reservas/cancelacion-tutoria</code></td>
+      <td>Tutor, admin</td>
+      <td>Cancel a session and release reservations</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="error-mapping">Error Mapping</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>HTTP</th>
+      <th>Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>400</td>
+      <td>Invalid request or domain value</td>
+    </tr>
+    <tr>
+      <td>401</td>
+      <td>Missing, invalid, or expired JWT</td>
+    </tr>
+    <tr>
+      <td>403</td>
+      <td>Insufficient role or ownership</td>
+    </tr>
+    <tr>
+      <td>404</td>
+      <td>Resource not found</td>
+    </tr>
+    <tr>
+      <td>409</td>
+      <td>Duplicate, full session, or capacity race</td>
+    </tr>
+    <tr>
+      <td>422</td>
+      <td>Business rule violation</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="service-communication">Service Communication</h2>
+
+<h3 id="authentication-contract">Authentication Contract</h3>
+
+<p>The external Auth service issues HS256 JWTs. Tutoring validates them locally and does not make a synchronous Auth HTTP request during normal API operations.</p>
+
+<h3 id="domain-events">Domain Events</h3>
+
+<p>The application publishes events such as tutoring materialization, reservation, and cancellation through an <code class="language-plaintext highlighter-rouge">IEventPublisher</code> port. The current adapter uses <code class="language-plaintext highlighter-rouge">EventEmitter2</code>, so delivery is local to the Node.js process.</p>
+
+<h3 id="external-messaging">External Messaging</h3>
+
+<p>RabbitMQ is a planned integration, not an active runtime dependency. No adapter currently consumes <code class="language-plaintext highlighter-rouge">RABBITMQ_URL</code>, and events are not durable across process restarts.</p>
+
+<h3 id="database-communication">Database Communication</h3>
+
+<p>Prisma repositories are the only active persistence adapters. The service owns its tutoring schema and uses PostgreSQL transactions for reservation and rescheduling consistency.</p>
+
+<hr />
+
+<h2 id="c4--level-1-system-context">C4 — Level 1: System Context</h2>
+
+<p><a href="tutoring/c4-contexto.svg"><img src="/how/tutoring/c4-contexto.svg" alt="Tutoring Service system context" /></a></p>
+
+<h3 id="actors">Actors</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Actor</th>
+      <th>Interaction</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Student</td>
+      <td>Searches, reserves, cancels, and reschedules tutoring sessions</td>
+    </tr>
+    <tr>
+      <td>Tutor</td>
+      <td>Publishes availability and cancels assigned sessions</td>
+    </tr>
+    <tr>
+      <td>Administrator</td>
+      <td>Manages catalogs, authorizations, and materialization</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="systems">Systems</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>System</th>
+      <th>Responsibility</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Tutoring Service</td>
+      <td>Scheduling, session search, and reservation management</td>
+    </tr>
+    <tr>
+      <td>Auth Service</td>
+      <td>Issues the shared HS256 JWT</td>
+    </tr>
+    <tr>
+      <td>PostgreSQL / Neon</td>
+      <td>Stores catalogs, availability, sessions, and reservations</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="relationships">Relationships</h3>
+
+<ul>
+  <li>Clients call the Tutoring REST API with a Bearer JWT.</li>
+  <li>Auth issues the token, while Tutoring validates its contract locally.</li>
+  <li>Tutoring reads and writes its PostgreSQL database through Prisma.</li>
+</ul>
+
+<hr />
+
+<h2 id="c4--level-2-containers">C4 — Level 2: Containers</h2>
+
+<p><a href="tutoring/c4-contenedores.svg"><img src="/how/tutoring/c4-contenedores.svg" alt="Tutoring Service containers" /></a></p>
+
+<h3 id="containers">Containers</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Container</th>
+      <th>Technology</th>
+      <th>Responsibility</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>REST Application</td>
+      <td>NestJS 11</td>
+      <td>Controllers, guards, use cases, Swagger</td>
+    </tr>
+    <tr>
+      <td>Scheduler</td>
+      <td><code class="language-plaintext highlighter-rouge">@nestjs/schedule</code></td>
+      <td>Daily materialization trigger</td>
+    </tr>
+    <tr>
+      <td>Event Bus</td>
+      <td>EventEmitter2</td>
+      <td>In-process domain event dispatch</td>
+    </tr>
+    <tr>
+      <td>Persistence Adapter</td>
+      <td>Prisma 7</td>
+      <td>Repository implementations and transactions</td>
+    </tr>
+    <tr>
+      <td>Database</td>
+      <td>PostgreSQL / Neon</td>
+      <td>Durable relational data</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The REST API, scheduler, and event bus run in the same Node.js process; they are logical containers in the diagram, not independent deployments.</p>
+
+<h3 id="external-system">External System</h3>
+
+<p>The Auth service is external and shares the JWT validation contract. There is no runtime network call from Tutoring to Auth for each request.</p>
+
+<hr />
+
+<h2 id="design-patterns--best-practices">Design Patterns &amp; Best Practices</h2>
+
+<h3 id="1-hexagonal-architecture">1. Hexagonal Architecture</h3>
+
+<p>Domain and application layers depend on ports. Prisma, HTTP, scheduling, and event delivery are replaceable adapters.</p>
+
+<h3 id="2-vertical-slicing">2. Vertical Slicing</h3>
+
+<p>Identity, catalogs, availability, tutoring search, and reservations are organized as business capabilities rather than technical layers shared across the entire service.</p>
+
+<h3 id="3-domain-driven-design">3. Domain-Driven Design</h3>
+
+<p>Entities and value objects protect invariants such as modality, capacity, validity ranges, cancellation reasons, and reservation state.</p>
+
+<h3 id="4-idempotent-materialization">4. Idempotent Materialization</h3>
+
+<p>The materialization job can safely repeat because the tutor–slot–date unique constraint prevents duplicate sessions.</p>
+
+<h3 id="5-transactional-capacity-control">5. Transactional Capacity Control</h3>
+
+<p>Capacity is claimed with a conditional SQL update inside a transaction, preventing overbooking even when multiple students reserve simultaneously.</p>
+
+<h3 id="6-just-in-time-identity-projection">6. Just-in-time Identity Projection</h3>
+
+<p>JWT claims populate a local user read model without coupling every query to the Auth service.</p>
+
+<h3 id="7-domain-event-port">7. Domain Event Port</h3>
+
+<p>Use cases publish domain events through an interface. The current in-memory adapter can later be replaced by durable messaging without moving event creation into controllers.</p>
+
+<hr />
+
+<h2 id="deployment">Deployment</h2>
+
+<h3 id="environment-variables">Environment Variables</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Required</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">NODE_ENV</code></td>
+      <td>No</td>
+      <td>Runtime environment</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PORT</code></td>
+      <td>No</td>
+      <td>HTTP port</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DATABASE_URL</code></td>
+      <td>Yes</td>
+      <td>PostgreSQL runtime connection</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DIRECT_URL</code></td>
+      <td>Yes</td>
+      <td>Direct database connection required by startup validation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">JWT_SECRET</code></td>
+      <td>Yes</td>
+      <td>Shared HS256 secret, minimum 16 characters</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">JWT_EXPIRATION</code></td>
+      <td>No</td>
+      <td>Informational token TTL</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">MATERIALIZACION_VENTANA_SEMANAS</code></td>
+      <td>No</td>
+      <td>Materialization horizon</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="local-execution">Local Execution</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>npm <span class="nb">install
+</span>npx prisma generate
+npx prisma migrate deploy
+npm run seed
+npm run start:dev
+</code></pre></div></div>
+
+<h3 id="verification-commands">Verification Commands</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code>npm run build
+npm <span class="nb">test
+</span>npm run <span class="nb">test</span>:cov
+npm run <span class="nb">test</span>:e2e
+</code></pre></div></div>
+
+<h3 id="current-operational-limitations">Current Operational Limitations</h3>
+
+<ul>
+  <li>The repository does not include a <code class="language-plaintext highlighter-rouge">Dockerfile</code> or <code class="language-plaintext highlighter-rouge">docker-compose.yml</code>.</li>
+  <li>No application deployment manifest is currently defined.</li>
+  <li>The cron timezone is not configured explicitly.</li>
+  <li>Multiple replicas may repeat materialization work; uniqueness prevents duplicates but not redundant processing.</li>
+  <li>CORS is enabled without an explicit production origin allowlist.</li>
+  <li>Attendance, observations, evaluations, reputation, and dedicated history endpoints are not implemented.</li>
+</ul>
+
+<hr />
+
+<h2 id="further-reading">Further Reading</h2>
+
+<ul>
+  <li>Source repository: <a href="https://github.com/EciWise/tutoring">EciWise/tutoring</a></li>
+  <li>Runtime API contract: <code class="language-plaintext highlighter-rouge">/api/docs</code></li>
+  <li>Relational source of truth: <code class="language-plaintext highlighter-rouge">prisma/schema.prisma</code></li>
+  <li>Module composition: <code class="language-plaintext highlighter-rouge">src/app.module.ts</code> and <code class="language-plaintext highlighter-rouge">src/modules/*</code></li>
+</ul>
+
+
+			<div class="page-footer">
+				<span>ECIWise+ Wiki</span>
+				<div>
+				
+				
+				</div>
+			</div>
+		</article>
+	</div>
+
+	<script>
+		function toggleSidebar() {
+			var sidebar = document.getElementById('sidebar');
+			var scrim   = document.getElementById('sidebar-scrim');
+			var isOpen  = sidebar.classList.toggle('open');
+			scrim.classList.toggle('visible', isOpen);
+			document.body.style.overflow = isOpen ? 'hidden' : '';
+		}
+
+		function closeSidebar() {
+			document.getElementById('sidebar').classList.remove('open');
+			document.getElementById('sidebar-scrim').classList.remove('visible');
+			document.body.style.overflow = '';
+		}
+
+		document.addEventListener('keydown', function(e) {
+			if (e.key === 'Escape') closeSidebar();
+		});
+
+		document.querySelectorAll('#sidebar .nav-section a').forEach(function(link) {
+			link.addEventListener('click', function() {
+				if (window.innerWidth < 900) closeSidebar();
+			});
+		});
+	</script>
+</body>
+</html>

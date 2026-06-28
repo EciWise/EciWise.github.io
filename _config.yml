@@ -1,9 +1,9 @@
-title: ECIWise
-description: Documentación del proyecto ECIWise
+title: ECIWise+
+description: Documentación del proyecto ECIWise+
 baseurl: ""
 url: "https://eciwise.github.io"
 
-wiki_label: "ECIWise"
+wiki_label: "ECIWise+"
 github_username: eciwise
 
 markdown: kramdown

@@ -1,103 +1,202 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="light">
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Gamification Service — ECIWise</title>
+	<title>Gamification Service — ECIWise+</title>
 	<link rel="stylesheet" href="/wiki.css">
 	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
 </head>
 <body>
-	<!-- ── Sidebar ── -->
+	<!-- ── Sidebar overlay scrim (mobile) ── -->
+	<div id="sidebar-scrim" onclick="closeSidebar()"></div>
+
+	<!-- ── Sidebar — mirrors shell__nav + side-nav ── -->
 	<aside id="sidebar">
-		<div class="sidebar-header">
-			<div class="wiki-title">ECIWise</div>
-			<div class="wiki-subtitle">ECIWise</div>
+
+		<!-- Math decoration: menu variant (behind nav content) -->
+		<div class="sidebar-math-decor" aria-hidden="true">
+			<span class="mds mds--a" style="top:4%;right:14%;font-size:1.4rem;--mdf-dur:12s;--mdf-dl:-1s">π</span>
+			<span class="mds mds--b" style="top:12%;left:12%;font-size:1.1rem;--mdf-dur:10s;--mdf-dl:-4s">α</span>
+			<span class="mds mds--a" style="top:22%;right:17%;font-size:1.2rem;--mdf-dur:14s;--mdf-dl:-7s">∂</span>
+			<span class="mds mds--b" style="top:31%;left:10%;font-size:1.0rem;--mdf-dur:11s;--mdf-dl:-2s">λ</span>
+			<span class="mds mds--p" style="top:40%;right:13%;font-size:1.5rem;--mdf-dur:13s;--mdf-dl:-9s">Σ</span>
+			<span class="mds mds--a" style="top:50%;left:13%;font-size:1.1rem;--mdf-dur:9s;--mdf-dl:-5s">θ</span>
+			<span class="mds mds--b" style="top:59%;right:15%;font-size:1.3rem;--mdf-dur:15s;--mdf-dl:-8s">∫</span>
+			<span class="mds mds--a" style="top:68%;left:11%;font-size:1.0rem;--mdf-dur:12s;--mdf-dl:-3s">ε</span>
+			<span class="mds mds--b" style="top:77%;right:13%;font-size:1.4rem;--mdf-dur:11s;--mdf-dl:-6s">ω</span>
+			<span class="mds mds--p" style="bottom:8%;left:12%;font-size:1.1rem;--mdf-dur:10s;--mdf-dl:-11s">δ</span>
 		</div>
-		<nav class="sidebar-nav">
-			<div class="nav-section">
-				<div class="nav-section-title">General</div>
-				<a href="/" >Home</a>
+
+		<!-- Header -->
+		<div class="sidebar-header">
+			<svg class="sidebar-logo" viewBox="0 0 48 48" aria-hidden="true">
+				<path class="sidebar-logo__astroid" d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z"/>
+				<path class="sidebar-logo__plus" d="M24 17 V31 M17 24 H31"/>
+			</svg>
+			<div class="sidebar-brand">
+				<div class="wiki-title">ECIWISE<span class="eci-logo__plus-word">+</span></div>
+				<div class="wiki-subtitle">ECIWise+</div>
 			</div>
+		</div>
+
+		<!-- Navigation — mirrors side-nav__list -->
+		<nav class="sidebar-nav" aria-label="Navegación">
+
 			<div class="nav-section">
-				<div class="nav-section-title">Docs</div>
-				<a href="/docs/" >Overview</a>
-				
-					
-						<a href="/docs/actors-roles-permissions.html" >Actors, Roles & Permissions</a>
-					
-				
-					
-				
-					
-				
-					
-				
-					
-				
-					
-				
-					
-				
+				<span class="nav-section-title">General</span>
+				<ul>
+					<li><a href="/" >Home</a></li>
+				</ul>
 			</div>
+
 			<div class="nav-section">
-				<div class="nav-section-title">How</div>
-				<a href="/how/" >Overview</a>
-				
+				<span class="nav-section-title">Docs</span>
+				<ul>
+					<li><a href="/docs/" >Overview</a></li>
 					
-				
+						
+							<li><a href="/docs/actors-roles-permissions.html" >Actors, Roles & Permissions</a></li>
+						
 					
-						<a href="/how/community-service.html" >Community Service</a>
+						
 					
-				
+						
 					
-						<a href="/how/gamification-service.html" class="active">Gamification Service</a>
+						
 					
-				
+						
 					
-				
+						
 					
-				
+						
 					
-						<a href="/how/notifications-service.html" >Notifications Service</a>
+						
 					
-				
+						
 					
-						<a href="/how/study-service.html" >Study Service</a>
+						
 					
-				
+				</ul>
 			</div>
+
+			<div class="nav-section">
+				<span class="nav-section-title">How</span>
+				<ul>
+					<li><a href="/how/" >Overview</a></li>
+					
+						
+					
+						
+							<li><a href="/how/ai-service.html" >AI Service</a></li>
+						
+					
+						
+							<li><a href="/how/community-service.html" >Community Service</a></li>
+						
+					
+						
+							<li><a href="/how/gamification-service.html" class="active">Gamification Service</a></li>
+						
+					
+						
+					
+						
+					
+						
+					
+						
+							<li><a href="/how/notifications-service.html" >Notifications Service</a></li>
+						
+					
+						
+							<li><a href="/how/study-service.html" >Study Service</a></li>
+						
+					
+						
+							<li><a href="/how/tutoring-service.html" >Tutoring Service</a></li>
+						
+					
+				</ul>
+			</div>
+
 		</nav>
+
 		<div class="sidebar-footer">
 			Last updated: Jun 2026 ·
 			<a href="https://github.com/eciwise">GitHub</a>
 		</div>
 	</aside>
+
 	<!-- ── Main ── -->
 	<div id="content">
+
+		<!-- Topbar — mirrors ECIWISE-Front top-bar -->
 		<div id="topbar">
-			<button id="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">☰ Menu</button>
-			<div class="breadcrumb">
-				<a href="/">Home</a>
-				
-				
-					
-				
-					
-						<span>/</span>
-						<a href="/how/">How</a>
-					
-				
-					
-						<span>/</span>
-						<span>Gamification Service</span>
-					
-				
+
+			<!-- Math decoration: bar variant -->
+			<div class="topbar-math-decor" aria-hidden="true">
+				<span class="mds mds--p" style="top:45%;left:27%;font-size:0.90rem;--mdf-dur:9s;--mdf-dl:-2s">δ</span>
+				<span class="mds mds--a" style="top:22%;left:34%;font-size:0.78rem;--mdf-dur:11s;--mdf-dl:-5s">∂</span>
+				<span class="mds mds--b" style="top:68%;left:42%;font-size:0.95rem;--mdf-dur:10s;--mdf-dl:-8s">λ</span>
+				<span class="mds mds--p" style="top:25%;left:51%;font-size:0.82rem;--mdf-dur:12s;--mdf-dl:-1s">ε</span>
+				<span class="mds mds--a" style="top:65%;left:60%;font-size:0.88rem;--mdf-dur:9s;--mdf-dl:-6s">∑</span>
+				<span class="mds mds--b" style="top:28%;left:69%;font-size:0.72rem;--mdf-dur:11s;--mdf-dl:-3s">θ</span>
+				<span class="mds mds--a" style="top:30%;left:86%;font-size:0.95rem;--mdf-dur:10s;--mdf-dl:-4s">π</span>
 			</div>
-			<div class="topbar-meta">
-				
+
+			<!-- Left: menu toggle + logo + tagline -->
+			<div class="top-bar__left">
+				<button class="icon-button top-bar__menu" onclick="toggleSidebar()" aria-label="Abrir navegación">
+					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<line x1="3" y1="6" x2="21" y2="6"/>
+						<line x1="3" y1="12" x2="21" y2="12"/>
+						<line x1="3" y1="18" x2="21" y2="18"/>
+					</svg>
+				</button>
+
+				<a href="/" class="eci-logo" aria-label="ECIWise — Inicio">
+					<svg class="eci-logo__mark" viewBox="0 0 48 48" aria-hidden="true">
+						<path class="eci-logo__astroid" d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z"/>
+						<path class="eci-logo__plus" d="M24 17 V31 M17 24 H31"/>
+					</svg>
+					<span class="eci-logo__word">ECIWISE<span class="eci-logo__plus-word">+</span></span>
+				</a>
+
+				<span class="top-bar__tagline">Documentación</span>
+			</div>
+
+			<!-- Center: breadcrumb -->
+			<div class="top-bar__center">
+				<nav class="breadcrumb" aria-label="Breadcrumb">
+					<a href="/">Home</a>
+					
+					
+						
+					
+						
+							<span>/</span>
+							<a href="/how/">How</a>
+						
+					
+						
+							<span>/</span>
+							<span>Gamification Service</span>
+						
+					
+				</nav>
+			</div>
+
+			<!-- Right: GitHub -->
+			<div class="top-bar__right">
+				<a href="https://github.com/eciwise" class="icon-button" title="GitHub" target="_blank" rel="noopener">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+						<path d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.184 6.839 9.504.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.021C22 6.484 17.522 2 12 2z"/>
+					</svg>
+				</a>
 			</div>
 		</div>
+
 		<article>
 			<h1 id="gamification-service">Gamification Service</h1>
 
@@ -1319,40 +1418,40 @@ JWT_AUDIENCE=gamification-api
 
 <p><strong>Python Example</strong> (Forum Service publishing ForumPostCreated):</p>
 
-<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="nn">pika</span>
-<span class="kn">import</span> <span class="nn">json</span>
-<span class="kn">import</span> <span class="nn">uuid</span>
-<span class="kn">from</span> <span class="nn">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
+<div class="language-python highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kn">import</span> <span class="n">pika</span>
+<span class="kn">import</span> <span class="n">json</span>
+<span class="kn">import</span> <span class="n">uuid</span>
+<span class="kn">from</span> <span class="n">datetime</span> <span class="kn">import</span> <span class="n">datetime</span>
 
-<span class="n">connection</span> <span class="o">=</span> <span class="n">pika</span><span class="p">.</span><span class="n">BlockingConnection</span><span class="p">(</span><span class="n">pika</span><span class="p">.</span><span class="n">ConnectionParameters</span><span class="p">(</span><span class="s">'localhost'</span><span class="p">))</span>
-<span class="n">channel</span> <span class="o">=</span> <span class="n">connection</span><span class="p">.</span><span class="n">channel</span><span class="p">()</span>
+<span class="n">connection</span> <span class="o">=</span> <span class="n">pika</span><span class="p">.</span><span class="nc">BlockingConnection</span><span class="p">(</span><span class="n">pika</span><span class="p">.</span><span class="nc">ConnectionParameters</span><span class="p">(</span><span class="sh">'</span><span class="s">localhost</span><span class="sh">'</span><span class="p">))</span>
+<span class="n">channel</span> <span class="o">=</span> <span class="n">connection</span><span class="p">.</span><span class="nf">channel</span><span class="p">()</span>
 
 <span class="n">event</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s">"eventId"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">uuid</span><span class="p">.</span><span class="n">uuid4</span><span class="p">()),</span>
-    <span class="s">"userId"</span><span class="p">:</span> <span class="s">"user-uuid-123"</span><span class="p">,</span>
-    <span class="s">"eventType"</span><span class="p">:</span> <span class="s">"ForumPostCreated"</span><span class="p">,</span>
-    <span class="s">"postId"</span><span class="p">:</span> <span class="s">"post-999"</span><span class="p">,</span>
-    <span class="s">"title"</span><span class="p">:</span> <span class="s">"¿Cómo resolver ecuaciones cuadráticas?"</span><span class="p">,</span>
-    <span class="s">"categoryId"</span><span class="p">:</span> <span class="s">"math-101"</span><span class="p">,</span>
-    <span class="s">"isReply"</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
-    <span class="s">"createdAt"</span><span class="p">:</span> <span class="n">datetime</span><span class="p">.</span><span class="n">utcnow</span><span class="p">().</span><span class="n">isoformat</span><span class="p">()</span> <span class="o">+</span> <span class="s">"Z"</span>
+    <span class="sh">"</span><span class="s">eventId</span><span class="sh">"</span><span class="p">:</span> <span class="nf">str</span><span class="p">(</span><span class="n">uuid</span><span class="p">.</span><span class="nf">uuid4</span><span class="p">()),</span>
+    <span class="sh">"</span><span class="s">userId</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">user-uuid-123</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">eventType</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">ForumPostCreated</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">postId</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">post-999</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">title</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">¿Cómo resolver ecuaciones cuadráticas?</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">categoryId</span><span class="sh">"</span><span class="p">:</span> <span class="sh">"</span><span class="s">math-101</span><span class="sh">"</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">isReply</span><span class="sh">"</span><span class="p">:</span> <span class="bp">False</span><span class="p">,</span>
+    <span class="sh">"</span><span class="s">createdAt</span><span class="sh">"</span><span class="p">:</span> <span class="n">datetime</span><span class="p">.</span><span class="nf">utcnow</span><span class="p">().</span><span class="nf">isoformat</span><span class="p">()</span> <span class="o">+</span> <span class="sh">"</span><span class="s">Z</span><span class="sh">"</span>
 <span class="p">}</span>
 
-<span class="n">jwt_token</span> <span class="o">=</span> <span class="s">"eyJhbGc...YOUR_JWT_TOKEN..."</span>
+<span class="n">jwt_token</span> <span class="o">=</span> <span class="sh">"</span><span class="s">eyJhbGc...YOUR_JWT_TOKEN...</span><span class="sh">"</span>
 
-<span class="n">properties</span> <span class="o">=</span> <span class="n">pika</span><span class="p">.</span><span class="n">BasicProperties</span><span class="p">(</span>
-    <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s">"x-jwt-token"</span><span class="p">:</span> <span class="n">jwt_token</span><span class="p">},</span>
+<span class="n">properties</span> <span class="o">=</span> <span class="n">pika</span><span class="p">.</span><span class="nc">BasicProperties</span><span class="p">(</span>
+    <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="sh">"</span><span class="s">x-jwt-token</span><span class="sh">"</span><span class="p">:</span> <span class="n">jwt_token</span><span class="p">},</span>
     <span class="n">delivery_mode</span><span class="o">=</span><span class="n">pika</span><span class="p">.</span><span class="n">spec</span><span class="p">.</span><span class="n">PERSISTENT_DELIVERY_MODE</span>
 <span class="p">)</span>
 
-<span class="n">channel</span><span class="p">.</span><span class="n">basic_publish</span><span class="p">(</span>
-    <span class="n">exchange</span><span class="o">=</span><span class="s">''</span><span class="p">,</span>
-    <span class="n">routing_key</span><span class="o">=</span><span class="s">'gamification_events_queue'</span><span class="p">,</span>
-    <span class="n">body</span><span class="o">=</span><span class="n">json</span><span class="p">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+<span class="n">channel</span><span class="p">.</span><span class="nf">basic_publish</span><span class="p">(</span>
+    <span class="n">exchange</span><span class="o">=</span><span class="sh">''</span><span class="p">,</span>
+    <span class="n">routing_key</span><span class="o">=</span><span class="sh">'</span><span class="s">gamification_events_queue</span><span class="sh">'</span><span class="p">,</span>
+    <span class="n">body</span><span class="o">=</span><span class="n">json</span><span class="p">.</span><span class="nf">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
     <span class="n">properties</span><span class="o">=</span><span class="n">properties</span>
 <span class="p">)</span>
 
-<span class="n">connection</span><span class="p">.</span><span class="n">close</span><span class="p">()</span>
+<span class="n">connection</span><span class="p">.</span><span class="nf">close</span><span class="p">()</span>
 </code></pre></div></div>
 
 <h3 id="outbound-events-rabbitmq-publishing">Outbound Events (RabbitMQ Publishing)</h3>
@@ -1527,7 +1626,7 @@ Background Workers:
 </ul>
 
 			<div class="page-footer">
-				<span>ECIWise Wiki</span>
+				<span>ECIWise+ Wiki</span>
 				<div>
 				
 				
@@ -1535,5 +1634,31 @@ Background Workers:
 			</div>
 		</article>
 	</div>
+
+	<script>
+		function toggleSidebar() {
+			var sidebar = document.getElementById('sidebar');
+			var scrim   = document.getElementById('sidebar-scrim');
+			var isOpen  = sidebar.classList.toggle('open');
+			scrim.classList.toggle('visible', isOpen);
+			document.body.style.overflow = isOpen ? 'hidden' : '';
+		}
+
+		function closeSidebar() {
+			document.getElementById('sidebar').classList.remove('open');
+			document.getElementById('sidebar-scrim').classList.remove('visible');
+			document.body.style.overflow = '';
+		}
+
+		document.addEventListener('keydown', function(e) {
+			if (e.key === 'Escape') closeSidebar();
+		});
+
+		document.querySelectorAll('#sidebar .nav-section a').forEach(function(link) {
+			link.addEventListener('click', function() {
+				if (window.innerWidth < 900) closeSidebar();
+			});
+		});
+	</script>
 </body>
 </html>

@@ -1,0 +1,1914 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>AI Service — ECIWise+</title>
+	<link rel="stylesheet" href="/wiki.css">
+	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
+</head>
+<body>
+	<!-- ── Sidebar overlay scrim (mobile) ── -->
+	<div id="sidebar-scrim" onclick="closeSidebar()"></div>
+
+	<!-- ── Sidebar — mirrors shell__nav + side-nav ── -->
+	<aside id="sidebar">
+
+		<!-- Math decoration: menu variant (behind nav content) -->
+		<div class="sidebar-math-decor" aria-hidden="true">
+			<span class="mds mds--a" style="top:4%;right:14%;font-size:1.4rem;--mdf-dur:12s;--mdf-dl:-1s">π</span>
+			<span class="mds mds--b" style="top:12%;left:12%;font-size:1.1rem;--mdf-dur:10s;--mdf-dl:-4s">α</span>
+			<span class="mds mds--a" style="top:22%;right:17%;font-size:1.2rem;--mdf-dur:14s;--mdf-dl:-7s">∂</span>
+			<span class="mds mds--b" style="top:31%;left:10%;font-size:1.0rem;--mdf-dur:11s;--mdf-dl:-2s">λ</span>
+			<span class="mds mds--p" style="top:40%;right:13%;font-size:1.5rem;--mdf-dur:13s;--mdf-dl:-9s">Σ</span>
+			<span class="mds mds--a" style="top:50%;left:13%;font-size:1.1rem;--mdf-dur:9s;--mdf-dl:-5s">θ</span>
+			<span class="mds mds--b" style="top:59%;right:15%;font-size:1.3rem;--mdf-dur:15s;--mdf-dl:-8s">∫</span>
+			<span class="mds mds--a" style="top:68%;left:11%;font-size:1.0rem;--mdf-dur:12s;--mdf-dl:-3s">ε</span>
+			<span class="mds mds--b" style="top:77%;right:13%;font-size:1.4rem;--mdf-dur:11s;--mdf-dl:-6s">ω</span>
+			<span class="mds mds--p" style="bottom:8%;left:12%;font-size:1.1rem;--mdf-dur:10s;--mdf-dl:-11s">δ</span>
+		</div>
+
+		<!-- Header -->
+		<div class="sidebar-header">
+			<svg class="sidebar-logo" viewBox="0 0 48 48" aria-hidden="true">
+				<path class="sidebar-logo__astroid" d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z"/>
+				<path class="sidebar-logo__plus" d="M24 17 V31 M17 24 H31"/>
+			</svg>
+			<div class="sidebar-brand">
+				<div class="wiki-title">ECIWISE<span class="eci-logo__plus-word">+</span></div>
+				<div class="wiki-subtitle">ECIWise+</div>
+			</div>
+		</div>
+
+		<!-- Navigation — mirrors side-nav__list -->
+		<nav class="sidebar-nav" aria-label="Navegación">
+
+			<div class="nav-section">
+				<span class="nav-section-title">General</span>
+				<ul>
+					<li><a href="/" >Home</a></li>
+				</ul>
+			</div>
+
+			<div class="nav-section">
+				<span class="nav-section-title">Docs</span>
+				<ul>
+					<li><a href="/docs/" >Overview</a></li>
+					
+						
+							<li><a href="/docs/actors-roles-permissions.html" >Actors, Roles & Permissions</a></li>
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+						
+					
+				</ul>
+			</div>
+
+			<div class="nav-section">
+				<span class="nav-section-title">How</span>
+				<ul>
+					<li><a href="/how/" >Overview</a></li>
+					
+						
+					
+						
+							<li><a href="/how/ai-service.html" class="active">AI Service</a></li>
+						
+					
+						
+							<li><a href="/how/community-service.html" >Community Service</a></li>
+						
+					
+						
+							<li><a href="/how/gamification-service.html" >Gamification Service</a></li>
+						
+					
+						
+					
+						
+					
+						
+					
+						
+							<li><a href="/how/notifications-service.html" >Notifications Service</a></li>
+						
+					
+						
+							<li><a href="/how/study-service.html" >Study Service</a></li>
+						
+					
+						
+							<li><a href="/how/tutoring-service.html" >Tutoring Service</a></li>
+						
+					
+				</ul>
+			</div>
+
+		</nav>
+
+		<div class="sidebar-footer">
+			Last updated: Jun 2026 ·
+			<a href="https://github.com/eciwise">GitHub</a>
+		</div>
+	</aside>
+
+	<!-- ── Main ── -->
+	<div id="content">
+
+		<!-- Topbar — mirrors ECIWISE-Front top-bar -->
+		<div id="topbar">
+
+			<!-- Math decoration: bar variant -->
+			<div class="topbar-math-decor" aria-hidden="true">
+				<span class="mds mds--p" style="top:45%;left:27%;font-size:0.90rem;--mdf-dur:9s;--mdf-dl:-2s">δ</span>
+				<span class="mds mds--a" style="top:22%;left:34%;font-size:0.78rem;--mdf-dur:11s;--mdf-dl:-5s">∂</span>
+				<span class="mds mds--b" style="top:68%;left:42%;font-size:0.95rem;--mdf-dur:10s;--mdf-dl:-8s">λ</span>
+				<span class="mds mds--p" style="top:25%;left:51%;font-size:0.82rem;--mdf-dur:12s;--mdf-dl:-1s">ε</span>
+				<span class="mds mds--a" style="top:65%;left:60%;font-size:0.88rem;--mdf-dur:9s;--mdf-dl:-6s">∑</span>
+				<span class="mds mds--b" style="top:28%;left:69%;font-size:0.72rem;--mdf-dur:11s;--mdf-dl:-3s">θ</span>
+				<span class="mds mds--a" style="top:30%;left:86%;font-size:0.95rem;--mdf-dur:10s;--mdf-dl:-4s">π</span>
+			</div>
+
+			<!-- Left: menu toggle + logo + tagline -->
+			<div class="top-bar__left">
+				<button class="icon-button top-bar__menu" onclick="toggleSidebar()" aria-label="Abrir navegación">
+					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<line x1="3" y1="6" x2="21" y2="6"/>
+						<line x1="3" y1="12" x2="21" y2="12"/>
+						<line x1="3" y1="18" x2="21" y2="18"/>
+					</svg>
+				</button>
+
+				<a href="/" class="eci-logo" aria-label="ECIWise — Inicio">
+					<svg class="eci-logo__mark" viewBox="0 0 48 48" aria-hidden="true">
+						<path class="eci-logo__astroid" d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z"/>
+						<path class="eci-logo__plus" d="M24 17 V31 M17 24 H31"/>
+					</svg>
+					<span class="eci-logo__word">ECIWISE<span class="eci-logo__plus-word">+</span></span>
+				</a>
+
+				<span class="top-bar__tagline">Documentación</span>
+			</div>
+
+			<!-- Center: breadcrumb -->
+			<div class="top-bar__center">
+				<nav class="breadcrumb" aria-label="Breadcrumb">
+					<a href="/">Home</a>
+					
+					
+						
+					
+						
+							<span>/</span>
+							<a href="/how/">How</a>
+						
+					
+						
+							<span>/</span>
+							<span>AI Service</span>
+						
+					
+				</nav>
+			</div>
+
+			<!-- Right: GitHub -->
+			<div class="top-bar__right">
+				<a href="https://github.com/eciwise" class="icon-button" title="GitHub" target="_blank" rel="noopener">
+					<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+						<path d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.184 6.839 9.504.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.021C22 6.484 17.522 2 12 2z"/>
+					</svg>
+				</a>
+			</div>
+		</div>
+
+		<article>
+			<h1 id="ai-service">AI Service</h1>
+
+<h2 id="overview">Overview</h2>
+
+<p><code class="language-plaintext highlighter-rouge">ECIWISE+ RAG Service</code> is the artificial intelligence microservice of the ECIWise platform. It provides students and tutors with intelligent academic support through Retrieval-Augmented Generation (RAG): document analysis, contextual academic chat, adaptive quiz generation and evaluation, and a Socratic tutoring assistant.</p>
+
+<p>The service handles four core capabilities:</p>
+
+<ul>
+  <li><strong>RAG Chat</strong> — answers academic queries by retrieving semantically relevant documents from the indexed repository and generating a grounded response via an LLM.</li>
+  <li><strong>Socratic Method</strong> — guides students toward self-discovery using a chain of questions rather than direct answers, grounded in available documents.</li>
+  <li><strong>Adaptive Quiz</strong> — generates mixed multiple-choice and open-ended quizzes from a given topic, evaluates student answers using the LLM, and persists learning analytics per student.</li>
+  <li><strong>Document Analysis Pipeline</strong> — asynchronously classifies PDF documents uploaded by users (subject, topic, tags, summary), generates text-chunk embeddings for vector search, and publishes results back through Azure Service Bus.</li>
+</ul>
+
+<p>The service supports multiple LLM backends (Google Gemini, Groq, Ollama) and multiple embedding providers, all switchable through environment variables without changing code.</p>
+
+<hr />
+
+<h2 id="use-case-diagram">Use Case Diagram</h2>
+
+<div class="mermaid">
+graph LR
+    subgraph Actors
+        ST["🎓 Student / User"]
+        AD["⚙️ Developer / Admin"]
+    end
+
+    subgraph "ECIWISE+ RAG Service"
+        UC1["Ask question — Chat RAG"]
+        UC2["Get recommendations"]
+        UC3["Navigation chat"]
+        UC4["Upload document (ingest)"]
+        UC5["Socratic method dialogue"]
+        UC6["Start / answer quiz"]
+        UC7["View quiz analytics"]
+        UC8["View API docs"]
+        UC9["Simulate analysis / save (dev)"]
+        UC10["Health check"]
+    end
+
+    ST --&gt; UC1
+    ST --&gt; UC2
+    ST --&gt; UC3
+    ST --&gt; UC4
+    ST --&gt; UC5
+    ST --&gt; UC6
+    ST --&gt; UC7
+    ST --&gt; UC8
+
+    AD --&gt; UC9
+    AD --&gt; UC8
+    AD --&gt; UC10
+</div>
+
+<hr />
+
+<h2 id="ai-module-flow">AI Module Flow</h2>
+
+<p>The service receives requests from the ECIWise frontend through a shared JWT contract and from the backend through Azure Service Bus for document processing.</p>
+
+<h3 id="chat-rag-flow">Chat RAG Flow</h3>
+
+<ol>
+  <li>The student submits a question through the frontend chat interface.</li>
+  <li><code class="language-plaintext highlighter-rouge">POST /api/chat</code> validates the JWT and the Zod request schema, then passes the query to <code class="language-plaintext highlighter-rouge">ChatUseCase</code>.</li>
+  <li><code class="language-plaintext highlighter-rouge">searchRelevantDocuments</code> first attempts a vector search (pgvector cosine similarity on <code class="language-plaintext highlighter-rouge">DocumentChunk</code> embeddings); on failure it falls back to keyword ILIKE search on <code class="language-plaintext highlighter-rouge">Summary</code> fields.</li>
+  <li>Retrieved document snippets are injected into the LLM system prompt as context.</li>
+  <li>If a <code class="language-plaintext highlighter-rouge">chatId</code> is provided, the last 20 conversation turns are loaded from <code class="language-plaintext highlighter-rouge">ChatHistory</code> and passed as multi-turn messages.</li>
+  <li>The LLM generates a grounded response which is returned alongside the list of related documents.</li>
+  <li>The conversation turn is persisted to <code class="language-plaintext highlighter-rouge">ChatHistory</code> for continuity.</li>
+</ol>
+
+<h3 id="document-processing-flow">Document Processing Flow</h3>
+
+<ol>
+  <li>A user uploads a PDF through the ECIWise frontend, which stores it in Azure Blob Storage.</li>
+  <li>The frontend/backend publishes an <code class="language-plaintext highlighter-rouge">analysis</code> message to the <code class="language-plaintext highlighter-rouge">material.process</code> Azure Service Bus queue, containing the blob URL, file name, and a correlation ID.</li>
+  <li><code class="language-plaintext highlighter-rouge">ServiceBusService</code> receives the message, downloads the PDF buffer (via direct HTTP or Azure SDK fallback), and extracts plain text with <code class="language-plaintext highlighter-rouge">pdf-parse</code> (capped at 30,000 characters).</li>
+  <li>The LLM classifies the document and returns a structured JSON: <code class="language-plaintext highlighter-rouge">{ valid, materia, tema, tags, summary }</code>.</li>
+  <li>If valid, a <code class="language-plaintext highlighter-rouge">Summary</code> record is created in PostgreSQL with <code class="language-plaintext highlighter-rouge">docId = PENDING_&lt;correlationId&gt;</code>.</li>
+  <li>Text is split into chunks by <code class="language-plaintext highlighter-rouge">textChunker</code> and embeddings are generated asynchronously. Each chunk is stored in <code class="language-plaintext highlighter-rouge">DocumentChunk</code> with its pgvector embedding.</li>
+  <li>The analysis result is published to the <code class="language-plaintext highlighter-rouge">material.responses</code> queue.</li>
+  <li>When the backend confirms with a <code class="language-plaintext highlighter-rouge">save</code> message, the <code class="language-plaintext highlighter-rouge">Summary.docId</code> is updated to the real document ID, making the document available for RAG search.</li>
+</ol>
+
+<h3 id="socratic-flow">Socratic Flow</h3>
+
+<ol>
+  <li>The student sends a message and the optional prior conversation history to <code class="language-plaintext highlighter-rouge">POST /api/socratic</code>.</li>
+  <li><code class="language-plaintext highlighter-rouge">SocraticUseCase</code> searches for relevant documents and injects them as context.</li>
+  <li>The LLM responds following strict Socratic rules: it answers every message with a guiding question, never gives direct answers, validates correct conclusions briefly, and uses everyday analogies.</li>
+  <li>Responses are limited to 2–3 sentences per turn.</li>
+</ol>
+
+<h3 id="quiz-flow">Quiz Flow</h3>
+
+<ol>
+  <li>The student starts a quiz: <code class="language-plaintext highlighter-rouge">POST /api/quiz/start</code> with a topic, difficulty (<code class="language-plaintext highlighter-rouge">easy</code>, <code class="language-plaintext highlighter-rouge">medium</code>, <code class="language-plaintext highlighter-rouge">hard</code>), and number of questions (3–15).</li>
+  <li><code class="language-plaintext highlighter-rouge">QuizUseCase</code> retrieves relevant documents, constructs a structured prompt with 60% multiple-choice and 40% open-ended questions, and calls the LLM.</li>
+  <li>A <code class="language-plaintext highlighter-rouge">Session</code> record is created in PostgreSQL with the full question set (with answers hidden from the student).</li>
+  <li>Questions are served one at a time via <code class="language-plaintext highlighter-rouge">POST /api/quiz/answer</code>. Multiple-choice answers are graded deterministically; open-ended answers are evaluated by the LLM using a rubric (score 0–10, feedback in ≤3 sentences).</li>
+  <li>When the last question is answered, the final score, percentage, and performance label are returned. The result is asynchronously persisted to <code class="language-plaintext highlighter-rouge">QuizResult</code> if the student is authenticated.</li>
+  <li><code class="language-plaintext highlighter-rouge">GET /api/quiz/analytics/:studentId</code> returns topic-level learning analytics: average percentage per topic, weak topics (&lt; 60%), strong topics (≥ 75%), and trend (improving / stable / declining).</li>
+</ol>
+
+<hr />
+
+<h2 id="architecture">Architecture</h2>
+
+<div class="mermaid">
+graph TB
+    subgraph "ECIWise Frontend"
+        FE[Angular SPA]
+    end
+
+    subgraph "ECIWISE+ RAG Service (Node.js / Express)"
+        direction TB
+        MWARE["Middleware Layer<br />auth · rate-limit · validate · topicGuard"]
+        ROUTES["Routes<br />/api/chat · /api/socratic · /api/quiz · /api/simulation"]
+        UC["Use Cases<br />ChatUseCase · SocraticUseCase · QuizUseCase"]
+        SVC["Services (Adapters)<br />GeminiService · EmbeddingService · AdvancedSearchService"]
+        BUS["ServiceBusService"]
+        BLOB["BlobStorageService"]
+        DB["PrismaService"]
+        SESSION["SessionService"]
+    end
+
+    subgraph "External Services"
+        LLM["LLM Provider<br />Gemini · Groq · Ollama"]
+        SB["Azure Service Bus<br />material.process / material.responses"]
+        BLOBST["Azure Blob Storage"]
+        PG[("PostgreSQL + pgvector")]
+        AUTH["Auth Service<br />(JWT issuer)"]
+    end
+
+    FE --&gt;|Bearer JWT| MWARE
+    MWARE --&gt; ROUTES
+    ROUTES --&gt; UC
+    UC --&gt; SVC
+    SVC --&gt; LLM
+    SVC --&gt; DB
+    DB --&gt; PG
+    BUS --&gt; SB
+    BUS --&gt; BLOB
+    BLOB --&gt; BLOBST
+    SESSION --&gt; DB
+    AUTH --&gt;|HS256 JWT| FE
+</div>
+
+<p>The service follows <strong>Hexagonal Architecture (Ports &amp; Adapters)</strong>. Domain use cases depend on abstract input and output ports. Infrastructure adapters (Gemini, Prisma, Service Bus, Blob Storage) are wired through dependency injection at the route level. The domain layer does not import any infrastructure library.</p>
+
+<h3 id="c4--level-3-components">C4 — Level 3: Components</h3>
+
+<div class="mermaid">
+graph TB
+    subgraph "Inbound Adapters"
+        MW_AUTH["authMiddleware<br />(JWT HS256 validation)"]
+        MW_TOPIC["topicGuard<br />(LLM academic classifier)"]
+        MW_VAL["validate<br />(Zod schema enforcement)"]
+        MW_RATE["rate-limit<br />(global 100/15min · LLM 20/min)"]
+        R_CHAT["chat.routes<br />POST /api/chat · /stream · /recommendations · /nav"]
+        R_SOC["socratic.routes<br />POST /api/socratic"]
+        R_QUIZ["quiz.routes<br />POST /start · /answer · GET /result · /analytics"]
+        R_SIM["simulation.routes<br />(dev only)"]
+        SB_IN["ServiceBusService.startListening<br />material.process queue"]
+    end
+
+    subgraph "Application Layer (Use Cases)"
+        UC_CHAT["ChatUseCase<br />chat · getRecommendations · navigate · stream"]
+        UC_SOC["SocraticUseCase<br />socratic"]
+        UC_QUIZ["QuizUseCase<br />startQuiz · answerQuestion · getResult · getAnalytics"]
+    end
+
+    subgraph "Output Ports"
+        PORT_LLM["ILLMPort"]
+        PORT_REPO["IDocumentRepositoryPort"]
+        PORT_EMB["IEmbeddingPort"]
+    end
+
+    subgraph "Outbound Adapters"
+        GEM["GeminiService<br />Gemini / Groq / Ollama<br />callLLM · callLLMStream · analyzeDocumentText<br />generateQuiz · evaluateAnswer · socraticChat"]
+        ADV["AdvancedSearchService<br />vectorSearch · fullTextSearch<br />fuzzySearch · semanticSearch · combineScores"]
+        EMB["EmbeddingService<br />Gemini / OpenAI / Ollama / Jina<br />getEmbedding (768 dims)"]
+        PRISMA["PrismaService<br />Summary · DocumentChunk · Session<br />ChatHistory · QuizResult · Synonym"]
+        SESSION["SessionService<br />create · get · update · delete · cleanup"]
+        BLOB_SVC["BlobStorageService<br />Azure Blob SDK fallback"]
+        SB_OUT["ServiceBusService.sender<br />material.responses queue"]
+    end
+
+    subgraph "External"
+        LLM_EXT["LLM Provider<br />Gemini API · Groq API · Ollama"]
+        PG_EXT[("PostgreSQL + pgvector")]
+        SB_EXT["Azure Service Bus"]
+        BLOB_EXT["Azure Blob Storage"]
+    end
+
+    MW_AUTH --&gt; R_CHAT &amp; R_SOC &amp; R_QUIZ
+    MW_TOPIC --&gt; R_CHAT &amp; R_SOC
+    MW_VAL --&gt; R_CHAT &amp; R_SOC &amp; R_QUIZ
+    MW_RATE --&gt; R_CHAT &amp; R_SOC &amp; R_QUIZ
+    R_CHAT --&gt; UC_CHAT
+    R_SOC --&gt; UC_SOC
+    R_QUIZ --&gt; UC_QUIZ
+    R_SIM --&gt; GEM &amp; PRISMA
+    SB_IN --&gt; GEM
+    SB_IN --&gt; BLOB_SVC
+    SB_IN --&gt; PRISMA
+    SB_IN --&gt; SB_OUT
+
+    UC_CHAT --&gt; PORT_LLM &amp; PORT_REPO
+    UC_SOC --&gt; PORT_LLM
+    UC_QUIZ --&gt; PORT_LLM &amp; PORT_REPO
+
+    PORT_LLM --&gt; GEM
+    PORT_REPO --&gt; PRISMA
+    PORT_EMB --&gt; EMB
+
+    GEM --&gt; ADV
+    GEM --&gt; EMB
+    GEM --&gt; LLM_EXT
+    ADV --&gt; EMB
+    ADV --&gt; PRISMA
+    EMB --&gt; LLM_EXT
+    PRISMA --&gt; PG_EXT
+    SESSION --&gt; PRISMA
+    UC_QUIZ --&gt; SESSION
+    SB_OUT --&gt; SB_EXT
+    BLOB_SVC --&gt; BLOB_EXT
+</div>
+
+<h3 id="runtime-environment">Runtime Environment</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Component</th>
+      <th>Technology</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Runtime</td>
+      <td>Node.js 22.x (ESM native modules)</td>
+    </tr>
+    <tr>
+      <td>Framework</td>
+      <td>Express.js 4.x</td>
+    </tr>
+    <tr>
+      <td>LLM (default)</td>
+      <td>Google Gemini 2.0 Flash / Flash-Lite</td>
+    </tr>
+    <tr>
+      <td>ORM</td>
+      <td>Prisma 6.x</td>
+    </tr>
+    <tr>
+      <td>Database</td>
+      <td>PostgreSQL 13+ with <code class="language-plaintext highlighter-rouge">pgvector</code> extension</td>
+    </tr>
+    <tr>
+      <td>Messaging</td>
+      <td>Azure Service Bus 7.x</td>
+    </tr>
+    <tr>
+      <td>Storage</td>
+      <td>Azure Blob Storage 12.x</td>
+    </tr>
+    <tr>
+      <td>Embeddings</td>
+      <td>Gemini <code class="language-plaintext highlighter-rouge">text-embedding-004</code> (768 dimensions)</td>
+    </tr>
+    <tr>
+      <td>Testing</td>
+      <td>Jest 30.x</td>
+    </tr>
+    <tr>
+      <td>API Docs</td>
+      <td>Swagger UI Express</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="package-structure">Package Structure</h3>
+
+<div class="language-text highlighter-rouge"><div class="highlight"><pre class="highlight"><code>src/
+├── application/
+│   └── use-cases/
+│       ├── ChatUseCase.js        # RAG chat, recommendations, navigation, streaming
+│       ├── SocraticUseCase.js    # Socratic method chat
+│       └── QuizUseCase.js        # Quiz generation, evaluation, analytics
+├── domain/
+│   └── ports/
+│       ├── input/
+│       │   ├── IChatPort.js
+│       │   ├── ISocraticPort.js
+│       │   └── IQuizPort.js
+│       └── output/
+│           ├── ILLMPort.js
+│           ├── IDocumentRepositoryPort.js
+│           └── IEmbeddingPort.js
+├── middleware/
+│   ├── auth.middleware.js        # JWT validation (HS256)
+│   ├── topicGuard.middleware.js  # Classifies query as academic / off-topic
+│   ├── validate.middleware.js    # Zod schema enforcement
+│   ├── upload.middleware.js      # Multipart file handling
+│   ├── searchMetrics.middleware.js
+│   └── error.middleware.js       # Global error and 404 handlers
+├── routes/
+│   ├── chat.routes.js            # /api/chat (+ /nav, /recommendations, /stream)
+│   ├── socratic.routes.js        # /api/socratic
+│   ├── quiz.routes.js            # /api/quiz
+│   └── simulation.routes.js      # /api/simulation (dev/test only)
+├── schemas/
+│   ├── chat.schemas.js           # Zod: chatSchema, recommendationsSchema, navSchema
+│   ├── socratic.schemas.js
+│   ├── quiz.schemas.js
+│   └── simulation.schemas.js
+├── services/
+│   ├── gemini.service.js         # ILLMPort + IEmbeddingPort implementation (multi-provider)
+│   ├── embedding.service.js      # Embedding generation (Gemini / OpenAI / Ollama / Jina)
+│   ├── advancedSearch.service.js # Hybrid search: vector + FTS + fuzzy + semantic
+│   ├── serviceBus.service.js     # Azure Service Bus message handler
+│   ├── blobStorage.service.js    # Azure Blob Storage operations
+│   ├── session.service.js        # Quiz session lifecycle
+│   └── prisma.service.js         # Prisma client singleton
+└── utils/
+    ├── sysInstructions.js        # LLM system prompts for all modes
+    ├── textChunker.js            # PDF text splitting for embeddings
+    ├── logger.js                 # Winston structured logger
+    └── retry.js                  # Exponential-backoff retry for LLM calls
+
+prisma/
+├── schema.prisma                 # Relational + vector schema
+└── migrations/
+    └── advanced_search_migration.sql  # pgvector extension + tsvector index
+</code></pre></div></div>
+
+<h3 id="runtime-dependencies">Runtime Dependencies</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Dependency</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Express.js 4.x</td>
+      <td>HTTP application and routing</td>
+    </tr>
+    <tr>
+      <td>Prisma 6.x</td>
+      <td>ORM and generated database client</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@azure/service-bus</code> 7.x</td>
+      <td>Azure Service Bus SDK</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">@azure/storage-blob</code> 12.x</td>
+      <td>Azure Blob Storage SDK</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">pdf-parse</code></td>
+      <td>PDF text extraction</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">fuse.js</code></td>
+      <td>Client-side fuzzy search</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">zod</code> 3.x</td>
+      <td>Runtime request schema validation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">jsonwebtoken</code></td>
+      <td>JWT verification</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">helmet</code></td>
+      <td>HTTP security headers</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">express-rate-limit</code></td>
+      <td>Rate limiting</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">swagger-ui-express</code></td>
+      <td>Swagger UI</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">winston</code></td>
+      <td>Structured logging</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">nodemon</code></td>
+      <td>Dev hot-reload</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">jest</code> 30.x</td>
+      <td>Unit testing</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="jwt-based-identity">JWT-based Identity</h2>
+
+<p>All <code class="language-plaintext highlighter-rouge">/api/chat</code>, <code class="language-plaintext highlighter-rouge">/api/socratic</code>, and <code class="language-plaintext highlighter-rouge">/api/quiz</code> routes require a Bearer JWT.</p>
+
+<p><code class="language-plaintext highlighter-rouge">authMiddleware</code> validates the token using the shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code> with algorithm <code class="language-plaintext highlighter-rouge">HS256</code>. On success it sets <code class="language-plaintext highlighter-rouge">req.user = { id, role, email }</code> from the following claims:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Claim</th>
+      <th>Aliases</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">sub</code></td>
+      <td><code class="language-plaintext highlighter-rouge">id</code>, <code class="language-plaintext highlighter-rouge">userId</code></td>
+      <td>User identifier (mapped to <code class="language-plaintext highlighter-rouge">req.user.id</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">rol</code></td>
+      <td><code class="language-plaintext highlighter-rouge">role</code></td>
+      <td>User role (student, tutor, admin)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">email</code></td>
+      <td>—</td>
+      <td>User email</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>In <code class="language-plaintext highlighter-rouge">NODE_ENV=test</code> the middleware is bypassed entirely so the existing test suite is unaffected.</p>
+
+<p>The service does not maintain a local user projection. User identity is read exclusively from the JWT on each request. The Auth service that issues the tokens is external; the AI service only validates the shared HMAC signature.</p>
+
+<hr />
+
+<h2 id="data-model">Data Model</h2>
+
+<div class="mermaid">
+erDiagram
+    Summary {
+        String id PK
+        String correlationId UK
+        String docId
+        String fileName
+        String materia
+        String tema
+        Text summary
+        String tags
+        DateTime createdAt
+        DateTime updatedAt
+    }
+
+    DocumentChunk {
+        String id PK
+        String summaryId FK
+        Int chunkIndex
+        Text content
+        vector_768 embedding
+        DateTime createdAt
+    }
+
+    Session {
+        String id PK
+        String type
+        Text questions
+        Int currentIndex
+        Text answers
+        Int score
+        String topic
+        String difficulty
+        String studentId
+        DateTime createdAt
+        DateTime expiresAt
+    }
+
+    ChatHistory {
+        String id PK
+        String chatId UK
+        Text messages
+        DateTime updatedAt
+        DateTime createdAt
+    }
+
+    QuizResult {
+        String id PK
+        String studentId
+        String topic
+        String difficulty
+        Int score
+        Int totalQuestions
+        Int percentage
+        Text answers
+        DateTime createdAt
+    }
+
+    Synonym {
+        UUID id PK
+        String term UK
+        String[] synonyms
+        String language
+        DateTime createdAt
+        DateTime updatedAt
+    }
+
+    Summary ||--o{ DocumentChunk : "has chunks"
+</div>
+
+<h3 id="summary">Summary</h3>
+
+<p>Stores the result of the LLM document classification step. Created when a PDF passes analysis; <code class="language-plaintext highlighter-rouge">docId</code> starts as <code class="language-plaintext highlighter-rouge">PENDING_&lt;correlationId&gt;</code> until the backend confirms the real document ID.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">id</code></td>
+      <td>UUID primary key</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">correlationId</code></td>
+      <td>Unique identifier from the Service Bus message</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">docId</code></td>
+      <td>Real document ID after confirmation; <code class="language-plaintext highlighter-rouge">PENDING_&lt;correlationId&gt;</code> before</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">materia</code></td>
+      <td>Subject extracted by LLM</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tema</code></td>
+      <td>Specific topic extracted by LLM</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tags</code></td>
+      <td>JSON string array of 3–5 keywords</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">summary</code></td>
+      <td>LLM-generated academic summary</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="documentchunk">DocumentChunk</h3>
+
+<p>Stores overlapping text segments of each document together with their vector embedding for similarity search.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">summaryId</code></td>
+      <td>FK → <code class="language-plaintext highlighter-rouge">Summary.id</code> (CASCADE DELETE)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">chunkIndex</code></td>
+      <td>Position in the original document</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">content</code></td>
+      <td>Raw text of this chunk</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">embedding</code></td>
+      <td><code class="language-plaintext highlighter-rouge">vector(768)</code> — Gemini <code class="language-plaintext highlighter-rouge">text-embedding-004</code> values</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="session">Session</h3>
+
+<p>Transient quiz session persisted to PostgreSQL to survive process restarts. Sessions expire after 2 hours; a cleanup job runs at startup.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Field</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">type</code></td>
+      <td>Currently <code class="language-plaintext highlighter-rouge">quiz</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">questions</code></td>
+      <td>JSON array of generated questions (with answers included)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">currentIndex</code></td>
+      <td>Next question index</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">answers</code></td>
+      <td>JSON array of submitted student answers with feedback</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">score</code></td>
+      <td>Correct answer count so far</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">expiresAt</code></td>
+      <td>TTL timestamp (2 hours from creation)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="chathistory">ChatHistory</h3>
+
+<p>Persists multi-turn conversation context by <code class="language-plaintext highlighter-rouge">chatId</code>. Stores up to the last 20 turns as a JSON array of <code class="language-plaintext highlighter-rouge">{ role, content }</code> objects. Used by <code class="language-plaintext highlighter-rouge">/api/chat</code> to provide conversation continuity across requests.</p>
+
+<h3 id="quizresult">QuizResult</h3>
+
+<p>Permanent record of completed quizzes, used by the analytics endpoint. Each entry captures the topic, difficulty, score, percentage, and the full per-question answer log.</p>
+
+<h3 id="synonym">Synonym</h3>
+
+<p>Static synonym dictionary for semantic search expansion. Each term maps to an array of related terms; used by <code class="language-plaintext highlighter-rouge">AdvancedSearchService.semanticSearch</code> to expand the user’s query before embedding.</p>
+
+<hr />
+
+<h2 id="business-rules">Business Rules</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Rule</th>
+      <th>Status</th>
+      <th>Enforcement</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>BR-01 — Only academic queries are answered</td>
+      <td>Implemented</td>
+      <td><code class="language-plaintext highlighter-rouge">topicGuard</code> middleware calls the LLM classifier; off-topic requests are rejected</td>
+    </tr>
+    <tr>
+      <td>BR-02 — JWT required on all LLM routes</td>
+      <td>Implemented</td>
+      <td><code class="language-plaintext highlighter-rouge">authMiddleware</code> applied to <code class="language-plaintext highlighter-rouge">/api/chat</code>, <code class="language-plaintext highlighter-rouge">/api/socratic</code>, <code class="language-plaintext highlighter-rouge">/api/quiz</code></td>
+    </tr>
+    <tr>
+      <td>BR-03 — Rate limit on LLM endpoints</td>
+      <td>Implemented</td>
+      <td>20 req/min per IP on LLM routes; 100 req/15min global</td>
+    </tr>
+    <tr>
+      <td>BR-04 — Documents must be valid and academic</td>
+      <td>Implemented</td>
+      <td>LLM analysis sets <code class="language-plaintext highlighter-rouge">valid: false</code> for off-topic or inappropriate content; rejected docs are not persisted</td>
+    </tr>
+    <tr>
+      <td>BR-05 — Socratic mode never gives direct answers</td>
+      <td>Implemented</td>
+      <td>LLM system instruction with absolute rules; validated by prompt design</td>
+    </tr>
+    <tr>
+      <td>BR-06 — Quiz sessions expire after 2 hours</td>
+      <td>Implemented</td>
+      <td><code class="language-plaintext highlighter-rouge">expiresAt</code> checked on every <code class="language-plaintext highlighter-rouge">get</code>; cleanup on startup</td>
+    </tr>
+    <tr>
+      <td>BR-07 — LLM calls time out after 30 seconds</td>
+      <td>Implemented</td>
+      <td><code class="language-plaintext highlighter-rouge">AbortSignal.timeout(30_000)</code> on every fetch to the LLM API</td>
+    </tr>
+    <tr>
+      <td>BR-08 — LLM calls are retried on transient failure</td>
+      <td>Implemented</td>
+      <td><code class="language-plaintext highlighter-rouge">withRetry</code> with exponential backoff (3 attempts)</td>
+    </tr>
+    <tr>
+      <td>BR-09 — Simulation routes disabled in production</td>
+      <td>Implemented</td>
+      <td><code class="language-plaintext highlighter-rouge">if (nodeEnv !== 'production')</code> guard in <code class="language-plaintext highlighter-rouge">server.js</code></td>
+    </tr>
+    <tr>
+      <td>BR-10 — Multiple-choice grading is deterministic</td>
+      <td>Implemented</td>
+      <td>String comparison; LLM is only called for open-ended answers</td>
+    </tr>
+    <tr>
+      <td>BR-11 — Document chunk embeddings are generated asynchronously</td>
+      <td>Implemented</td>
+      <td><code class="language-plaintext highlighter-rouge">createDocumentChunks</code> is fire-and-forget; errors are logged but do not fail the analysis response</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="endpoints">Endpoints</h2>
+
+<p>The live interactive contract is available at <code class="language-plaintext highlighter-rouge">/api-docs</code> while the service is running.</p>
+
+<h3 id="chat">Chat</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/chat</code></td>
+      <td>Yes</td>
+      <td>Academic RAG chat — answers using document context</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/chat/stream</code></td>
+      <td>Yes</td>
+      <td>Same as above with SSE token streaming</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/chat/recommendations</code></td>
+      <td>Yes</td>
+      <td>Returns personalized document recommendations</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/chat/nav</code></td>
+      <td>Yes</td>
+      <td>Platform navigation assistant</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong><code class="language-plaintext highlighter-rouge">POST /api/chat</code></strong> — required field: <code class="language-plaintext highlighter-rouge">message</code> (max 2000 chars). Optional: <code class="language-plaintext highlighter-rouge">chatId</code> string to enable persistent multi-turn context.</p>
+
+<p>Response:</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"answer"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Based on the indexed documents..."</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"relatedDocuments"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="w">
+    </span><span class="p">{</span><span class="w"> </span><span class="nl">"docId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"uuid"</span><span class="p">,</span><span class="w"> </span><span class="nl">"fileName"</span><span class="p">:</span><span class="w"> </span><span class="s2">"algebra.pdf"</span><span class="p">,</span><span class="w"> </span><span class="nl">"materia"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Matemáticas"</span><span class="p">,</span><span class="w"> </span><span class="nl">"tema"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Álgebra Lineal"</span><span class="w"> </span><span class="p">}</span><span class="w">
+  </span><span class="p">]</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p><strong><code class="language-plaintext highlighter-rouge">POST /api/chat/stream</code></strong> — same request body; response is <code class="language-plaintext highlighter-rouge">text/event-stream</code>. Each SSE event carries <code class="language-plaintext highlighter-rouge">{ token, done }</code>. The final event includes <code class="language-plaintext highlighter-rouge">{ done: true, relatedDocuments: [...] }</code>.</p>
+
+<p><strong><code class="language-plaintext highlighter-rouge">POST /api/chat/recommendations</code></strong> — optional fields: <code class="language-plaintext highlighter-rouge">descripcion</code> (max 500 chars), <code class="language-plaintext highlighter-rouge">materias[]</code> (max 10), <code class="language-plaintext highlighter-rouge">temas[]</code> (max 10). Returns up to 5 matching documents with a friendly LLM-generated recommendation message.</p>
+
+<p><strong><code class="language-plaintext highlighter-rouge">POST /api/chat/nav</code></strong> — required: <code class="language-plaintext highlighter-rouge">message</code> (max 1000 chars). Returns a guided answer about platform features, navigation, or functionality.</p>
+
+<h3 id="socratic">Socratic</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/socratic</code></td>
+      <td>Yes</td>
+      <td>Socratic method chat — guides with questions, never answers directly</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong><code class="language-plaintext highlighter-rouge">POST /api/socratic</code></strong> — required: <code class="language-plaintext highlighter-rouge">message</code> (max 2000 chars). Optional: <code class="language-plaintext highlighter-rouge">history[]</code> (max 20 turns of <code class="language-plaintext highlighter-rouge">{ role: 'user'|'assistant', content }</code> pairs).</p>
+
+<p>Response:</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"answer"</span><span class="p">:</span><span class="w"> </span><span class="s2">"¿Qué crees que pasaría si...?"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"relatedDocuments"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">]</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<h3 id="quiz">Quiz</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/quiz/start</code></td>
+      <td>Yes</td>
+      <td>Start an adaptive quiz on any academic topic</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/quiz/answer</code></td>
+      <td>Yes</td>
+      <td>Submit an answer to the current question</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/quiz/result/:sessionId</code></td>
+      <td>Yes</td>
+      <td>Get full quiz result with per-question breakdown</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/quiz/analytics/:studentId</code></td>
+      <td>Yes</td>
+      <td>Learning analytics: topic trends, weak/strong areas</td>
+    </tr>
+  </tbody>
+</table>
+
+<table>
+  <tbody>
+    <tr>
+      <td><strong><code class="language-plaintext highlighter-rouge">POST /api/quiz/start</code></strong> — required: <code class="language-plaintext highlighter-rouge">topic</code>. Optional: <code class="language-plaintext highlighter-rouge">numQuestions</code> (default 5, range 3–15), <code class="language-plaintext highlighter-rouge">difficulty</code> (<code class="language-plaintext highlighter-rouge">easy</code></td>
+      <td><code class="language-plaintext highlighter-rouge">medium</code></td>
+      <td><code class="language-plaintext highlighter-rouge">hard</code>, default <code class="language-plaintext highlighter-rouge">medium</code>).</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Response (first question):</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"sessionId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"uuid"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"topic"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Cálculo diferencial"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"totalQuestions"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"currentQuestion"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"question"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w">
+    </span><span class="nl">"id"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"multiple_choice"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"question"</span><span class="p">:</span><span class="w"> </span><span class="s2">"¿Qué representa la derivada de una función en un punto?"</span><span class="p">,</span><span class="w">
+    </span><span class="nl">"options"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"La pendiente de la tangente"</span><span class="p">,</span><span class="w"> </span><span class="s2">"El área bajo la curva"</span><span class="p">,</span><span class="w"> </span><span class="s2">"El límite al infinito"</span><span class="p">,</span><span class="w"> </span><span class="s2">"El valor de la función"</span><span class="p">]</span><span class="w">
+  </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p><strong><code class="language-plaintext highlighter-rouge">POST /api/quiz/answer</code></strong> — required: <code class="language-plaintext highlighter-rouge">sessionId</code> (UUID), <code class="language-plaintext highlighter-rouge">answer</code> (max 2000 chars).</p>
+
+<p>Response (mid-quiz):</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"correct"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"score"</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"feedback"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"correctAnswer"</span><span class="p">:</span><span class="w"> </span><span class="s2">"La pendiente de la tangente"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"explanation"</span><span class="p">:</span><span class="w"> </span><span class="s2">"La derivada en un punto x₀ es..."</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"accumulated"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1/1"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"isComplete"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"currentQuestion"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"question"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">}</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>Response (final question):</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"correct"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"isComplete"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"finalScore"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"totalQuestions"</span><span class="p">:</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"percentage"</span><span class="p">:</span><span class="w"> </span><span class="mi">60</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"performance"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Bueno"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"sessionId"</span><span class="p">:</span><span class="w"> </span><span class="s2">"uuid"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<p>Performance labels: <code class="language-plaintext highlighter-rouge">Excelente</code> (≥ 90%), <code class="language-plaintext highlighter-rouge">Muy bueno</code> (≥ 75%), <code class="language-plaintext highlighter-rouge">Bueno</code> (≥ 60%), <code class="language-plaintext highlighter-rouge">Regular</code> (≥ 40%), <code class="language-plaintext highlighter-rouge">Necesita refuerzo</code> (&lt; 40%).</p>
+
+<h3 id="health--meta">Health &amp; Meta</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Auth</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/health</code></td>
+      <td>No</td>
+      <td>Deep health check — database, LLM, storage</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/version</code></td>
+      <td>No</td>
+      <td>Returns <code class="language-plaintext highlighter-rouge">{ version }</code> from <code class="language-plaintext highlighter-rouge">package.json</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/</code></td>
+      <td>No</td>
+      <td>API info and available endpoint map</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api-docs</code></td>
+      <td>No</td>
+      <td>Interactive Swagger UI</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/swagger.json</code></td>
+      <td>No</td>
+      <td>Raw OpenAPI 3.0 JSON spec</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong><code class="language-plaintext highlighter-rouge">GET /health</code></strong> response:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Status</th>
+      <th>HTTP</th>
+      <th>Condition</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">healthy</code></td>
+      <td>200</td>
+      <td>Database reachable and LLM API key valid</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">degraded</code></td>
+      <td>207</td>
+      <td>Database OK but LLM or storage has an issue</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">unhealthy</code></td>
+      <td>503</td>
+      <td>Database unreachable</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="simulation-endpoints-devtest-only">Simulation Endpoints (dev/test only)</h3>
+
+<p>Disabled when <code class="language-plaintext highlighter-rouge">NODE_ENV=production</code>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Method</th>
+      <th>Route</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/simulation/analysis</code></td>
+      <td>Simulate receiving an <code class="language-plaintext highlighter-rouge">analysis</code> message for a PDF URL</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">POST</code></td>
+      <td><code class="language-plaintext highlighter-rouge">/api/simulation/save</code></td>
+      <td>Simulate the <code class="language-plaintext highlighter-rouge">save</code> confirmation with a real docId</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>These endpoints exist to enable end-to-end testing of the document pipeline without a live Service Bus connection.</p>
+
+<h3 id="error-mapping">Error Mapping</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>HTTP</th>
+      <th>Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>400</td>
+      <td>Invalid request — Zod validation failure</td>
+    </tr>
+    <tr>
+      <td>401</td>
+      <td>Missing, invalid, or expired JWT</td>
+    </tr>
+    <tr>
+      <td>404</td>
+      <td>Session not found or expired</td>
+    </tr>
+    <tr>
+      <td>422</td>
+      <td>Business rule violation (e.g., quiz generation failed)</td>
+    </tr>
+    <tr>
+      <td>429</td>
+      <td>Rate limit exceeded (global 100/15min or LLM 20/min)</td>
+    </tr>
+    <tr>
+      <td>503</td>
+      <td>Service unavailable (database unreachable)</td>
+    </tr>
+    <tr>
+      <td>504</td>
+      <td>LLM did not respond within 30 seconds</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>All error responses follow the same envelope:</p>
+<div class="language-json highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{</span><span class="w">
+  </span><span class="nl">"success"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"error"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Error type"</span><span class="p">,</span><span class="w">
+  </span><span class="nl">"message"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Human-readable description"</span><span class="w">
+</span><span class="p">}</span><span class="w">
+</span></code></pre></div></div>
+
+<hr />
+
+<h2 id="search-strategy">Search Strategy</h2>
+
+<p>Document retrieval uses a four-method hybrid approach in <code class="language-plaintext highlighter-rouge">AdvancedSearchService</code>, combining scores with configurable weights:</p>
+
+<div class="mermaid">
+flowchart LR
+    Q["User Query"] --&gt; V["Vector Search<br />40% weight<br />pgvector cosine similarity<br />on DocumentChunk embeddings"]
+    Q --&gt; F["Full-Text Search<br />30% weight<br />PostgreSQL to_tsquery (Spanish)<br />ILIKE fallback"]
+    Q --&gt; FZ["Fuzzy Search<br />20% weight<br />Fuse.js on materia / tema / tags<br />threshold 0.4"]
+    Q --&gt; S["Semantic Search<br />10% weight<br />Synonym expansion → re-embedding<br />→ vector cosine search"]
+    V --&gt; C["Score Combiner"]
+    F --&gt; C
+    FZ --&gt; C
+    S --&gt; C
+    C --&gt; R["Ranked Results<br />(score ≥ 0.1 threshold)"]
+</div>
+
+<p><strong>Vector search</strong> converts the query to a 768-dimensional embedding using Gemini <code class="language-plaintext highlighter-rouge">text-embedding-004</code> and finds the closest chunk for each document via pgvector (<code class="language-plaintext highlighter-rouge">&lt;=&gt;</code> cosine distance operator). Falls back to keyword search if the <code class="language-plaintext highlighter-rouge">pgvector</code> extension is not available.</p>
+
+<p><strong>Full-text search</strong> uses PostgreSQL <code class="language-plaintext highlighter-rouge">to_tsquery('spanish', ...)</code> on an indexed <code class="language-plaintext highlighter-rouge">search_text</code> column. Falls back to ILIKE on <code class="language-plaintext highlighter-rouge">materia</code>, <code class="language-plaintext highlighter-rouge">tema</code>, <code class="language-plaintext highlighter-rouge">tags</code>, and <code class="language-plaintext highlighter-rouge">summary</code> if the column does not exist.</p>
+
+<p><strong>Fuzzy search</strong> loads up to 1000 documents and uses Fuse.js to find approximate matches by <code class="language-plaintext highlighter-rouge">materia</code>, <code class="language-plaintext highlighter-rouge">tema</code>, <code class="language-plaintext highlighter-rouge">tags</code>, and <code class="language-plaintext highlighter-rouge">fileName</code> — tolerant of typos and partial matches.</p>
+
+<p><strong>Semantic search</strong> expands the query with synonyms from the built-in <code class="language-plaintext highlighter-rouge">synonymMap</code> (e.g., <code class="language-plaintext highlighter-rouge">ia</code> → <code class="language-plaintext highlighter-rouge">inteligencia artificial, machine learning, ai</code>), generates a new embedding from the expanded query, and runs a second vector search. Synonyms can also be extended at runtime via the <code class="language-plaintext highlighter-rouge">Synonym</code> model.</p>
+
+<p>When <code class="language-plaintext highlighter-rouge">AdvancedSearchService</code> is not called explicitly (e.g., inside <code class="language-plaintext highlighter-rouge">GeminiService.searchRelevantDocuments</code>), a simplified version runs: vector search first, with keyword ILIKE as fallback.</p>
+
+<hr />
+
+<h2 id="service-communication">Service Communication</h2>
+
+<h3 id="authentication-contract">Authentication Contract</h3>
+
+<p>The ECIWise Auth service issues HS256 JWTs. The AI service validates them locally with the shared <code class="language-plaintext highlighter-rouge">JWT_SECRET</code>. There is no runtime HTTP call to the Auth service for each request.</p>
+
+<h3 id="azure-service-bus-integration">Azure Service Bus Integration</h3>
+
+<div class="mermaid">
+sequenceDiagram
+    participant FE as Frontend/Backend
+    participant SB as Azure Service Bus
+    participant AI as AI Service
+    participant LLM as LLM Provider
+    participant DB as PostgreSQL
+
+    FE-&gt;&gt;SB: Publish message {action: analysis, fileUrl, fileName, correlationId}
+    SB-&gt;&gt;AI: Deliver message (material.process queue)
+    AI-&gt;&gt;AI: downloadFile(fileUrl)
+    AI-&gt;&gt;AI: pdf-parse → extract text
+    AI-&gt;&gt;LLM: analyzeDocumentText(text, fileName)
+    LLM--&gt;&gt;AI: {valid, materia, tema, tags, summary}
+    AI-&gt;&gt;DB: Summary.create({correlationId, docId: PENDING_..., ...})
+    AI-&gt;&gt;AI: createDocumentChunks (async, fire-and-forget)
+    AI-&gt;&gt;SB: Publish response {valid, materia, tema, tags, summary} to material.responses
+    SB--&gt;&gt;FE: Deliver analysis result
+    FE-&gt;&gt;SB: Publish {action: save, correlationId, docId}
+    SB-&gt;&gt;AI: Deliver save message
+    AI-&gt;&gt;DB: Summary.update({docId: realId})
+</div>
+
+<p>Messages that fail processing after 3 attempts with exponential backoff are moved to the dead-letter queue with a <code class="language-plaintext highlighter-rouge">MaxRetriesExceeded</code> reason.</p>
+
+<p>The Service Bus integration is optional: if <code class="language-plaintext highlighter-rouge">SERVICE_BUS_CONNECTION_STRING</code> is not set, the listener is disabled and the service starts normally (degraded mode for document processing only).</p>
+
+<h3 id="llm-provider-abstraction">LLM Provider Abstraction</h3>
+
+<p><code class="language-plaintext highlighter-rouge">GeminiService</code> implements all LLM operations and supports three backends transparently:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Provider</th>
+      <th>Protocol</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">gemini</code> (default)</td>
+      <td>Gemini REST API (v1beta)</td>
+      <td>Supports structured JSON output via <code class="language-plaintext highlighter-rouge">responseSchema</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">groq</code></td>
+      <td>OpenAI-compatible <code class="language-plaintext highlighter-rouge">/chat/completions</code></td>
+      <td>Fast inference, no native embedding API</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">ollama</code></td>
+      <td>Ollama <code class="language-plaintext highlighter-rouge">/api/generate</code> and <code class="language-plaintext highlighter-rouge">/api/chat</code></td>
+      <td>Local deployment, no cloud cost</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Each <code class="language-plaintext highlighter-rouge">callLLM</code> invocation uses <code class="language-plaintext highlighter-rouge">AbortSignal.timeout(30_000)</code> and is wrapped in a <code class="language-plaintext highlighter-rouge">withRetry</code> helper with exponential backoff.</p>
+
+<h3 id="database-communication">Database Communication</h3>
+
+<p>Prisma repositories are the only persistence adapters. Raw SQL is used for two specific operations:</p>
+<ol>
+  <li><code class="language-plaintext highlighter-rouge">pgvector</code> cosine distance queries (<code class="language-plaintext highlighter-rouge">&lt;=&gt;</code> operator) which are not supported by Prisma’s query builder.</li>
+  <li>Bulk chunk insertion with embedding vectors (<code class="language-plaintext highlighter-rouge">$executeRaw</code>).</li>
+</ol>
+
+<hr />
+
+<h2 id="c4--level-1-system-context">C4 — Level 1: System Context</h2>
+
+<div class="mermaid">
+graph TB
+    subgraph Actors
+        ST["🎓 Student<br />chat · quiz · socratic"]
+        TU["📚 Tutor<br />uploads PDFs"]
+        AD["⚙️ Administrator<br />monitors /health"]
+    end
+
+    subgraph "External Systems"
+        AUTH["Auth Service<br />(JWT issuer — HS256)"]
+        FE["ECIWise Frontend<br />(Angular SPA)"]
+        BE["ECIWise Backend"]
+        SB["Azure Service Bus<br />material.process / material.responses"]
+        BLOB["Azure Blob Storage<br />(PDF repository)"]
+        LLM["LLM Provider<br />Gemini · Groq · Ollama"]
+        PG[("PostgreSQL + pgvector<br />summaries · embeddings<br />sessions · quiz results")]
+    end
+
+    subgraph "ECIWISE+ AI Service"
+        AI["ECIWISE+ RAG Service<br />Node.js 22 · Express.js 4"]
+    end
+
+    ST --&gt;|uses| FE
+    TU --&gt;|uploads PDFs| FE
+    AD --&gt;|monitors| AI
+    FE --&gt;|"Bearer JWT"| AI
+    FE --&gt;|login| AUTH
+    AUTH -.-&gt;|"shared JWT_SECRET"| AI
+    BE --&gt;|document events| SB
+    AI --&gt;|receive / publish| SB
+    AI --&gt;|download PDFs| BLOB
+    AI --&gt;|LLM calls| LLM
+    AI --&gt;|Prisma reads/writes| PG
+</div>
+
+<h3 id="actors">Actors</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Actor</th>
+      <th>Interaction</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Student</td>
+      <td>Submits academic queries, participates in Socratic dialogue, takes quizzes</td>
+    </tr>
+    <tr>
+      <td>Tutor</td>
+      <td>Uploads PDF materials that are analyzed by the AI pipeline</td>
+    </tr>
+    <tr>
+      <td>Administrator</td>
+      <td>Monitors service health via <code class="language-plaintext highlighter-rouge">/health</code>; uses simulation endpoints in dev</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="systems">Systems</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>System</th>
+      <th>Responsibility</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>AI Service</td>
+      <td>RAG, Socratic method, quiz, document analysis</td>
+    </tr>
+    <tr>
+      <td>Auth Service</td>
+      <td>Issues HS256 JWTs; shares <code class="language-plaintext highlighter-rouge">JWT_SECRET</code> with AI Service</td>
+    </tr>
+    <tr>
+      <td>Azure Service Bus</td>
+      <td>Decouples document upload events from analysis processing</td>
+    </tr>
+    <tr>
+      <td>Azure Blob Storage</td>
+      <td>Stores the raw PDF files referenced in Service Bus messages</td>
+    </tr>
+    <tr>
+      <td>LLM Provider</td>
+      <td>Generates document classification, chat responses, quiz questions</td>
+    </tr>
+    <tr>
+      <td>PostgreSQL + pgvector</td>
+      <td>Stores summaries, chunk embeddings, sessions, chat history, quiz results</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2 id="c4--level-2-containers">C4 — Level 2: Containers</h2>
+
+<div class="mermaid">
+graph TB
+    USER["👤 Student / Tutor"]
+    FE["ECIWise Frontend<br />Angular SPA"]
+
+    subgraph "ECIWISE+ AI Service (single Node.js process)"
+        API["REST API<br />Node.js 22 · Express.js 4<br />JWT auth · rate-limit · Zod validation · Swagger"]
+        LLMSVC["LLM Adapter<br />GeminiService (multi-provider)<br />chat · socratic · quiz · analysis · embeddings · streaming"]
+        SEARCH["Search Engine<br />AdvancedSearchService + EmbeddingService<br />vector · FTS · fuzzy · semantic"]
+        BUS["Service Bus Listener<br />ServiceBusService<br />receive analysis · publish responses"]
+        PRISMA["Persistence Adapter<br />Prisma 6 + pgvector<br />Summary · DocumentChunk · Session · ChatHistory · QuizResult"]
+    end
+
+    PG[("PostgreSQL 13+<br />pgvector extension")]
+    SB["Azure Service Bus<br />material.process / material.responses"]
+    BLOB["Azure Blob Storage<br />PDF files"]
+    LLM["LLM API<br />Gemini / Groq / Ollama"]
+
+    USER --&gt;|HTTPS| FE
+    FE --&gt;|"JSON/HTTPS + Bearer JWT"| API
+    API --&gt; LLMSVC
+    API --&gt; SEARCH
+    API --&gt; PRISMA
+    LLMSVC --&gt;|"HTTPS (30s timeout)"| LLM
+    SEARCH --&gt; PRISMA
+    BUS --&gt;|AMQP| SB
+    BUS --&gt;|HTTPS| BLOB
+    BUS --&gt; LLMSVC
+    BUS --&gt; PRISMA
+    PRISMA --&gt;|"Prisma Client + raw SQL"| PG
+</div>
+
+<h3 id="containers">Containers</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Container</th>
+      <th>Technology</th>
+      <th>Responsibility</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>REST API</td>
+      <td>Express.js 4</td>
+      <td>Auth, validation, routing, rate limiting, Swagger docs</td>
+    </tr>
+    <tr>
+      <td>LLM Adapter</td>
+      <td>GeminiService (ESM)</td>
+      <td>Multi-provider LLM calls, streaming, embeddings</td>
+    </tr>
+    <tr>
+      <td>Search Engine</td>
+      <td>AdvancedSearchService</td>
+      <td>Hybrid document retrieval for RAG context</td>
+    </tr>
+    <tr>
+      <td>Service Bus Listener</td>
+      <td>ServiceBusService</td>
+      <td>Async document processing pipeline</td>
+    </tr>
+    <tr>
+      <td>Persistence Adapter</td>
+      <td>Prisma 6</td>
+      <td>All database reads and writes</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The REST API, LLM Adapter, Search Engine, Service Bus Listener, and Persistence Adapter all run in the same Node.js process. They are logical containers, not independent deployments.</p>
+
+<hr />
+
+<h2 id="design-patterns--best-practices">Design Patterns &amp; Best Practices</h2>
+
+<h3 id="1-hexagonal-architecture-ports--adapters">1. Hexagonal Architecture (Ports &amp; Adapters)</h3>
+
+<p>Input ports (<code class="language-plaintext highlighter-rouge">IChatPort</code>, <code class="language-plaintext highlighter-rouge">ISocraticPort</code>, <code class="language-plaintext highlighter-rouge">IQuizPort</code>) define what use cases expose. Output ports (<code class="language-plaintext highlighter-rouge">ILLMPort</code>, <code class="language-plaintext highlighter-rouge">IDocumentRepositoryPort</code>, <code class="language-plaintext highlighter-rouge">IEmbeddingPort</code>) define what adapters must implement. Use cases depend only on abstractions; <code class="language-plaintext highlighter-rouge">GeminiService</code> and <code class="language-plaintext highlighter-rouge">PrismaService</code> are adapters wired in at the route level.</p>
+
+<h3 id="2-multi-provider-llm-abstraction">2. Multi-provider LLM Abstraction</h3>
+
+<p><code class="language-plaintext highlighter-rouge">GeminiService</code> implements a unified <code class="language-plaintext highlighter-rouge">callLLM({ model, prompt, messages, systemPrompt, responseMimeType, responseSchema })</code> interface that dispatches to the correct provider based on <code class="language-plaintext highlighter-rouge">LLM_PROVIDER</code>. Switching from Gemini to Groq or Ollama requires only an environment variable change. The same applies to streaming via <code class="language-plaintext highlighter-rouge">callLLMStream</code>.</p>
+
+<h3 id="3-rag-retrieval-augmented-generation">3. RAG (Retrieval-Augmented Generation)</h3>
+
+<p>The service never answers academic questions from LLM parametric memory alone. Every chat, socratic, and quiz request retrieves relevant document chunks first and injects them as context into the system prompt. This grounds responses in the institution’s indexed material.</p>
+
+<h3 id="4-hybrid-search">4. Hybrid Search</h3>
+
+<p>Four retrieval methods with configurable weights prevent any single method from being a single point of failure. If pgvector is unavailable, full-text and fuzzy search continue to work. If FTS indexes are missing, ILIKE fallback activates automatically.</p>
+
+<h3 id="5-fire-and-forget-async-embeddings">5. Fire-and-Forget Async Embeddings</h3>
+
+<p>Chunk embedding generation is intentionally decoupled from the document analysis response. The Service Bus message is completed and the result returned to the backend immediately after the <code class="language-plaintext highlighter-rouge">Summary</code> is created. Embedding generation runs asynchronously and its failure does not block the analysis pipeline.</p>
+
+<h3 id="6-retry-with-exponential-backoff">6. Retry with Exponential Backoff</h3>
+
+<p><code class="language-plaintext highlighter-rouge">withRetry</code> wraps every LLM call with up to 3 attempts. The delay doubles between attempts. This handles transient network errors without user impact.</p>
+
+<h3 id="7-topic-guard">7. Topic Guard</h3>
+
+<p><code class="language-plaintext highlighter-rouge">topicGuard</code> middleware calls the LLM to classify incoming queries before routing them to the main use case. Off-topic queries (recipes, sports, entertainment) are blocked at the middleware layer with a fixed refusal message. This is applied to <code class="language-plaintext highlighter-rouge">/api/chat</code> and <code class="language-plaintext highlighter-rouge">/api/socratic</code>.</p>
+
+<h3 id="8-zod-schema-validation-at-the-boundary">8. Zod Schema Validation at the Boundary</h3>
+
+<p>All incoming JSON bodies are validated by Zod schemas before any business logic runs. Invalid requests fail fast at the <code class="language-plaintext highlighter-rouge">validate</code> middleware with a structured error listing field-level issues.</p>
+
+<h3 id="9-session-based-quiz-state">9. Session-based Quiz State</h3>
+
+<p>Quiz state is persisted to PostgreSQL <code class="language-plaintext highlighter-rouge">Session</code> rows rather than held in-process memory. This allows the service to be restarted or scaled horizontally without losing quiz progress. Sessions expire automatically after 2 hours; a cleanup routine removes expired rows at startup.</p>
+
+<h3 id="10-dead-letter-queue-handling">10. Dead-Letter Queue Handling</h3>
+
+<p>Service Bus messages that fail processing after the configured retry count are moved to the dead-letter queue with a <code class="language-plaintext highlighter-rouge">deadLetterReason</code> of <code class="language-plaintext highlighter-rouge">MaxRetriesExceeded</code>. This prevents poison messages from blocking the queue and makes failures observable.</p>
+
+<hr />
+
+<h2 id="deployment">Deployment</h2>
+
+<h3 id="environment-variables">Environment Variables</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Required</th>
+      <th>Default</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">PORT</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">3000</code></td>
+      <td>HTTP port</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">NODE_ENV</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">development</code></td>
+      <td>Runtime mode (<code class="language-plaintext highlighter-rouge">production</code> enables strict auth and disables simulation routes)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DATABASE_URL</code></td>
+      <td>Yes</td>
+      <td>—</td>
+      <td>PostgreSQL connection string (<code class="language-plaintext highlighter-rouge">postgresql://</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">JWT_SECRET</code></td>
+      <td>Yes</td>
+      <td>—</td>
+      <td>Shared HMAC secret (HS256) with the Auth service</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">LLM_PROVIDER</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">gemini</code></td>
+      <td>LLM backend: <code class="language-plaintext highlighter-rouge">gemini</code>, <code class="language-plaintext highlighter-rouge">groq</code>, or <code class="language-plaintext highlighter-rouge">ollama</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GOOGLE_GEMINI_API_KEY</code></td>
+      <td>If <code class="language-plaintext highlighter-rouge">gemini</code></td>
+      <td>—</td>
+      <td>Gemini API key</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">LLM_API_KEY</code></td>
+      <td>If <code class="language-plaintext highlighter-rouge">groq</code></td>
+      <td>—</td>
+      <td>Groq API key</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">LLM_BASE_URL</code></td>
+      <td>If <code class="language-plaintext highlighter-rouge">ollama</code></td>
+      <td><code class="language-plaintext highlighter-rouge">http://localhost:11434</code></td>
+      <td>Ollama base URL</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">LLM_CHAT_MODEL</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">gemini-2.0-flash</code></td>
+      <td>Model for chat, socratic, recommendations</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">LLM_ANALYSIS_MODEL</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">gemini-2.0-flash-lite</code></td>
+      <td>Model for document analysis and quiz evaluation</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">EMBEDDING_PROVIDER</code></td>
+      <td>No</td>
+      <td>Same as <code class="language-plaintext highlighter-rouge">LLM_PROVIDER</code></td>
+      <td>Embedding backend (<code class="language-plaintext highlighter-rouge">gemini</code>, <code class="language-plaintext highlighter-rouge">openai</code>, <code class="language-plaintext highlighter-rouge">ollama</code>, <code class="language-plaintext highlighter-rouge">jina</code>)</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">EMBEDDING_MODEL</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">text-embedding-004</code></td>
+      <td>Embedding model name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">EMBEDDING_DIMENSIONS</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">768</code></td>
+      <td>Output vector dimensions</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SERVICE_BUS_CONNECTION_STRING</code></td>
+      <td>No</td>
+      <td>—</td>
+      <td>Azure Service Bus — omit to disable queue listener</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SERVICE_BUS_INPUT_QUEUE</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">material.process</code></td>
+      <td>Input queue name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SERVICE_BUS_OUTPUT_QUEUE</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">material.responses</code></td>
+      <td>Output queue name</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">SERVICE_BUS_MAX_RETRIES</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">3</code></td>
+      <td>Max attempts before dead-lettering</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AZURE_STORAGE_CONNECTION_STRING</code></td>
+      <td>No</td>
+      <td>—</td>
+      <td>Azure Blob Storage — omit to disable SDK fallback</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AZURE_STORAGE_CONTAINER_NAME</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">academic-documents</code></td>
+      <td>Blob container</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">MAX_FILE_SIZE_MB</code></td>
+      <td>No</td>
+      <td><code class="language-plaintext highlighter-rouge">10</code></td>
+      <td>Max upload size</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">CORS_ALLOWED_ORIGINS</code></td>
+      <td>No</td>
+      <td>Two Azure App Service origins</td>
+      <td>Comma-separated production CORS allowlist</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="local-execution">Local Execution</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Install dependencies</span>
+npm <span class="nb">install</span>
+
+<span class="c"># Generate Prisma client</span>
+npx prisma generate
+
+<span class="c"># Apply database migrations</span>
+npx prisma migrate deploy
+
+<span class="c"># Apply pgvector extension and advanced search indexes</span>
+npx prisma db execute <span class="se">\</span>
+  <span class="nt">--file</span> prisma/migrations/advanced_search_migration.sql <span class="se">\</span>
+  <span class="nt">--schema</span> prisma/schema.prisma
+
+<span class="c"># Start with hot-reload</span>
+npm run dev
+
+<span class="c"># Start in production mode</span>
+npm start
+</code></pre></div></div>
+
+<h3 id="verification-commands">Verification Commands</h3>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Run full test suite with coverage</span>
+npm <span class="nb">test</span>
+
+<span class="c"># Run specific test file</span>
+npm <span class="nb">test</span> <span class="nt">--</span> gemini.service.test.js
+
+<span class="c"># Smoke test LLM connectivity</span>
+npm run smoke:gemini
+
+<span class="c"># Open Prisma Studio (database GUI)</span>
+npx prisma studio
+</code></pre></div></div>
+
+<h3 id="cicd-github-actions">CI/CD (GitHub Actions)</h3>
+
+<p>The workflow <code class="language-plaintext highlighter-rouge">.github/workflows/main_iamodule.yml</code> triggers on every push to <code class="language-plaintext highlighter-rouge">main</code>:</p>
+
+<ol>
+  <li><strong>Build</strong> — installs dependencies, runs tests in <code class="language-plaintext highlighter-rouge">NODE_ENV=test</code>.</li>
+  <li><strong>Deploy</strong> — applies Prisma migrations and the <code class="language-plaintext highlighter-rouge">advanced_search_migration.sql</code> against the production <code class="language-plaintext highlighter-rouge">DATABASE_URL</code> secret.</li>
+  <li><strong>Azure login</strong> — uses OIDC federated identity (no long-lived credentials).</li>
+  <li><strong>Web app deploy</strong> — deploys the artifact to Azure App Service slot <code class="language-plaintext highlighter-rouge">Production</code> under app name <code class="language-plaintext highlighter-rouge">iamodule</code>.</li>
+</ol>
+
+<h3 id="github-actions-secrets">GitHub Actions Secrets</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Secret</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">DATABASE_URL</code></td>
+      <td>Production PostgreSQL connection string</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AZUREAPPSERVICE_CLIENTID_*</code></td>
+      <td>OIDC federated identity client ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AZUREAPPSERVICE_TENANTID_*</code></td>
+      <td>Azure tenant ID</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">AZUREAPPSERVICE_SUBSCRIPTIONID_*</code></td>
+      <td>Azure subscription ID</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="azure-app-service-configuration">Azure App Service Configuration</h3>
+
+<p>Configure in Azure Portal → App Service → Configuration → Application Settings:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>NODE_ENV=production
+PORT=8080
+DATABASE_URL=postgresql://...?sslmode=require
+JWT_SECRET=&lt;shared secret&gt;
+LLM_PROVIDER=gemini
+GOOGLE_GEMINI_API_KEY=AIzaSy...
+SERVICE_BUS_CONNECTION_STRING=Endpoint=sb://...
+AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;...
+SCM_DO_BUILD_DURING_DEPLOYMENT=true
+</code></pre></div></div>
+
+<h3 id="common-issues">Common Issues</h3>
+
+<p><strong>Gemini unreachable from Azure App Service VNet</strong></p>
+
+<p>If the App Service is VNet-integrated with <code class="language-plaintext highlighter-rouge">WEBSITE_VNET_ROUTE_ALL=1</code>, outbound HTTPS to <code class="language-plaintext highlighter-rouge">generativelanguage.googleapis.com</code> is blocked. Solutions:</p>
+
+<div class="language-bash highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c"># Option 1 — disable route-all</span>
+az webapp config appsettings <span class="nb">set</span> <span class="se">\</span>
+  <span class="nt">--name</span> iamodule <span class="se">\</span>
+  <span class="nt">--settings</span> <span class="nv">WEBSITE_VNET_ROUTE_ALL</span><span class="o">=</span><span class="s2">"0"</span>
+
+<span class="c"># Option 2 — switch to Groq</span>
+az webapp config appsettings <span class="nb">set</span> <span class="se">\</span>
+  <span class="nt">--name</span> iamodule <span class="se">\</span>
+  <span class="nt">--settings</span> <span class="nv">LLM_PROVIDER</span><span class="o">=</span><span class="s2">"groq"</span> <span class="nv">LLM_API_KEY</span><span class="o">=</span><span class="s2">"gsk_..."</span>
+</code></pre></div></div>
+
+<p><strong>Prisma P1012 — invalid protocol</strong></p>
+
+<p>Prisma 6.x requires <code class="language-plaintext highlighter-rouge">postgresql://</code> (not <code class="language-plaintext highlighter-rouge">postgres://</code>):</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>DATABASE_URL=postgresql://user:pass@host:5432/db?sslmode=require
+</code></pre></div></div>
+
+<p><strong><code class="language-plaintext highlighter-rouge">/health</code> returns 503</strong></p>
+
+<p>The database is not reachable. Verify <code class="language-plaintext highlighter-rouge">DATABASE_URL</code>, PostgreSQL server status, and firewall rules allowing the App Service outbound IP.</p>
+
+<p><strong>Quiz sessions lost after restart</strong></p>
+
+<p>Sessions are persisted in PostgreSQL and survive restarts. If sessions appear missing, check that <code class="language-plaintext highlighter-rouge">DATABASE_URL</code> points to the same database and that migrations have been applied.</p>
+
+<hr />
+
+<h2 id="further-reading">Further Reading</h2>
+
+<ul>
+  <li>Source repository: <a href="https://github.com/EciWise/ai">EciWise/ai</a></li>
+  <li>Runtime API contract: <code class="language-plaintext highlighter-rouge">/api-docs</code></li>
+  <li>Database schema: <code class="language-plaintext highlighter-rouge">prisma/schema.prisma</code></li>
+  <li>LLM system prompts: <code class="language-plaintext highlighter-rouge">src/utils/sysInstructions.js</code></li>
+  <li>Search strategy: <code class="language-plaintext highlighter-rouge">src/services/advancedSearch.service.js</code></li>
+  <li>Document pipeline: <code class="language-plaintext highlighter-rouge">src/services/serviceBus.service.js</code></li>
+</ul>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+</script>
+
+
+			<div class="page-footer">
+				<span>ECIWise+ Wiki</span>
+				<div>
+				
+				
+				</div>
+			</div>
+		</article>
+	</div>
+
+	<script>
+		function toggleSidebar() {
+			var sidebar = document.getElementById('sidebar');
+			var scrim   = document.getElementById('sidebar-scrim');
+			var isOpen  = sidebar.classList.toggle('open');
+			scrim.classList.toggle('visible', isOpen);
+			document.body.style.overflow = isOpen ? 'hidden' : '';
+		}
+
+		function closeSidebar() {
+			document.getElementById('sidebar').classList.remove('open');
+			document.getElementById('sidebar-scrim').classList.remove('visible');
+			document.body.style.overflow = '';
+		}
+
+		document.addEventListener('keydown', function(e) {
+			if (e.key === 'Escape') closeSidebar();
+		});
+
+		document.querySelectorAll('#sidebar .nav-section a').forEach(function(link) {
+			link.addEventListener('click', function() {
+				if (window.innerWidth < 900) closeSidebar();
+			});
+		});
+	</script>
+</body>
+</html>
