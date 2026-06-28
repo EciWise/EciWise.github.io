@@ -234,7 +234,7 @@
 
 <hr />
 
-<h2 id="adr-001--microservice-architecture">ADR-001 — Microservice Architecture</h2>
+<h2 id="adr-001--microservice-architecture--event-driven-architecture">ADR-001 — Microservice Architecture + Event-Driven Architecture</h2>
 
 <p><strong>Status:</strong> Accepted</p>
 
@@ -242,43 +242,102 @@
 
 <p>ECIWise needed to support multiple independent domains: authentication, tutoring scheduling, academic materials, real-time chat, study practice, gamification, notifications, and AI predictions. A monolith would couple these domains, slow down team development, and make independent scaling impossible.</p>
 
+<p>Beyond isolation, several cross-domain concerns required one service to react to what happens in another — a confirmed booking should trigger a notification, a completed tutoring session should award gamification points, a student registration should dispatch a prediction request to the AI workers. Solving this with direct HTTP calls between services would create tight temporal coupling: if the notification service is down, the booking would fail. That is not acceptable.</p>
+
 <h3 id="decision">Decision</h3>
 
-<p>Build each domain as an independent microservice with its <strong>own database, own deployment, and own technology stack</strong>. Services communicate synchronously via JWT-authenticated REST, and asynchronously via RabbitMQ for domain events.</p>
+<p>ECIWise combines two complementary architectural styles:</p>
+
+<p><strong>Microservice Architecture</strong> — each domain is an independent service with its own database, deployment, and technology stack. No shared database. No direct inter-service database access.</p>
+
+<p><strong>Event-Driven Architecture</strong> — services that produce significant domain events publish them to RabbitMQ. Interested services subscribe independently. Producers do not know who consumes their events. This decouples services in time and space: a consumer being down does not fail the producer.</p>
+
+<p>These two styles are not alternatives — microservices define the <em>decomposition boundary</em>, event-driven defines the <em>communication model</em> between those boundaries.</p>
 
 <pre><code class="language-mermaid">graph TB
-  subgraph Services["Domain Services — each owns its own database"]
+  FE["Angular Frontend"]
+
+  subgraph Sync["Synchronous — REST + JWT"]
     AUTH["wise_auth"]
     TUT["tutoring"]
     MAT["materials"]
-    NOTIF["notifications"]
     STUDY["study"]
     TALK["talk"]
     TODO["todo"]
-    GAMIF["gamification"]
     GAME["game"]
     COMM["community"]
-    AI_D["AI dropout"]
-    AI_P["AI performance"]
   end
 
-  RMQ["RabbitMQ\nasync events"]
-  FE["Angular Frontend"]
+  subgraph AsyncBus["Asynchronous — RabbitMQ (Event Bus)"]
+    RMQ[["RabbitMQ\ndomain events"]]
+  end
 
-  FE --&gt;|Bearer JWT| AUTH
-  FE --&gt;|Bearer JWT| TUT &amp; MAT &amp; NOTIF &amp; STUDY
-  FE --&gt;|Bearer JWT| TALK &amp; TODO &amp; GAMIF &amp; GAME &amp; COMM
+  subgraph Consumers["Event Consumers"]
+    NOTIF["notifications\n(individual · rol · masivo)"]
+    GAMIF["gamification\n(points · achievements)"]
+    AI_D["AI dropout worker"]
+    AI_P["AI performance worker"]
+  end
 
-  AUTH --&gt;|issues JWT| FE
-  AUTH &amp; TUT &amp; MAT &amp; COMM --&gt;|domain events| RMQ
-  RMQ --&gt; NOTIF &amp; GAMIF &amp; AI_D &amp; AI_P
+  FE --&gt;|"Bearer JWT (REST)"| AUTH &amp; TUT &amp; MAT &amp; STUDY
+  FE --&gt;|"Bearer JWT (REST)"| TALK &amp; TODO &amp; GAME &amp; COMM
+
+  AUTH --&gt;|"auth events\n(register, role change)"| RMQ
+  AUTH --&gt;|"ia.requests\n(rendimiento, desercion)"| RMQ
+  TUT --&gt;|"tutoring events\n(booking confirmed, cancelled, completed)"| RMQ
+  MAT --&gt;|"material events\n(upload, rating)"| RMQ
+  COMM --&gt;|"community events\n(mention, new post)"| RMQ
+
+  RMQ --&gt;|"notification.*"| NOTIF
+  RMQ --&gt;|"gamification events"| GAMIF
+  RMQ --&gt;|"ia.rendimiento.requests"| AI_P
+  RMQ --&gt;|"ia.desercion.requests"| AI_D
 </code></pre>
+
+<p><strong>When each communication style is used:</strong></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Scenario</th>
+      <th>Style</th>
+      <th>Reason</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Frontend requests data or actions</td>
+      <td>REST + JWT</td>
+      <td>Synchronous, needs immediate response</td>
+    </tr>
+    <tr>
+      <td>Booking confirmed → send email</td>
+      <td>Event-driven</td>
+      <td>Notification service failure must not fail the booking</td>
+    </tr>
+    <tr>
+      <td>Session completed → award points</td>
+      <td>Event-driven</td>
+      <td>Gamification is a side effect, not part of the booking transaction</td>
+    </tr>
+    <tr>
+      <td>Student registers → trigger AI prediction</td>
+      <td>Event-driven</td>
+      <td>Prediction is async; result arrives via a separate results exchange</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">wise_auth</code> issues token → any service validates it</td>
+      <td>JWT local validation</td>
+      <td>No inter-service call needed at request time</td>
+    </tr>
+  </tbody>
+</table>
 
 <h3 id="consequences">Consequences</h3>
 
 <ul>
-  <li><strong>Good:</strong> Independent deployments, isolated failures, team autonomy per service, technology flexibility.</li>
-  <li><strong>Accepted cost:</strong> Operational complexity; distributed tracing and observability require explicit tooling. JWT-based JIT user provisioning avoids inter-service user-sync calls.</li>
+  <li><strong>Good:</strong> Services are decoupled in time — a consumer being unavailable does not affect the producer. New consumers can subscribe to existing events with zero changes to producers. REST gives fast, predictable responses for user-facing interactions.</li>
+  <li><strong>Accepted cost:</strong> Eventual consistency — the gamification or notification side effect may arrive milliseconds after the main action completes. Requires RabbitMQ cluster monitoring and dead-letter queue handling for failed deliveries.</li>
 </ul>
 
 <hr />
@@ -989,6 +1048,217 @@
 <ul>
   <li><strong>Good:</strong> Services are fully independent. Schema migrations, performance tuning, and technology choices (ORM, indexing) are local to each service.</li>
   <li><strong>Accepted cost:</strong> No cross-service JOINs. Reporting that needs data from multiple services requires aggregation at the application level or a dedicated analytics pipeline.</li>
+</ul>
+
+<hr />
+
+<h2 id="adr-009--vector-database-in-the-ai-service-for-semantic-search-and-rag">ADR-009 — Vector Database in the AI Service for Semantic Search and RAG</h2>
+
+<p><strong>Status:</strong> Accepted</p>
+
+<h3 id="context-8">Context</h3>
+
+<p>The current AI service handles two structured ML predictions (dropout and academic performance) over fixed feature sets consumed from RabbitMQ. As the platform matures, new functional requirements emerge that cannot be satisfied by a traditional relational database or by fixed-feature ML models:</p>
+
+<ul>
+  <li><strong>Personalized content recommendations</strong>: students need to discover academic materials, study collections, and tutoring sessions semantically related to their current topics — not just by keyword match or category filter.</li>
+  <li><strong>Tutoring session summarization and retrieval</strong>: session notes, transcripts, and feedback accumulate over time and must be searchable by meaning, not by exact phrase.</li>
+  <li><strong>Contextual AI responses (RAG)</strong>: future AI assistant features require retrieving relevant platform context (materials, past sessions, peer performance patterns) before generating a response — retrieval-augmented generation requires a fast, high-dimensional similarity index.</li>
+  <li><strong>Student similarity matching</strong>: grouping students with similar academic profiles for peer study recommendations requires embedding-based nearest-neighbour queries, which relational databases cannot efficiently express.</li>
+</ul>
+
+<p>A relational database cannot efficiently answer questions such as <em>“find the 10 materials most semantically similar to this student’s current struggle”</em> because those queries live in dense vector space, not in row-and-column space. Adding vector search to PostgreSQL via <code class="language-plaintext highlighter-rouge">pgvector</code> is a partial solution but does not scale to millions of embeddings and lacks the index structures (HNSW, IVF) required for sub-millisecond approximate nearest-neighbour (ANN) search at platform scale.</p>
+
+<h3 id="decision-8">Decision</h3>
+
+<p><strong>Add <a href="https://qdrant.tech/">Qdrant</a> as a dedicated vector store owned exclusively by the AI service.</strong> Qdrant is an open-source, self-hostable vector database written in Rust that exposes a gRPC and REST API, supports HNSW indexing for ANN queries, and runs identically in Docker locally and on any VM or managed cloud in production.</p>
+
+<p>The AI service is the sole writer and reader of Qdrant. Other services do not access it directly — they publish events or call REST endpoints on the AI service, which decides whether to embed and store or to query the vector index.</p>
+
+<pre><code class="language-mermaid">graph TB
+  subgraph AIService["AI Service — Python"]
+    EMBED["Embedding Worker\n(sentence-transformers / OpenAI Ada)"]
+    PRED["Prediction Workers\n(dropout · performance — unchanged)"]
+    RAG["RAG Query Handler\n(retrieve → augment → generate)"]
+    SIM["Similarity Matcher\n(student profiling)"]
+  end
+
+  subgraph VectorStore["Vector Store — Qdrant"]
+    C_MAT["Collection: materials\n(title + content embeddings)"]
+    C_SESS["Collection: tutoring_sessions\n(notes + transcript embeddings)"]
+    C_STUD["Collection: student_profiles\n(feature vector embeddings)"]
+  end
+
+  subgraph RelationalDBs["Relational Databases (unchanged)"]
+    DB_AUTH[("wise_auth DB")]
+    DB_MAT[("materials DB")]
+    DB_TUT[("tutoring DB")]
+  end
+
+  subgraph Consumers["Service Consumers (REST)"]
+    FE["Angular Frontend"]
+    STUDY_SVC["study service"]
+    MAT_SVC["materials service"]
+  end
+
+  RMQ["RabbitMQ\ndomain events"]
+
+  RMQ --&gt;|"material.uploaded\ntutoring.session.completed\nstudent.ia.updated"| EMBED
+  EMBED --&gt;|"upsert embedding"| C_MAT &amp; C_SESS &amp; C_STUD
+
+  FE --&gt;|"GET /ai/recommendations?query=…"| RAG
+  FE --&gt;|"GET /ai/similar-students/:id"| SIM
+  STUDY_SVC --&gt;|"GET /ai/related-materials"| RAG
+
+  RAG --&gt;|"ANN search"| C_MAT &amp; C_SESS
+  SIM --&gt;|"ANN search"| C_STUD
+
+  RAG -.-&gt;|"fetch metadata"| DB_MAT &amp; DB_TUT
+  PRED -.-&gt;|"structured features"| DB_AUTH
+</code></pre>
+
+<p><strong>Embedding pipeline:</strong></p>
+
+<pre><code class="language-mermaid">sequenceDiagram
+  participant MAT as materials service
+  participant RMQ as RabbitMQ
+  participant EMB as Embedding Worker (AI service)
+  participant QDR as Qdrant
+
+  MAT-&gt;&gt;RMQ: material.uploaded { materialId, title, contentText }
+  RMQ-&gt;&gt;EMB: consume event
+  EMB-&gt;&gt;EMB: encode(title + contentText) → float[768]
+  EMB-&gt;&gt;QDR: upsert point { id: materialId, vector: […], payload: { title, url, subject } }
+  Note over QDR: HNSW index updated — queryable within milliseconds
+</code></pre>
+
+<p><strong>RAG query flow:</strong></p>
+
+<pre><code class="language-mermaid">sequenceDiagram
+  participant FE as Angular Frontend
+  participant AI as AI Service (RAG handler)
+  participant QDR as Qdrant
+  participant LLM as LLM (Claude / OpenAI)
+
+  FE-&gt;&gt;AI: GET /ai/ask?q="como mejorar cálculo diferencial"
+  AI-&gt;&gt;AI: encode(query) → float[768]
+  AI-&gt;&gt;QDR: search collection:materials top_k=5 with vector
+  QDR--&gt;&gt;AI: [{ materialId, score, payload }]
+  AI-&gt;&gt;LLM: prompt = context(top 5 materials) + user query
+  LLM--&gt;&gt;AI: grounded answer with citations
+  AI--&gt;&gt;FE: { answer, sources: [materialId, …] }
+</code></pre>
+
+<p><strong>Collections and index configuration:</strong></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Collection</th>
+      <th>Embedding model</th>
+      <th>Dimension</th>
+      <th>Index</th>
+      <th>Use case</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">materials</code></td>
+      <td><code class="language-plaintext highlighter-rouge">paraphrase-multilingual-mpnet-base-v2</code></td>
+      <td>768</td>
+      <td>HNSW</td>
+      <td>Content recommendation, RAG retrieval</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tutoring_sessions</code></td>
+      <td><code class="language-plaintext highlighter-rouge">paraphrase-multilingual-mpnet-base-v2</code></td>
+      <td>768</td>
+      <td>HNSW</td>
+      <td>Session search, context for RAG</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">student_profiles</code></td>
+      <td>Custom feature encoder (MLP)</td>
+      <td>128</td>
+      <td>HNSW</td>
+      <td>Peer similarity matching</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Events that trigger embedding upserts:</strong></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Event</th>
+      <th>Source service</th>
+      <th>Collection updated</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">material.uploaded</code></td>
+      <td><code class="language-plaintext highlighter-rouge">materials</code></td>
+      <td><code class="language-plaintext highlighter-rouge">materials</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">material.updated</code></td>
+      <td><code class="language-plaintext highlighter-rouge">materials</code></td>
+      <td><code class="language-plaintext highlighter-rouge">materials</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">tutoring.session.completed</code></td>
+      <td><code class="language-plaintext highlighter-rouge">tutoring</code></td>
+      <td><code class="language-plaintext highlighter-rouge">tutoring_sessions</code></td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">student.ia.updated</code></td>
+      <td><code class="language-plaintext highlighter-rouge">wise_auth</code></td>
+      <td><code class="language-plaintext highlighter-rouge">student_profiles</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>New AI service REST endpoints:</strong></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Endpoint</th>
+      <th>Consumer</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET /ai/recommendations</code></td>
+      <td>Frontend, <code class="language-plaintext highlighter-rouge">study</code></td>
+      <td>Top-K semantically similar materials to a query</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET /ai/ask</code></td>
+      <td>Frontend</td>
+      <td>RAG answer grounded in platform materials</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET /ai/similar-students/:id</code></td>
+      <td>Admin, tutors</td>
+      <td>Students with similar academic profiles</td>
+    </tr>
+    <tr>
+      <td><code class="language-plaintext highlighter-rouge">GET /ai/session-search</code></td>
+      <td>Frontend</td>
+      <td>Semantic search over tutoring session notes</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="consequences-8">Consequences</h3>
+
+<ul>
+  <li><strong>Good:</strong> Enables semantic search and RAG without changing the relational schema of any other service. The AI service remains the single owner of all vector data — no new coupling is introduced between existing services. Qdrant runs in Docker identically to production; onboarding cost is minimal. HNSW index gives sub-10ms ANN queries at scale. Existing prediction workers (dropout, performance) are untouched.</li>
+  <li><strong>Accepted cost:</strong> Adds a new infrastructure component (Qdrant) to operate and monitor. Embeddings must be kept in sync with source data — a delayed or failed <code class="language-plaintext highlighter-rouge">material.uploaded</code> event means stale search results until the event is reprocessed from the dead-letter queue. Embedding inference adds latency to the upload pipeline (acceptable because it is async via RabbitMQ). LLM calls for RAG introduce external API costs and latency that must be managed with caching and rate limiting.</li>
 </ul>
 
 			<div class="page-footer">
