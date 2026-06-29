@@ -54,7 +54,5 @@ To develop an institutional digital platform that centralizes and improves acces
 - Laura Alejandra Venegas Pirabán
 - Hildebrando Peña Quezada
 - Isaac David Palomo Peralta
-- Juana Lozano Chaves
 - Maria Paula Rodríguez Muñoz
-- Felipe Eduardo Calvache Gallego
 - Marianella Polo Peña
