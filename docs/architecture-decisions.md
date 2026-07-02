@@ -702,3 +702,75 @@ sequenceDiagram
 
 - **Good:** Enables semantic search and RAG without changing the relational schema of any other service. The AI service remains the single owner of all vector data — no new coupling is introduced between existing services. Qdrant runs in Docker identically to production; onboarding cost is minimal. HNSW index gives sub-10ms ANN queries at scale. Existing prediction workers (dropout, performance) are untouched.
 - **Accepted cost:** Adds a new infrastructure component (Qdrant) to operate and monitor. Embeddings must be kept in sync with source data — a delayed or failed `material.uploaded` event means stale search results until the event is reprocessed from the dead-letter queue. Embedding inference adds latency to the upload pipeline (acceptable because it is async via RabbitMQ). LLM calls for RAG introduce external API costs and latency that must be managed with caching and rate limiting.
+
+---
+
+## ADR-010 — wise_auth: Password Hashing Migration from bcrypt to Argon2id
+
+**Status:** Accepted
+
+### Context
+
+`wise_auth` originally hashed passwords with **bcrypt** (cost factor 12). bcrypt is a solid, battle-tested algorithm and remains an acceptable choice, but it is not the strongest option available today:
+
+- bcrypt is **not memory-hard**. It uses a small, fixed amount of memory, which makes it comparatively cheap to attack with GPUs and ASICs that parallelize thousands of guesses.
+- bcrypt silently **truncates passwords to 72 bytes**, a footgun that must be guarded against at the DTO layer.
+
+The current OWASP Password Storage Cheat Sheet ranks **Argon2id** as the first-choice algorithm (then scrypt, then bcrypt, then PBKDF2). Argon2id is memory-hard and tunable in memory, iterations, and parallelism, which raises the cost of large-scale offline cracking by orders of magnitude.
+
+A separate but related weakness was found in the login flow: when the submitted email did not exist (or belonged to an OAuth-only account), the handler returned **before** running any hash comparison. That timing difference (an instant reject vs. a ~hundreds-of-milliseconds verification) is a **user-enumeration side channel** — an attacker can tell which emails are registered by measuring response time.
+
+### Decision
+
+Migrate password hashing to **Argon2id** behind a single `PasswordService`, and harden the login flow at the same time. Existing users must not be disrupted, so the migration is transparent and gradual.
+
+**Design:**
+
+- New hashes use **Argon2id** with OWASP-aligned parameters: **19 MiB** memory, **2** iterations, **parallelism 1** (`@node-rs/argon2`, which ships NAPI prebuilds via `optionalDependencies` and therefore works with the Docker image's `npm ci --ignore-scripts`).
+- `PasswordService.verify` transparently accepts **both** Argon2id hashes and legacy bcrypt hashes (detected by prefix: `$argon2…` vs. `$2a/$2b/$2y`).
+- **Rehash-on-login:** after a successful login, if the stored hash is not Argon2id, it is re-hashed with Argon2id and persisted. Users are migrated silently the next time they authenticate — no forced reset, no mass migration job.
+- **Anti-enumeration:** when the email does not exist, the login runs a dummy Argon2id verification of equal computational cost before rejecting, so the response time no longer reveals whether the account exists.
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant S as AuthService
+  participant PS as PasswordService
+  participant DB as PostgreSQL
+
+  C->>S: POST /auth/login { email, password }
+  S->>DB: findByEmail(email)
+  alt user not found or OAuth-only
+    S->>PS: verifyDummy(password)
+    Note over S,PS: equal-cost decoy hash → constant time
+    S-->>C: 401 invalid_credentials
+  else user exists
+    S->>PS: verify(storedHash, password)
+    alt argon2 hash
+      PS-->>S: argon2.verify
+    else legacy bcrypt hash
+      PS-->>S: bcrypt.compare
+    end
+    S->>PS: needsRehash(storedHash)?
+    opt hash is not Argon2id
+      S->>PS: hash(password) → argon2id
+      S->>DB: update password (silent upgrade)
+    end
+    S-->>C: 200 access_token + user
+  end
+```
+
+**Password hashing parameters:**
+
+| Aspect | bcrypt (before) | Argon2id (after) |
+|--------|-----------------|------------------|
+| Algorithm family | Blowfish-based, CPU-bound | Memory-hard (Password Hashing Competition winner) |
+| Cost parameters | cost 12 | memory 19 MiB · iterations 2 · parallelism 1 |
+| GPU/ASIC resistance | Limited | High (memory-hard) |
+| Max input | 72 bytes (truncates) | No practical limit |
+| Library | `bcrypt` | `@node-rs/argon2` (+ `bcrypt` for legacy verification) |
+
+### Consequences
+
+- **Good:** New and migrated credentials use the strongest widely-recommended algorithm. Existing users are upgraded transparently on their next login with zero downtime and no forced password reset. The login flow no longer leaks account existence through timing. `@node-rs/argon2` uses per-platform prebuilds, so no compiler toolchain is needed in the image and the `--ignore-scripts` install still works.
+- **Accepted cost:** Two hashing libraries coexist until every active user has logged in at least once (bcrypt is retained solely to verify not-yet-migrated hashes). Argon2id's memory-hardness makes each hash deliberately more expensive in CPU and memory than bcrypt — a conscious trade of server cost for attacker cost. Dormant accounts keep their bcrypt hash until their owner authenticates again.

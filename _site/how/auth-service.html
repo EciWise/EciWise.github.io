@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Auth Service — ECIWise</title>
+	<title>Auth Service — ECIWise+</title>
 	<link rel="stylesheet" href="/wiki.css">
 	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
 </head>
@@ -36,7 +36,7 @@
 			</svg>
 			<div class="sidebar-brand">
 				<div class="wiki-title">ECIWISE<span class="eci-logo__plus-word">+</span></div>
-				<div class="wiki-subtitle">ECIWise</div>
+				<div class="wiki-subtitle">ECIWise+</div>
 			</div>
 		</div>
 
@@ -63,6 +63,8 @@
 					
 						
 							<li><a href="/docs/architecture-decisions.html" >Architecture Decisions</a></li>
+						
+					
 						
 					
 						
@@ -122,6 +124,10 @@
 						
 					
 						
+							<li><a href="/how/ia-predictions.html" >AI Prediction Models</a></li>
+						
+					
+						
 					
 						
 					
@@ -153,7 +159,7 @@
 		</nav>
 
 		<div class="sidebar-footer">
-			Last updated: Jun 2026 ·
+			Last updated: Jul 2026 ·
 			<a href="https://github.com/eciwise">GitHub</a>
 		</div>
 	</aside>
@@ -254,6 +260,7 @@
     subgraph AuthService["Wise Auth — NestJS 11"]
         Controller["AuthController\n/auth/*"]
         Service["AuthService\nbusiness logic"]
+        Password["PasswordService\nArgon2id (+ bcrypt legacy)"]
         subgraph Guards["Guards"]
             JwtGuard["JwtAuthGuard\nglobal"]
             RolesGuard["RolesGuard\nhandler-level"]
@@ -277,6 +284,7 @@
     Services --&gt;|"Bearer JWT\n(validated locally, no HTTP call)"| JwtGuard
     Controller --&gt; Guards
     Guards --&gt; Service
+    Service --&gt; Password
     Service --&gt; Strategies
     GoogleStrategy &lt;--&gt;|OAuth redirect| Google
     Service --&gt; Prisma
@@ -301,14 +309,14 @@
     Ctrl-&gt;&gt;S: register(dto)
     S-&gt;&gt;P: find user by email
     P--&gt;&gt;S: null (not found)
-    S-&gt;&gt;S: bcrypt.hash(password)
+    S-&gt;&gt;S: passwordService.hash(password) → Argon2id
     S-&gt;&gt;P: create Usuario { rol: estudiante }
     P--&gt;&gt;S: saved user
     S-&gt;&gt;S: jwt.sign({ sub, email, nombre, apellido, rol })
     S--&gt;&gt;Ctrl: AuthResponseDto { access_token, user }
     Ctrl--&gt;&gt;C: 201 Created + JWT
 
-    note over C,P: Login follows the same path but verifies bcrypt instead of creating
+    note over C,P: Login follows the same path but verifies with Argon2id (bcrypt kept for legacy hashes) and re-hashes on the way in — see Password Security below
 </code></pre>
 
 <h3 id="google-oauth-20-flow">Google OAuth 2.0 Flow</h3>
@@ -340,6 +348,91 @@
 
     note over C,Ctrl: Token is in URL fragment (#), not query string — never logged by servers
 </code></pre>
+
+<hr />
+
+<h2 id="password-security">Password Security</h2>
+
+<p>Passwords are hashed with <strong>Argon2id</strong> — the algorithm ranked first by the OWASP Password Storage Cheat Sheet — behind a single <code class="language-plaintext highlighter-rouge">PasswordService</code>. Argon2id is <em>memory-hard</em>, so it resists GPU/ASIC cracking far better than bcrypt. All hashing, verification, and rehash logic lives in one place; the rest of the service never touches a crypto primitive directly.</p>
+
+<h3 id="hashing-parameters">Hashing parameters</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Parameter</th>
+      <th>Value</th>
+      <th>Rationale</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Algorithm</td>
+      <td>Argon2id</td>
+      <td>Memory-hard, OWASP first choice</td>
+    </tr>
+    <tr>
+      <td>Memory cost</td>
+      <td>19 MiB</td>
+      <td>OWASP-recommended minimum</td>
+    </tr>
+    <tr>
+      <td>Iterations (time cost)</td>
+      <td>2</td>
+      <td>Balanced with the memory cost</td>
+    </tr>
+    <tr>
+      <td>Parallelism</td>
+      <td>1</td>
+      <td>Single lane, deterministic cost</td>
+    </tr>
+    <tr>
+      <td>Library</td>
+      <td><code class="language-plaintext highlighter-rouge">@node-rs/argon2</code></td>
+      <td>NAPI prebuilds — works with the image’s <code class="language-plaintext highlighter-rouge">npm ci --ignore-scripts</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="transparent-migration-from-bcrypt">Transparent migration from bcrypt</h3>
+
+<p>The service previously used bcrypt (cost 12). Rather than force a password reset, legacy hashes are migrated <strong>silently on login</strong>:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">PasswordService.verify</code> detects the algorithm by prefix — <code class="language-plaintext highlighter-rouge">$argon2…</code> uses Argon2id, <code class="language-plaintext highlighter-rouge">$2a/$2b/$2y…</code> falls back to bcrypt.</li>
+  <li>After a successful login, if the stored hash is not Argon2id, the password is re-hashed with Argon2id and persisted (<strong>rehash-on-login</strong>). Each user is upgraded the next time they authenticate.</li>
+</ul>
+
+<h3 id="anti-enumeration-constant-time-login">Anti-enumeration (constant-time login)</h3>
+
+<p>When the email does not exist — or belongs to an OAuth-only account with no password — the login still performs a <strong>dummy Argon2id verification of equal cost</strong> before returning <code class="language-plaintext highlighter-rouge">401</code>. This removes the timing side channel that would otherwise let an attacker discover which emails are registered.</p>
+
+<pre><code class="language-mermaid">sequenceDiagram
+    participant C as Client
+    participant S as AuthService
+    participant PS as PasswordService
+    participant P as PostgreSQL
+
+    C-&gt;&gt;S: POST /auth/login { email, password }
+    S-&gt;&gt;P: findByEmail(email)
+    alt user not found / OAuth-only
+        S-&gt;&gt;PS: verifyDummy(password)
+        note over S,PS: equal-cost decoy hash → constant response time
+        S--&gt;&gt;C: 401 invalid_credentials
+    else user exists
+        S-&gt;&gt;PS: verify(storedHash, password)
+        note over PS: argon2.verify, or bcrypt.compare for legacy hashes
+        opt storedHash is not Argon2id
+            S-&gt;&gt;PS: hash(password) → argon2id
+            S-&gt;&gt;P: update password (silent upgrade)
+        end
+        S--&gt;&gt;C: 200 access_token + user
+    end
+</code></pre>
+
+<blockquote>
+  <p>Design rationale and trade-offs are recorded in <a href="/docs/architecture-decisions/#adr-010--wise_auth-password-hashing-migration-from-bcrypt-to-argon2id">ADR-010 — Password Hashing Migration from bcrypt to Argon2id</a>.</p>
+</blockquote>
 
 <hr />
 
@@ -403,6 +496,7 @@
 
     AuthModule --&gt; Controller["auth.controller.ts\nroute handlers"]
     AuthModule --&gt; Service["auth.service.ts\nbusiness logic"]
+    AuthModule --&gt; Password["password.service.ts\nArgon2id · bcrypt legacy\nrehash-on-login"]
     AuthModule --&gt; Guards["guards/\nJwtAuthGuard\nRolesGuard\nRateLimitGuard\nGoogleAuthGuard"]
     AuthModule --&gt; Strategies["strategies/\nJwtStrategy\nGoogleStrategy"]
     AuthModule --&gt; Decorators["decorators/\n@Public  @Roles  @GetUser"]
@@ -699,7 +793,7 @@ npm run start:dev
 </ul>
 
 			<div class="page-footer">
-				<span>ECIWise Wiki</span>
+				<span>ECIWise+ Wiki</span>
 				<div>
 				
 				

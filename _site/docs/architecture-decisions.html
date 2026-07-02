@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Architecture Decisions — ECIWise</title>
+	<title>Architecture Decisions — ECIWise+</title>
 	<link rel="stylesheet" href="/wiki.css">
 	<link rel="icon" type="image/x-icon" href="/assets/favicon.png">
 </head>
@@ -36,7 +36,7 @@
 			</svg>
 			<div class="sidebar-brand">
 				<div class="wiki-title">ECIWISE<span class="eci-logo__plus-word">+</span></div>
-				<div class="wiki-subtitle">ECIWise</div>
+				<div class="wiki-subtitle">ECIWise+</div>
 			</div>
 		</div>
 
@@ -63,6 +63,8 @@
 					
 						
 							<li><a href="/docs/architecture-decisions.html" class="active">Architecture Decisions</a></li>
+						
+					
 						
 					
 						
@@ -122,6 +124,10 @@
 						
 					
 						
+							<li><a href="/how/ia-predictions.html" >AI Prediction Models</a></li>
+						
+					
+						
 					
 						
 					
@@ -153,7 +159,7 @@
 		</nav>
 
 		<div class="sidebar-footer">
-			Last updated: Jun 2026 ·
+			Last updated: Jul 2026 ·
 			<a href="https://github.com/eciwise">GitHub</a>
 		</div>
 	</aside>
@@ -1261,8 +1267,114 @@
   <li><strong>Accepted cost:</strong> Adds a new infrastructure component (Qdrant) to operate and monitor. Embeddings must be kept in sync with source data — a delayed or failed <code class="language-plaintext highlighter-rouge">material.uploaded</code> event means stale search results until the event is reprocessed from the dead-letter queue. Embedding inference adds latency to the upload pipeline (acceptable because it is async via RabbitMQ). LLM calls for RAG introduce external API costs and latency that must be managed with caching and rate limiting.</li>
 </ul>
 
+<hr />
+
+<h2 id="adr-010--wise_auth-password-hashing-migration-from-bcrypt-to-argon2id">ADR-010 — wise_auth: Password Hashing Migration from bcrypt to Argon2id</h2>
+
+<p><strong>Status:</strong> Accepted</p>
+
+<h3 id="context-9">Context</h3>
+
+<p><code class="language-plaintext highlighter-rouge">wise_auth</code> originally hashed passwords with <strong>bcrypt</strong> (cost factor 12). bcrypt is a solid, battle-tested algorithm and remains an acceptable choice, but it is not the strongest option available today:</p>
+
+<ul>
+  <li>bcrypt is <strong>not memory-hard</strong>. It uses a small, fixed amount of memory, which makes it comparatively cheap to attack with GPUs and ASICs that parallelize thousands of guesses.</li>
+  <li>bcrypt silently <strong>truncates passwords to 72 bytes</strong>, a footgun that must be guarded against at the DTO layer.</li>
+</ul>
+
+<p>The current OWASP Password Storage Cheat Sheet ranks <strong>Argon2id</strong> as the first-choice algorithm (then scrypt, then bcrypt, then PBKDF2). Argon2id is memory-hard and tunable in memory, iterations, and parallelism, which raises the cost of large-scale offline cracking by orders of magnitude.</p>
+
+<p>A separate but related weakness was found in the login flow: when the submitted email did not exist (or belonged to an OAuth-only account), the handler returned <strong>before</strong> running any hash comparison. That timing difference (an instant reject vs. a ~hundreds-of-milliseconds verification) is a <strong>user-enumeration side channel</strong> — an attacker can tell which emails are registered by measuring response time.</p>
+
+<h3 id="decision-9">Decision</h3>
+
+<p>Migrate password hashing to <strong>Argon2id</strong> behind a single <code class="language-plaintext highlighter-rouge">PasswordService</code>, and harden the login flow at the same time. Existing users must not be disrupted, so the migration is transparent and gradual.</p>
+
+<p><strong>Design:</strong></p>
+
+<ul>
+  <li>New hashes use <strong>Argon2id</strong> with OWASP-aligned parameters: <strong>19 MiB</strong> memory, <strong>2</strong> iterations, <strong>parallelism 1</strong> (<code class="language-plaintext highlighter-rouge">@node-rs/argon2</code>, which ships NAPI prebuilds via <code class="language-plaintext highlighter-rouge">optionalDependencies</code> and therefore works with the Docker image’s <code class="language-plaintext highlighter-rouge">npm ci --ignore-scripts</code>).</li>
+  <li><code class="language-plaintext highlighter-rouge">PasswordService.verify</code> transparently accepts <strong>both</strong> Argon2id hashes and legacy bcrypt hashes (detected by prefix: <code class="language-plaintext highlighter-rouge">$argon2…</code> vs. <code class="language-plaintext highlighter-rouge">$2a/$2b/$2y</code>).</li>
+  <li><strong>Rehash-on-login:</strong> after a successful login, if the stored hash is not Argon2id, it is re-hashed with Argon2id and persisted. Users are migrated silently the next time they authenticate — no forced reset, no mass migration job.</li>
+  <li><strong>Anti-enumeration:</strong> when the email does not exist, the login runs a dummy Argon2id verification of equal computational cost before rejecting, so the response time no longer reveals whether the account exists.</li>
+</ul>
+
+<pre><code class="language-mermaid">sequenceDiagram
+  participant C as Client
+  participant S as AuthService
+  participant PS as PasswordService
+  participant DB as PostgreSQL
+
+  C-&gt;&gt;S: POST /auth/login { email, password }
+  S-&gt;&gt;DB: findByEmail(email)
+  alt user not found or OAuth-only
+    S-&gt;&gt;PS: verifyDummy(password)
+    Note over S,PS: equal-cost decoy hash → constant time
+    S--&gt;&gt;C: 401 invalid_credentials
+  else user exists
+    S-&gt;&gt;PS: verify(storedHash, password)
+    alt argon2 hash
+      PS--&gt;&gt;S: argon2.verify
+    else legacy bcrypt hash
+      PS--&gt;&gt;S: bcrypt.compare
+    end
+    S-&gt;&gt;PS: needsRehash(storedHash)?
+    opt hash is not Argon2id
+      S-&gt;&gt;PS: hash(password) → argon2id
+      S-&gt;&gt;DB: update password (silent upgrade)
+    end
+    S--&gt;&gt;C: 200 access_token + user
+  end
+</code></pre>
+
+<p><strong>Password hashing parameters:</strong></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Aspect</th>
+      <th>bcrypt (before)</th>
+      <th>Argon2id (after)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Algorithm family</td>
+      <td>Blowfish-based, CPU-bound</td>
+      <td>Memory-hard (Password Hashing Competition winner)</td>
+    </tr>
+    <tr>
+      <td>Cost parameters</td>
+      <td>cost 12</td>
+      <td>memory 19 MiB · iterations 2 · parallelism 1</td>
+    </tr>
+    <tr>
+      <td>GPU/ASIC resistance</td>
+      <td>Limited</td>
+      <td>High (memory-hard)</td>
+    </tr>
+    <tr>
+      <td>Max input</td>
+      <td>72 bytes (truncates)</td>
+      <td>No practical limit</td>
+    </tr>
+    <tr>
+      <td>Library</td>
+      <td><code class="language-plaintext highlighter-rouge">bcrypt</code></td>
+      <td><code class="language-plaintext highlighter-rouge">@node-rs/argon2</code> (+ <code class="language-plaintext highlighter-rouge">bcrypt</code> for legacy verification)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3 id="consequences-9">Consequences</h3>
+
+<ul>
+  <li><strong>Good:</strong> New and migrated credentials use the strongest widely-recommended algorithm. Existing users are upgraded transparently on their next login with zero downtime and no forced password reset. The login flow no longer leaks account existence through timing. <code class="language-plaintext highlighter-rouge">@node-rs/argon2</code> uses per-platform prebuilds, so no compiler toolchain is needed in the image and the <code class="language-plaintext highlighter-rouge">--ignore-scripts</code> install still works.</li>
+  <li><strong>Accepted cost:</strong> Two hashing libraries coexist until every active user has logged in at least once (bcrypt is retained solely to verify not-yet-migrated hashes). Argon2id’s memory-hardness makes each hash deliberately more expensive in CPU and memory than bcrypt — a conscious trade of server cost for attacker cost. Dormant accounts keep their bcrypt hash until their owner authenticates again.</li>
+</ul>
+
 			<div class="page-footer">
-				<span>ECIWise Wiki</span>
+				<span>ECIWise+ Wiki</span>
 				<div>
 				
 				

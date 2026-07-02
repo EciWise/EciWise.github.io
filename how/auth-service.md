@@ -28,6 +28,7 @@ graph TB
     subgraph AuthService["Wise Auth — NestJS 11"]
         Controller["AuthController\n/auth/*"]
         Service["AuthService\nbusiness logic"]
+        Password["PasswordService\nArgon2id (+ bcrypt legacy)"]
         subgraph Guards["Guards"]
             JwtGuard["JwtAuthGuard\nglobal"]
             RolesGuard["RolesGuard\nhandler-level"]
@@ -51,6 +52,7 @@ graph TB
     Services -->|"Bearer JWT\n(validated locally, no HTTP call)"| JwtGuard
     Controller --> Guards
     Guards --> Service
+    Service --> Password
     Service --> Strategies
     GoogleStrategy <-->|OAuth redirect| Google
     Service --> Prisma
@@ -76,14 +78,14 @@ sequenceDiagram
     Ctrl->>S: register(dto)
     S->>P: find user by email
     P-->>S: null (not found)
-    S->>S: bcrypt.hash(password)
+    S->>S: passwordService.hash(password) → Argon2id
     S->>P: create Usuario { rol: estudiante }
     P-->>S: saved user
     S->>S: jwt.sign({ sub, email, nombre, apellido, rol })
     S-->>Ctrl: AuthResponseDto { access_token, user }
     Ctrl-->>C: 201 Created + JWT
 
-    note over C,P: Login follows the same path but verifies bcrypt instead of creating
+    note over C,P: Login follows the same path but verifies with Argon2id (bcrypt kept for legacy hashes) and re-hashes on the way in — see Password Security below
 ```
 
 ### Google OAuth 2.0 Flow
@@ -116,6 +118,59 @@ sequenceDiagram
 
     note over C,Ctrl: Token is in URL fragment (#), not query string — never logged by servers
 ```
+
+---
+
+## Password Security
+
+Passwords are hashed with **Argon2id** — the algorithm ranked first by the OWASP Password Storage Cheat Sheet — behind a single `PasswordService`. Argon2id is *memory-hard*, so it resists GPU/ASIC cracking far better than bcrypt. All hashing, verification, and rehash logic lives in one place; the rest of the service never touches a crypto primitive directly.
+
+### Hashing parameters
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| Algorithm | Argon2id | Memory-hard, OWASP first choice |
+| Memory cost | 19 MiB | OWASP-recommended minimum |
+| Iterations (time cost) | 2 | Balanced with the memory cost |
+| Parallelism | 1 | Single lane, deterministic cost |
+| Library | `@node-rs/argon2` | NAPI prebuilds — works with the image's `npm ci --ignore-scripts` |
+
+### Transparent migration from bcrypt
+
+The service previously used bcrypt (cost 12). Rather than force a password reset, legacy hashes are migrated **silently on login**:
+
+- `PasswordService.verify` detects the algorithm by prefix — `$argon2…` uses Argon2id, `$2a/$2b/$2y…` falls back to bcrypt.
+- After a successful login, if the stored hash is not Argon2id, the password is re-hashed with Argon2id and persisted (**rehash-on-login**). Each user is upgraded the next time they authenticate.
+
+### Anti-enumeration (constant-time login)
+
+When the email does not exist — or belongs to an OAuth-only account with no password — the login still performs a **dummy Argon2id verification of equal cost** before returning `401`. This removes the timing side channel that would otherwise let an attacker discover which emails are registered.
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as AuthService
+    participant PS as PasswordService
+    participant P as PostgreSQL
+
+    C->>S: POST /auth/login { email, password }
+    S->>P: findByEmail(email)
+    alt user not found / OAuth-only
+        S->>PS: verifyDummy(password)
+        note over S,PS: equal-cost decoy hash → constant response time
+        S-->>C: 401 invalid_credentials
+    else user exists
+        S->>PS: verify(storedHash, password)
+        note over PS: argon2.verify, or bcrypt.compare for legacy hashes
+        opt storedHash is not Argon2id
+            S->>PS: hash(password) → argon2id
+            S->>P: update password (silent upgrade)
+        end
+        S-->>C: 200 access_token + user
+    end
+```
+
+> Design rationale and trade-offs are recorded in [ADR-010 — Password Hashing Migration from bcrypt to Argon2id](/docs/architecture-decisions/#adr-010--wise_auth-password-hashing-migration-from-bcrypt-to-argon2id).
 
 ---
 
@@ -182,6 +237,7 @@ graph TD
 
     AuthModule --> Controller["auth.controller.ts\nroute handlers"]
     AuthModule --> Service["auth.service.ts\nbusiness logic"]
+    AuthModule --> Password["password.service.ts\nArgon2id · bcrypt legacy\nrehash-on-login"]
     AuthModule --> Guards["guards/\nJwtAuthGuard\nRolesGuard\nRateLimitGuard\nGoogleAuthGuard"]
     AuthModule --> Strategies["strategies/\nJwtStrategy\nGoogleStrategy"]
     AuthModule --> Decorators["decorators/\n@Public  @Roles  @GetUser"]
