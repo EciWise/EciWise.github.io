@@ -15,6 +15,8 @@ The service handles three core domains:
 - **Tutor availability**: tutors publish recurring availability templates with subject, modality, capacity, and validity dates. A scheduled job materializes concrete tutoring sessions from those templates.
 - **Student reservations**: students search available sessions and reserve, cancel, or reschedule their participation with transactional capacity control.
 
+For `VIRTUAL` sessions the service also provides two real-time collaboration features embedded in the platform: a **video call** (Jitsi Meet, hosted on a self-hosted server) and a **collaborative whiteboard** (Excalidraw, synchronised over WebSocket). Both reuse the same access rule — only the tutor or a non-cancelled participant of that virtual session can enter. See [Virtual Session Collaboration](#virtual-session-collaboration).
+
 The current implementation also maintains a local user projection from JWT claims and publishes domain events in-process. Attendance, evaluations, and reputation have database support but no active API or use cases yet.
 
 ---
@@ -80,7 +82,9 @@ src/
     ├── catalogos/                # subjects, rooms, time slots, tutor subjects
     ├── disponibilidad/           # recurring availability and materialization
     ├── tutorias/                 # session search and detail queries
-    └── reservas/                 # reserve, cancel, reschedule, cancel session
+    ├── reservas/                 # reserve, cancel, reschedule, cancel session
+    ├── videollamada/             # Jitsi video call access + moderator token
+    └── pizarra/                  # collaborative whiteboard (Excalidraw) WS relay
 
 prisma/
 ├── schema.prisma                 # relational model
@@ -107,8 +111,10 @@ infrastructure/{persistence,http/{controllers,dto}}
 | PostgreSQL / Neon | Persistent relational storage |
 | Passport JWT | Bearer JWT validation |
 | `class-validator` | Request DTO validation |
-| `@nestjs/schedule` | Daily materialization job |
+| `@nestjs/schedule` | Daily materialization job and whiteboard cleanup |
 | `@nestjs/event-emitter` | In-process domain event delivery |
+| `@nestjs/jwt` | Signs Jitsi moderator tokens and verifies the whiteboard WebSocket JWT |
+| `ws` | WebSocket relay for collaborative whiteboard synchronisation |
 | `@nestjs/swagger` | Runtime OpenAPI documentation |
 | Jest | Unit and application tests |
 
@@ -189,6 +195,12 @@ The source of truth is `prisma/schema.prisma`.
 
 Capacity is stored in `Tutoria` as `cuposMaximos` and `cuposOcupados`. Reservation persistence updates this counter conditionally to prevent overbooking under concurrency.
 
+### Virtual Session Whiteboard
+
+| Model | Purpose | Important constraints |
+|---|---|---|
+| `PizarraTutoria` | Persisted Excalidraw scene for a virtual session | `tutoria_id` primary key (one board per session, cascade on delete); `snapshot` JSONB stored opaque; `actualizado_en` drives the 7-day inactivity cleanup |
+
 ### Identity, Evaluations, and Reputation
 
 | Model | Current status |
@@ -216,6 +228,73 @@ Capacity is stored in `Tutoria` as `cuposMaximos` and `cuposOcupados`. Reservati
 | RN-09 — Capacity must never be exceeded | Implemented | Conditional transactional update |
 
 RN-09 is concurrency-safe because PostgreSQL increments capacity only while `cupos_ocupados < cupos_maximos`. RN-01 currently uses a prior read rather than a serializable database constraint, so concurrent overlapping reservations by the same student remain an integration scenario worth testing explicitly.
+
+---
+
+## Virtual Session Collaboration
+
+Sessions with `VIRTUAL` modality expose two real-time features embedded directly in the platform: a **video call** and a **collaborative whiteboard**. Neither is available for `PRESENCIAL` sessions. Both share a single access rule enforced by the backend: the requester must be the **tutor** or a **non-cancelled participant** of that specific virtual session. Presence of a room URL alone never grants access.
+
+The architectural decisions behind these features are recorded in [ADR-011 — Self-Hosted Jitsi Meet for Tutoring Video Calls](../docs/architecture-decisions.md#adr-011--self-hosted-jitsi-meet-for-tutoring-video-calls) and [ADR-012 — Collaborative Whiteboard via Excalidraw with a WebSocket Relay](../docs/architecture-decisions.md#adr-012--collaborative-whiteboard-via-excalidraw-with-a-websocket-relay).
+
+### Video Call (Jitsi Meet)
+
+The video call is **Jitsi Meet** embedded through its IFrame API (`external_api.js`). The Jitsi server is configurable through the `JITSI_DOMAIN` environment variable: the default is the public `meet.jit.si`, but production points it at a **self-hosted Jitsi server** operated by the institution (the `jitsi/` Docker Compose stack — `web`, `prosody`, `jicofo`, `jvb`).
+
+The flow is:
+
+1. The frontend calls `GET /tutorias/:id/videollamada/acceso` with the user's Bearer JWT.
+2. `VideollamadaService` checks that the session is `VIRTUAL` and that the user is the tutor or a non-cancelled participant, then answers `{ canAccess, isModerator, domain, token }`.
+3. The frontend loads `https://<domain>/external_api.js` and joins the room `eciwise-tutoria-<id>` — a non-guessable name derived from the session id.
+
+`isModerator` is `true` for the tutor. If the self-hosted Jitsi enables JWT auth and `JITSI_APP_SECRET` is configured, the backend signs a **moderator token** for the tutor so they are moderator regardless of join order; otherwise `token` is `null` and everyone joins anonymously (with anonymous auth the first participant to join — in practice the tutor — becomes moderator, avoiding the public server's "waiting for a moderator" screen).
+
+```mermaid
+sequenceDiagram
+  participant FE as Angular Frontend
+  participant V as VideollamadaService
+  participant DB as PostgreSQL
+  participant J as Jitsi server (self-hosted)
+
+  FE->>V: GET /tutorias/:id/videollamada/acceso (Bearer JWT)
+  V->>DB: load tutoria (tutorUserId · modalidad · participante no cancelado)
+  alt not VIRTUAL or no access
+    V-->>FE: { canAccess: false }
+  else tutor or participant
+    V->>V: isModerator = tutor · sign Jitsi JWT if JITSI_APP_SECRET
+    V-->>FE: { canAccess: true, isModerator, domain, token }
+    FE->>J: load external_api.js · join room eciwise-tutoria-<id>
+  end
+```
+
+### Collaborative Whiteboard (Excalidraw)
+
+The whiteboard is **Excalidraw** on the frontend, synchronised in real time by a **WebSocket relay built into the tutoring service** (`PizarraSyncGateway`, endpoint `/pizarra/sync`). The backend is a per-session relay — one room per tutoring session:
+
+- On connection it sends an `init` message with the persisted scene, then **relays each `scene` message to the other connected participants**.
+- It **persists the scene debounced** (2 s after the last change) as opaque JSON in the `pizarra_tutoria` table. The backend never interprets the drawing; **conflict reconciliation happens on the client** via Excalidraw's `reconcileElements`.
+- **Authentication** is by JWT passed in the query string (`?tutoriaId=…&token=…`), because browsers cannot set headers on a WebSocket handshake. The gateway verifies the HS256 token and re-checks whiteboard access before joining the socket to the room.
+- When the last client disconnects, the room is persisted and dropped from memory. A daily cron (`PizarraCleanupJob`, 03:00) deletes boards inactive for more than **7 days** and closes their rooms. The tutor can also delete the board explicitly.
+
+```mermaid
+sequenceDiagram
+  participant T as Tutor (Excalidraw)
+  participant GW as PizarraSyncGateway
+  participant SVC as PizarraService
+  participant S as Student (Excalidraw)
+  participant DB as PostgreSQL
+
+  T->>GW: WS /pizarra/sync?tutoriaId&token
+  GW->>GW: verify JWT (HS256) + resolve access
+  GW->>SVC: load persisted scene (or [])
+  GW-->>T: { type: init, elements }
+  T->>GW: { type: scene, elements }
+  GW-->>S: relay { type: scene, elements }
+  S->>S: reconcileElements(local, incoming)
+  Note over GW,DB: 2s after last change → upsert pizarra_tutoria.snapshot
+  GW->>SVC: persist scene
+  SVC->>DB: UPSERT snapshot (idempotent per tutoria)
+```
 
 ---
 
@@ -284,6 +363,20 @@ Supported search filters are `materiaId`, `modalidad`, `fecha`, and `tutorUserId
 | POST | `/reservas/:tutoriaId/cancelar` | Student | Cancel the student's reservation |
 | POST | `/reservas/reprogramar` | Student | Atomically move to another session |
 | POST | `/reservas/cancelacion-tutoria` | Tutor, admin | Cancel a session and release reservations |
+
+### Video Call (`VIRTUAL` sessions)
+
+| Method | Route | Access | Description |
+|---|---|---|---|
+| GET | `/tutorias/:tutoriaId/videollamada/acceso` | Tutor, participant | Resolve access and return `{ canAccess, isModerator, domain, token }` |
+
+### Whiteboard (`VIRTUAL` sessions)
+
+| Method | Route | Access | Description |
+|---|---|---|---|
+| GET | `/tutorias/:tutoriaId/pizarra/acceso` | Tutor, participant | Resolve access and return `{ canAccess, isTutor }` |
+| DELETE | `/tutorias/:tutoriaId/pizarra` | Tutor | Delete the board and close its live room |
+| WS | `/pizarra/sync?tutoriaId=…&token=…` | Tutor, participant | Real-time scene sync (Excalidraw) over WebSocket |
 
 ### Error Mapping
 
@@ -410,9 +503,12 @@ Use cases publish domain events through an interface. The current in-memory adap
 | `PORT` | No | HTTP port |
 | `DATABASE_URL` | Yes | PostgreSQL runtime connection |
 | `DIRECT_URL` | Yes | Direct database connection required by startup validation |
-| `JWT_SECRET` | Yes | Shared HS256 secret, minimum 16 characters |
+| `JWT_SECRET` | Yes | Shared HS256 secret, minimum 16 characters (also used to auth the whiteboard WebSocket) |
 | `JWT_EXPIRATION` | No | Informational token TTL |
 | `MATERIALIZACION_VENTANA_SEMANAS` | No | Materialization horizon |
+| `JITSI_DOMAIN` | No | Jitsi host for video calls (host only, no scheme). Defaults to `meet.jit.si`; point it at the self-hosted server in production |
+| `JITSI_APP_ID` | No | Jitsi application id used when signing moderator tokens (default `eciwise`) |
+| `JITSI_APP_SECRET` | No | If set, the backend signs a Jitsi moderator JWT for the tutor; if empty, participants join anonymously |
 
 ### Local Execution
 
@@ -439,6 +535,7 @@ npm run test:e2e
 - No application deployment manifest is currently defined.
 - The cron timezone is not configured explicitly.
 - Multiple replicas may repeat materialization work; uniqueness prevents duplicates but not redundant processing.
+- The whiteboard relay keeps each live room's state in memory in a single process, so it does not scale horizontally without shared room state or sticky WebSocket sessions.
 - CORS is enabled without an explicit production origin allowlist.
 - Attendance, observations, evaluations, reputation, and dedicated history endpoints are not implemented.
 
@@ -450,4 +547,7 @@ npm run test:e2e
 - Runtime API contract: `/api/docs`
 - Relational source of truth: `prisma/schema.prisma`
 - Module composition: `src/app.module.ts` and `src/modules/*`
+- Video call guide: `tutoring/docs/VIDEOLLAMADA.md`
+- Self-hosted Jitsi stack: `jitsi/` (Docker Compose + `jitsi/README.md`)
+- Architecture decisions: [ADR-011 (video calls)](../docs/architecture-decisions.md#adr-011--self-hosted-jitsi-meet-for-tutoring-video-calls) · [ADR-012 (whiteboard)](../docs/architecture-decisions.md#adr-012--collaborative-whiteboard-via-excalidraw-with-a-websocket-relay)
 

@@ -774,3 +774,173 @@ sequenceDiagram
 
 - **Good:** New and migrated credentials use the strongest widely-recommended algorithm. Existing users are upgraded transparently on their next login with zero downtime and no forced password reset. The login flow no longer leaks account existence through timing. `@node-rs/argon2` uses per-platform prebuilds, so no compiler toolchain is needed in the image and the `--ignore-scripts` install still works.
 - **Accepted cost:** Two hashing libraries coexist until every active user has logged in at least once (bcrypt is retained solely to verify not-yet-migrated hashes). Argon2id's memory-hardness makes each hash deliberately more expensive in CPU and memory than bcrypt — a conscious trade of server cost for attacker cost. Dormant accounts keep their bcrypt hash until their owner authenticates again.
+
+---
+
+## ADR-011 — Self-Hosted Jitsi Meet for Tutoring Video Calls
+
+**Status:** Accepted
+
+### Context
+
+`VIRTUAL` tutoring sessions need a live audio/video channel embedded inside the platform so a student and tutor can meet without installing anything or leaving ECIWise. The first approach reused the **public `meet.jit.si`** server through the Jitsi IFrame API. That works for a demo but has real problems for institutional use:
+
+- **Waiting-for-moderator screen.** Public `meet.jit.si` requires the moderator to be signed in with a Jitsi account; otherwise every participant sees a "waiting for a moderator" screen. In our flow nobody has a Jitsi account, so the tutor cannot reliably moderate.
+- **No control over availability, branding, or data residency.** All media and signalling flow through a third party we do not operate. Session traffic (audio/video of tutoring sessions with real students) leaves the institution's control.
+- **No way to bind the room to the platform's authorization.** Anyone with the room URL could join a public room.
+
+We need video that ECIWise operates itself, where the tutor is always the moderator and where access is decided by the tutoring backend, not by knowledge of a URL.
+
+### Decision
+
+Embed **Jitsi Meet via its IFrame API** (`external_api.js`), and run a **self-hosted Jitsi stack on a dedicated server** as the production target. The Jitsi host is not hard-coded: the tutoring backend exposes it through the `JITSI_DOMAIN` environment variable. The default is the public `meet.jit.si` (so local development needs zero setup), but production points `JITSI_DOMAIN` at the institution's own Jitsi server.
+
+Key properties:
+
+- **Access is always gated by the backend.** The frontend calls `GET /tutorias/:id/videollamada/acceso`; the backend answers `{ canAccess, isModerator, domain, token }`. Only the tutor or a non-cancelled participant of that `VIRTUAL` session gets `canAccess: true`. The `domain` field only decides *which* Jitsi server the browser connects to — it never grants access on its own.
+- **Non-guessable room per session.** The room name is `eciwise-tutoria-<tutoriaId>`, derived from the session id, so a room URL cannot be guessed from a session number.
+- **Self-hosted stack.** The `jitsi/` Docker Compose stack runs the four official images: `web` (nginx reverse proxy that serves the app and `external_api.js` over HTTPS), `prosody` (XMPP signalling), `jicofo` (conference focus), and `jvb` (the video bridge that carries media over UDP 10000).
+- **Moderation.** With anonymous auth (`ENABLE_AUTH=0`) the **first participant to join is moderator** and no waiting screen appears; because the flow drives the tutor in, the tutor moderates in practice. For strict role-based moderation (tutor is moderator regardless of join order), the Jitsi server can enable JWT auth and the backend signs a moderator token for the tutor (`JITSI_APP_SECRET`); students then join as guests.
+
+```mermaid
+graph TB
+  subgraph Platform["ECIWise Platform"]
+    FE["Angular Frontend\n/tutoria/:id/videollamada"]
+    TUT["tutoring backend\nVideollamadaService"]
+    DB[("tutoring DB\ntutorias · participantes")]
+  end
+
+  subgraph JitsiServer["Self-Hosted Jitsi — dedicated server (Docker)"]
+    WEB["web (nginx)\nserves app + external_api.js\nHTTPS 443"]
+    PROSODY["prosody\nXMPP signalling"]
+    JICOFO["jicofo\nconference focus"]
+    JVB["jvb\nvideo bridge — media UDP 10000"]
+  end
+
+  FE -->|"1. GET /tutorias/:id/videollamada/acceso (Bearer JWT)"| TUT
+  TUT -->|"check tutor / participante · VIRTUAL"| DB
+  TUT -->|"2. { canAccess, isModerator, domain, token }"| FE
+  FE -->|"3. load https://<domain>/external_api.js"| WEB
+  FE -->|"4. join room eciwise-tutoria-<id>"| WEB
+  WEB --- PROSODY --- JICOFO --- JVB
+```
+
+**Access resolution flow:**
+
+```mermaid
+sequenceDiagram
+  participant FE as Angular Frontend
+  participant V as VideollamadaService (tutoring)
+  participant DB as PostgreSQL
+  participant J as Self-Hosted Jitsi
+
+  FE->>V: GET /tutorias/:id/videollamada/acceso (Bearer JWT)
+  V->>DB: load tutoria (tutorUserId, modalidad, participante no cancelado)
+  alt not VIRTUAL or no access
+    V-->>FE: { canAccess: false, ... }
+    Note over FE: show "access denied"
+  else tutor or participant
+    V->>V: isModerator = (tutor) · sign Jitsi JWT if JITSI_APP_SECRET
+    V-->>FE: { canAccess: true, isModerator, domain, token }
+    FE->>J: load external_api.js from domain, join eciwise-tutoria-<id>
+    Note over FE,J: tutor enters as moderator
+  end
+```
+
+**Configuration (tutoring backend):**
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `JITSI_DOMAIN` | `meet.jit.si` | Host of the Jitsi server (host only, no scheme). Point it at the self-hosted server in production. |
+| `JITSI_APP_ID` | `eciwise` | Jitsi application id used when signing moderator tokens. |
+| `JITSI_APP_SECRET` | *(empty)* | If set, the backend signs a Jitsi moderator JWT for the tutor (strict role-based moderation). If empty, everyone joins anonymously. |
+
+### Consequences
+
+- **Good:** The institution operates its own video infrastructure — media and signalling stay under its control, there is no "waiting for a moderator" screen, and the tutor moderates. Access is decided by the tutoring backend, not by URL knowledge. `JITSI_DOMAIN` makes it a one-variable swap between the public server (dev) and the self-hosted server (production), with optional JWT moderation on top.
+- **Accepted cost:** A Jitsi server must be operated: a public DNS name, valid HTTPS (browsers require a secure context for camera/microphone and to load `external_api.js`), and open ports `443/tcp` and `10000/udp`. On Apple Silicon / Colima, Prosody's internal certificates sometimes must be generated by hand (documented in `jitsi/README.md`). Video quality and capacity now depend on the institution's own bandwidth and the sizing of the `jvb` bridge.
+
+---
+
+## ADR-012 — Collaborative Whiteboard via Excalidraw with a WebSocket Relay
+
+**Status:** Accepted
+
+### Context
+
+A video call alone is not enough to explain most Systems Engineering topics — tutors need a shared drawing surface to sketch diagrams, formulas, and data structures live with the student. The requirements were specific:
+
+- **Real-time, multi-user drawing** shared by everyone in the same `VIRTUAL` session.
+- **The same access rules as the video call** — only the tutor or a non-cancelled participant of that session.
+- **Persistence across the session** so the board survives reconnects and is still there when the tutor reopens it.
+- **No heavy new infrastructure** — no third-party SaaS board, no separate CRDT server to operate.
+
+A full operational-transform or CRDT backend would be over-engineering for a board shared by a handful of people in one session.
+
+### Decision
+
+Use **Excalidraw** (`@excalidraw/excalidraw`) on the frontend, synchronised in real time through a **raw WebSocket relay built into the tutoring service** (`PizarraSyncGateway`, endpoint `/pizarra/sync`). The backend is a **per-session relay**, one room per tutoring session:
+
+- It **forwards the Excalidraw scene** (an array of elements) between the connected participants and **persists it debounced** (2 s after the last change) as opaque JSON in the `pizarra_tutoria` table.
+- **Conflict reconciliation is done on the client** with Excalidraw's `reconcileElements`; the server never interprets the drawing — it only stores the last scene it received and relays scenes to the other clients.
+- **Authentication on the WebSocket** is by JWT passed in the query string (`?tutoriaId=…&token=…`), because browsers cannot set headers on a WebSocket handshake. The gateway verifies the HS256 token and then re-checks whiteboard access (tutor or non-cancelled participant of a `VIRTUAL` session) before joining the socket to the room.
+- **Lifecycle:** on connect the server sends an `init` message with the persisted scene; on each `scene` message it stores and relays; when the last client disconnects it persists and drops the in-memory room. A daily cron (`PizarraCleanupJob`, 03:00) deletes boards with no activity for more than **7 days** and closes their rooms.
+
+```mermaid
+graph TB
+  subgraph Clients["Participants (browser)"]
+    FE1["Excalidraw — tutor"]
+    FE2["Excalidraw — student"]
+  end
+
+  subgraph Tutoring["tutoring service (Node.js process)"]
+    GW["PizarraSyncGateway\nWebSocket relay /pizarra/sync\nroom per tutoria"]
+    SVC["PizarraService\naccess rules + persistence"]
+    JOB["PizarraCleanupJob\ndaily · TTL 7 days"]
+  end
+
+  DB[("tutoring DB\npizarra_tutoria (snapshot JSON)")]
+
+  FE1 <-->|"ws: scene / init (JWT in query)"| GW
+  FE2 <-->|"ws: scene / init (JWT in query)"| GW
+  GW -->|"relay scene to other clients"| FE1 & FE2
+  GW -->|"debounced save (2s) · load on open"| SVC
+  SVC --> DB
+  JOB --> SVC
+```
+
+**Sync flow:**
+
+```mermaid
+sequenceDiagram
+  participant T as Tutor (Excalidraw)
+  participant S as Student (Excalidraw)
+  participant GW as PizarraSyncGateway
+  participant SVC as PizarraService
+  participant DB as PostgreSQL
+
+  T->>GW: WS upgrade /pizarra/sync?tutoriaId&token
+  GW->>GW: verify JWT (HS256) + resolve pizarra access
+  GW->>SVC: load persisted scene (or [])
+  GW-->>T: { type: init, elements }
+  T->>GW: { type: scene, elements }  (draws)
+  GW->>GW: store last scene · schedule debounced save
+  GW-->>S: relay { type: scene, elements }
+  S->>S: reconcileElements(local, incoming)
+  Note over GW,DB: 2s after last change → guardarEscena (upsert)
+  GW->>SVC: persist
+  SVC->>DB: UPSERT pizarra_tutoria.snapshot
+```
+
+**Persistence model (`pizarra_tutoria`):**
+
+| Column | Purpose |
+|--------|---------|
+| `tutoria_id` (PK) | One board per tutoring session; cascades on session delete |
+| `snapshot` (JSONB) | Excalidraw scene, stored opaque and upserted idempotently |
+| `creado_en` / `actualizado_en` | Timestamps; `actualizado_en` drives the 7-day inactivity cleanup |
+
+### Consequences
+
+- **Good:** Real-time collaboration that reuses the tutoring service's JWT contract and the exact same access rules as the video call, with **no extra infrastructure** — the relay runs inside the existing `tutoring` process. The server stays domain-agnostic (Excalidraw elements are opaque JSON), reconciliation happens on the client, writes are debounced to batch updates, and abandoned boards are cleaned up automatically after a week.
+- **Accepted cost:** The relay keeps each active room's state **in memory in a single process**, so it does not scale horizontally without shared room state or sticky WebSocket sessions. The server stores the *last scene it received* rather than a merged authoritative state, so correctness of merges is trusted to the client's `reconcileElements`. The JWT travels in the WebSocket query string (a browser handshake limitation) rather than in a header.
