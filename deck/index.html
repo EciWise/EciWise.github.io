@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ECIWise+ · Arquitectura · Vivaldi 2026-I</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Code+Pro:wght@400;600&family=STIX+Two+Math&display=swap">
+<style>
+/* ECIWise+ · Deck de arquitectura
+   Tokens reflejados de ECIWISE-Front/src/styles.css (vía wiki.css).
+   Regla de oro: todo el contenido vive en flex/grid con overflow oculto.
+   Nada se posiciona en absolute salvo decoración pura. El solapamiento es
+   estructuralmente imposible. */
+
+:root {
+  --brand-red: #c8102e;
+  --brand-red-dark: #99000d;
+  --brand-wine: #7a0f20;
+  --brand-red-soft: #e23a52;
+  --brand-plus: #ff5a73;
+
+  --cream: #f6eee3;
+  --surface: #ffffff;
+  --text: #18181b;
+  --text-muted: #5b5b66;
+  --border: #d9d9e0;
+  --accent-soft: #fce8ec;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'Source Code Pro', 'Cascadia Code', monospace;
+  --font-math: 'STIX Two Math', Georgia, serif;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18);
+
+  --logo-astroid: var(--brand-red);
+  --logo-plus: #ffffff;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-sans);
+  background: #2a2a32;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Página ─────────────────────────────────────────────────────────── */
+.page {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  overflow: hidden;
+  padding: 76px 92px 68px;
+  display: flex;
+  flex-direction: column;
+  gap: 34px;
+  background: var(--cream);
+  margin: 0 auto 28px;
+}
+
+.page__deco { position: absolute; inset: 0; pointer-events: none; }
+.page__num {
+  position: absolute;
+  right: 46px;
+  bottom: 30px;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+/* Rejilla matemática — decoración de la landing del front */
+.page--wine {
+  background: linear-gradient(160deg, #4e0a16 0%, #7a0f20 46%, #a30f28 100%);
+  color: #ffffff;
+  --text: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.72);
+  --border: rgba(255, 255, 255, 0.18);
+  --surface: rgba(255, 255, 255, 0.07);
+  --brand-red: #ff8095;
+  --logo-astroid: #ffffff;
+  --logo-plus: var(--brand-wine);
+}
+.page--wine .page__deco {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.page--wine .page__num { color: rgba(255, 255, 255, 0.55); }
+
+/* ── Tipografía ─────────────────────────────────────────────────────── */
+.eyebrow {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brand-red);
+}
+.h1 {
+  font-size: 148px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+}
+.h2 {
+  font-size: 64px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.06;
+}
+.lead {
+  font-size: 26px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  max-width: 1340px;
+}
+.mono { font-family: var(--font-mono); }
+em { font-style: italic; }
+
+.head { display: flex; flex-direction: column; gap: 12px; flex: 0 0 auto; }
+.head .h2 { margin-top: 2px; }
+.head .lead { margin-top: 6px; }
+
+.foot {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--border);
+  padding-top: 22px;
+  font-size: 21px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.foot strong { color: var(--text); font-weight: 700; }
+.foot__icon { display: inline-flex; color: var(--brand-red); }
+.foot__icon .ic { width: 24px; height: 24px; }
+
+/* ── Iconos ─────────────────────────────────────────────────────────── */
+.ic { width: 28px; height: 28px; display: block; }
+.chip {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: rgba(200, 16, 46, 0.1);
+  color: var(--brand-red);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.page--wine .chip { background: rgba(255, 255, 255, 0.12); color: #ffffff; }
+
+/* ── Tarjetas ───────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.page--wine .card { box-shadow: none; }
+.card__title {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.card__body {
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.card__body strong, .card__title strong { color: var(--text); }
+.tag {
+  align-self: flex-start;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--brand-red);
+  background: var(--accent-soft);
+  border-radius: var(--radius-full);
+  padding: 4px 14px;
+}
+.page--wine .tag { background: rgba(255, 255, 255, 0.14); color: #ffffff; }
+.card .mono { font-size: 0.94em; }
+
+/* ── Rejillas ───────────────────────────────────────────────────────── */
+/* align-content:center — las filas se dimensionan por su contenido y el bloque
+   se centra en el espacio libre. Sin esto las tarjetas se estiran a toda la
+   altura y dejan huecos muertos. Dentro de cada fila sigue habiendo stretch,
+   así que las tarjetas hermanas conservan la misma altura. */
+.grid { flex: 1 1 auto; display: grid; gap: 26px; min-height: 0; align-content: center; }
+/* min-height da presencia: sin ella las tarjetas de contenido corto quedan
+   flotando en el centro de un lienzo de 1080px. */
+.grid--3 { grid-template-columns: repeat(3, 1fr); }
+.grid--3 .card { min-height: 360px; }
+.grid--4 { grid-template-columns: repeat(4, 1fr); }
+.grid--4 .card { min-height: 340px; }
+.grid--5 { grid-template-columns: repeat(5, 1fr); gap: 20px; }
+.grid--5 .card { padding: 24px; min-height: 320px; }
+.grid--5 .card__title { font-size: 23px; }
+.grid--5 .card__body { font-size: 17px; }
+.grid--tall .card { justify-content: flex-start; }
+
+/* ── Portada ────────────────────────────────────────────────────────── */
+.page--cover { flex-direction: row; align-items: center; gap: 40px; padding: 76px 92px; }
+.cover__left { flex: 1 1 54%; display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.cover__right { flex: 1 1 46%; display: flex; align-items: center; justify-content: center; min-width: 0; height: 100%; }
+.pet--cover { width: 100%; max-width: 880px; height: auto; max-height: 940px; object-fit: contain; }
+
+.brand { display: flex; align-items: center; gap: 14px; }
+.logo { width: 56px; height: 56px; flex: 0 0 auto; }
+.brand__word { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; }
+.brand__plus { color: var(--brand-plus); }
+
+.pills { display: flex; flex-wrap: wrap; gap: 12px; }
+.pill {
+  font-size: 19px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: var(--radius-full);
+  padding: 8px 20px;
+}
+
+.cover__team { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.cover__team-label {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
+.cover__names {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 8px 48px;
+  font-size: 23px;
+  font-weight: 600;
+}
+
+/* ── Niveles (la tesis) ─────────────────────────────────────────────── */
+/* `margin: auto 0` centra el bloque en el espacio libre y `flex:0 1 auto` lo deja
+   a la altura de su contenido; el stretch interno iguala las 5 tarjetas. */
+.levels { flex: 0 1 auto; margin: auto 0; display: flex; align-items: stretch; gap: 12px; min-height: 0; }
+.level {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 430px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-lg);
+  padding: 28px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+.level__n {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: #ffffff;
+  color: var(--brand-wine);
+  font-size: 22px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.level__t { font-size: 25px; font-weight: 800; letter-spacing: -0.02em; }
+.level__q { font-size: 17px; color: rgba(255, 255, 255, 0.62); font-style: italic; }
+.level__a {
+  margin-top: auto;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.4;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  padding-top: 12px;
+}
+.arrow { flex: 0 0 auto; align-self: center; color: rgba(255, 255, 255, 0.45); }
+.arrow .ic { width: 26px; height: 26px; }
+
+/* ── Filas (runtimes, switches) ─────────────────────────────────────── */
+.stack { flex: 1 1 auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.row {
+  flex: 1 1 0;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0 26px;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  align-items: center;
+  gap: 26px;
+  overflow: hidden;
+}
+.stack--switches .row { grid-template-columns: 190px 300px 300px 1fr; }
+.row__k { font-size: 20px; font-weight: 600; color: var(--brand-red); }
+.row__v { font-size: 19px; font-weight: 500; }
+.row__x {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--brand-red);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  justify-self: start;
+}
+.row__w { font-size: 18px; color: var(--text-muted); line-height: 1.4; }
+.stack .row:has(.row__w):not(:has(.row__x)) { grid-template-columns: 260px 560px 1fr; }
+
+/* ── Mapa del sistema ───────────────────────────────────────────────── */
+/* El mapa sí llena el alto: es un diagrama, no una lista de tarjetas. */
+.sysmap { flex: 1 1 auto; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.sys__row { flex: 1 1 0; min-height: 0; display: flex; gap: 18px; align-items: stretch; }
+.sys__row--3 > * { flex: 1 1 0; }
+.node {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  padding: 14px 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.node--fe { flex: 1 1 auto; }
+.node--auth { flex: 0 0 400px; border-color: rgba(255, 255, 255, 0.42); background: rgba(255, 255, 255, 0.13); }
+.node h3 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+.node p { font-size: 16px; color: rgba(255, 255, 255, 0.72); line-height: 1.35; }
+.sys__edge {
+  text-align: center;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.62);
+  padding: 2px 0;
+}
+.sys__edge strong { color: #ffffff; }
+.group {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  overflow: hidden;
+}
+.group__t { font-size: 20px; font-weight: 700; }
+.group p.mono { font-size: 16px; color: rgba(255, 255, 255, 0.72); line-height: 1.35; }
+.group--cons { border-color: rgba(255, 255, 255, 0.34); background: rgba(255, 255, 255, 0.1); }
+.bus {
+  border: 1px solid #ffffff;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.16);
+  padding: 12px;
+  text-align: center;
+}
+.bus__t { font-size: 21px; font-weight: 700; letter-spacing: -0.01em; }
+
+/* ── Dos columnas ───────────────────────────────────────────────────── */
+.two { flex: 0 1 auto; margin: auto 0; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; min-height: 0; }
+.two--tight { margin: 0; }
+.col {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow: hidden;
+}
+.col--accent { border-color: var(--brand-red); border-width: 2px; }
+.col__head { display: flex; align-items: center; gap: 16px; }
+.col__t { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+.col__s { font-size: 19px; color: var(--text-muted); }
+.list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.list li {
+  font-size: 20px;
+  line-height: 1.4;
+  padding-left: 22px;
+  position: relative;
+  color: var(--text-muted);
+}
+.list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 11px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--brand-red);
+}
+.list strong { color: var(--text); }
+
+/* ── Cita / regla destacada ─────────────────────────────────────────── */
+.quote {
+  flex: 0 0 auto;
+  border-left: 5px solid var(--brand-red);
+  padding: 4px 0 4px 26px;
+}
+.quote p { font-size: 27px; line-height: 1.45; color: var(--text-muted); }
+.quote strong { color: var(--text); font-weight: 700; }
+.quote--tight p { font-size: 22px; }
+.quote--big { border-left-color: #ffffff; }
+.quote--big p { font-size: 31px; }
+.page--wine .quote { border-left-color: #ffffff; }
+
+/* ── Rebanadas (tutoring) ───────────────────────────────────────────── */
+.slices { flex: 0 0 auto; display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.slice {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--brand-red);
+  background: var(--accent-soft);
+  border: 1px solid rgba(200, 16, 46, 0.25);
+  border-radius: var(--radius-full);
+  padding: 9px 24px;
+}
+.slices__tag { font-size: 18px; color: var(--text-muted); margin-left: 8px; }
+
+/* ── Flujo (autenticación) ──────────────────────────────────────────── */
+.flow { flex: 0 1 auto; margin: auto 0; display: flex; align-items: stretch; gap: 12px; min-height: 0; }
+.fnode {
+  flex: 1 1 0;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 26px 22px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+.fnode--accent { border-color: var(--brand-red); border-width: 2px; }
+.fnode__n {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--brand-red);
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fnode h3 { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.fnode p { font-size: 18px; line-height: 1.45; color: var(--text-muted); }
+.fnode strong { color: var(--text); }
+.flow .arrow { color: var(--border); }
+
+/* ── Reglas de seguridad ────────────────────────────────────────────── */
+.rules { flex: 0 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--brand-wine);
+  color: #ffffff;
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  overflow: hidden;
+}
+.rule__n {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 20px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rule p { font-size: 19px; line-height: 1.35; color: rgba(255, 255, 255, 0.85); }
+.rule strong { color: #ffffff; }
+
+/* ── Cierre ─────────────────────────────────────────────────────────── */
+.page--close { flex-direction: row; align-items: center; gap: 60px; }
+.close__left { flex: 1 1 56%; display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.close__right { flex: 1 1 44%; display: flex; align-items: center; justify-content: center; gap: 28px; min-width: 0; }
+.close__lead { font-size: 28px; line-height: 1.45; color: rgba(255, 255, 255, 0.78); max-width: 780px; }
+.close__lead strong { color: #ffffff; }
+.close__list { list-style: none; display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+.close__list li {
+  font-size: 21px;
+  color: rgba(255, 255, 255, 0.78);
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.close__k {
+  font-size: 30px;
+  font-weight: 800;
+  color: #ffffff;
+  min-width: 44px;
+}
+.close__url {
+  margin-top: 10px;
+  font-size: 30px;
+  font-weight: 600;
+  color: #ffffff;
+  border-top: 1px solid rgba(255, 255, 255, 0.24);
+  padding-top: 20px;
+}
+.qr {
+  flex: 0 0 auto;
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow-lg);
+}
+.qr__svg { width: 260px; height: 260px; display: block; }
+.qr__label {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brand-wine);
+}
+.pet--close { width: 340px; height: auto; max-height: 460px; object-fit: contain; }
+
+</style>
+</head>
+<body>
+<section class="page page--wine page--cover" data-document-role="page" data-label="1. Portada" data-speaker-notes="Buenos días. Somos el equipo Vivaldi y venimos a contarles la arquitectura de ECIWise+, la plataforma de apoyo académico para Ingeniería de Sistemas de la Escuela. Veinte minutos, cuatro bloques, un ponente por bloque. La idea que queremos que se lleven es esta: ECIWise+ no es «una arquitectura de microservicios». Esa frase solo responde cómo se corta el sistema en piezas, y no dice nada de cómo hablan entre ellas, quién es dueño de qué datos, ni cómo está construida cada una por dentro. Son cinco decisiones independientes, y las respondimos una a una.
+
+[Tiempo objetivo: 25s · diapositiva 1 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    <div class="cover__left">
+      <div class="brand"><svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+  <path d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z" fill="var(--logo-astroid)"/>
+  <path d="M24 17 V31 M17 24 H31" fill="none" stroke="var(--logo-plus)" stroke-width="3" stroke-linecap="round"/>
+</svg><span class="brand__word">ECIWISE<span class="brand__plus">+</span></span></div>
+      <p class="eyebrow">Presentación de arquitectura</p>
+      <h1 class="h1">Arquitectura</h1>
+      <div class="pills">
+        <span class="pill">Vivaldi</span>
+        <span class="pill">2026-I</span>
+        <span class="pill">Escuela Colombiana de Ingeniería</span>
+      </div>
+      <div class="cover__team">
+        <p class="cover__team-label">Presentan</p>
+        <ul class="cover__names">
+          <li>Alejandro Patacón</li>
+          <li>Anderson García</li>
+          <li>Daniel Useche</li>
+          <li>Jared Farfán</li>
+        </ul>
+      </div>
+    </div>
+    <div class="cover__right">
+      <img class="pet pet--cover" src="assets/eciwise-pet-standar.svg" alt="Mascota de ECIWise+: un gato astronauta saludando">
+    </div>
+  <div class="page__num" aria-hidden="true">1</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="2. Agenda" data-speaker-notes="Esta es la ruta. Primero el contexto: qué problema existía y qué construimos. Después el corazón de la charla, que son los cinco niveles de decisión: cómo cortamos el sistema y cómo se comunican las piezas; luego quién es dueño de los datos y cómo está construido cada servicio por dentro. Y cerramos con seguridad, frontend y documentación. Cada bloque lo lleva uno de nosotros. Si algo queda suelto, al final tienen el código QR con la documentación completa, que es bastante más extensa que estos veinte minutos.
+
+[Tiempo objetivo: 35s · diapositiva 2 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Ruta</p>
+    <h2 class="h2">Agenda</h2>
+    
+  </header>
+    <div class="grid grid--4">
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
+    <span class="tag mono">I · 4 min</span>
+    <h3 class="card__title">Contexto</h3>
+    <p class="card__body">El problema, la plataforma y quién la usa.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg></span>
+    <span class="tag mono">II · 5 min</span>
+    <h3 class="card__title">Descomposición y comunicación</h3>
+    <p class="card__body">Doce servicios políglotas. REST cuando se espera, eventos cuando no.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/></svg></span>
+    <span class="tag mono">III · 5 min</span>
+    <h3 class="card__title">Datos y estructura</h3>
+    <p class="card__body">Una base por servicio. El patrón lo elige el dominio.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
+    <span class="tag mono">IV · 5 min</span>
+    <h3 class="card__title">Seguridad y frontend</h3>
+    <p class="card__body">Identidad, riesgos aceptados y el cliente.</p>
+  </article>
+    </div>
+    <footer class="foot"><strong>20 minutos</strong> · cuatro bloques · un ponente por bloque</footer>
+  <div class="page__num" aria-hidden="true">2</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="3. El problema" data-speaker-notes="Antes de ECIWise+ el ecosistema de monitorías funcionaba así. Los horarios se publicaban en papel, pegados en una cartelera: no había forma de consultarlos digitalmente. El estudiante caminaba hasta el salón sin saber si quedaban cupos. No existía modalidad virtual, todo era presencial. La encuesta de satisfacción era un formulario manual que no generaba ninguna estadística aprovechable. No había historial de tutorías ni seguimiento del progreso. No se podía elegir monitor por reputación o especialidad. No llegaban avisos cuando algo cambiaba o se cancelaba. Y no existía ninguna herramienta institucional para practicar con preguntas tipo examen de la Escuela. Documentamos nueve carencias; estas cuatro las resumen. El patrón de fondo es el mismo en todas: la información existía, pero no era accesible ni accionable.
+
+[Tiempo objetivo: 70s · diapositiva 3 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Punto de partida</p>
+    <h2 class="h2">El problema</h2>
+    <p class="lead">Nueve carencias documentadas en el ecosistema de monitorías. Estas cuatro las resumen.</p>
+  </header>
+    <div class="grid grid--4">
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m14 14-4 4"/><path d="m10 14 4 4"/></svg></span>
+    
+    <h3 class="card__title">Horarios en papel</h3>
+    <p class="card__body">Publicados en cartelera. Sin forma de consultarlos digitalmente.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.5 12.5-5-5"/><path d="m9.5 12.5 5-5"/><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M12 17v4"/><path d="M8 21h8"/></svg></span>
+    
+    <h3 class="card__title">Cero modalidad virtual</h3>
+    <p class="card__body">Todo presencial. Ir al salón sin saber si hay cupo.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg></span>
+    
+    <h3 class="card__title">Encuestas sin datos</h3>
+    <p class="card__body">Formulario manual. Ni estadísticas, ni historial, ni progreso.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742"/><path d="m2 2 20 20"/><path d="M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05"/></svg></span>
+    
+    <h3 class="card__title">Sin avisos</h3>
+    <p class="card__body">Cambios y cancelaciones que nadie comunica.</p>
+  </article>
+    </div>
+    <footer class="foot">La información existía. No era <strong>accesible</strong> ni <strong>accionable</strong>.</footer>
+  <div class="page__num" aria-hidden="true">3</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="4. Qué es ECIWise+" data-speaker-notes="ECIWise+ es una plataforma digital institucional que centraliza el acceso a las herramientas de apoyo académico para los estudiantes de Ingeniería de Sistemas. La palabra que importa es integrar. No es una herramienta de tutorías con cosas pegadas alrededor: son cinco pilares que se alimentan entre sí. Tutorías virtuales y presenciales. Estudio interactivo con flashcards y quizzes tipo Kahoot. Gamificación con puntos, logros y tablas de posiciones. Comunicación por chat y foros. Y recomendaciones basadas en inteligencia artificial. El objetivo declarado del proyecto es fortalecer el aprendizaje y el acompañamiento académico, y con eso reducir la deserción estudiantil. Ese último punto es el que justifica los modelos de predicción que verán más adelante.
+
+[Tiempo objetivo: 65s · diapositiva 4 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">La plataforma</p>
+    <h2 class="h2">Un ecosistema, no una herramienta</h2>
+    
+  </header>
+    <div class="grid grid--5">
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></span>
+    
+    <h3 class="card__title">Tutorías</h3>
+    <p class="card__body">Virtuales y presenciales.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg></span>
+    
+    <h3 class="card__title">Estudio</h3>
+    <p class="card__body">Flashcards, quizzes, materiales.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></svg></span>
+    
+    <h3 class="card__title">Gamificación</h3>
+    <p class="card__body">Puntos, logros, ranking.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/></svg></span>
+    
+    <h3 class="card__title">Comunicación</h3>
+    <p class="card__body">Chat, foros, notificaciones.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 18V5"/><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4"/><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5"/><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77"/><path d="M18 18a4 4 0 0 0 2-7.464"/><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517"/><path d="M6 18a4 4 0 0 1-2-7.464"/><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77"/></svg></span>
+    
+    <h3 class="card__title">Inteligencia artificial</h3>
+    <p class="card__body">Recomendación y predicción.</p>
+  </article>
+    </div>
+    <footer class="foot">Fortalecer el aprendizaje y el acompañamiento académico para <strong>reducir la deserción</strong>.</footer>
+  <div class="page__num" aria-hidden="true">4</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="5. Actores y roles" data-speaker-notes="Tres roles, y el rol viaja dentro del token. El estudiante es el rol por defecto: se asigna solo al registrarse. Reserva tutorías, practica, ve el ranking, recibe sugerencias de la inteligencia artificial, accede a materiales y participa en chat y foros. El tutor, o monitor, lo autoriza un administrador: publica su disponibilidad, atiende las sesiones, registra asistencia y evalúa la participación. El administrador tiene acceso completo: gestiona usuarios y roles, autoriza tutores, carga colecciones de preguntas y ve la estadística institucional. Un detalle que importa para la parte de seguridad: estos valores, estudiante, tutor y admin, son literalmente el claim rol del JWT, y cada servicio lo lee localmente sin preguntarle a nadie.
+
+[Tiempo objetivo: 55s · diapositiva 5 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Quién la usa</p>
+    <h2 class="h2">Tres roles, un token</h2>
+    
+  </header>
+    <div class="grid grid--3 grid--tall">
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+    <span class="tag mono">estudiante</span>
+    <h3 class="card__title">Estudiante</h3>
+    <p class="card__body">Rol por defecto al registrarse. Reserva tutorías, practica, compite y recibe sugerencias de la IA.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/></svg></span>
+    <span class="tag mono">tutor</span>
+    <h3 class="card__title">Tutor</h3>
+    <p class="card__body">Autorizado por un administrador. Publica disponibilidad, atiende sesiones y evalúa participación.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
+    <span class="tag mono">admin</span>
+    <h3 class="card__title">Administrador</h3>
+    <p class="card__body">Acceso completo. Gestiona usuarios y roles, autoriza tutores y ve la estadística institucional.</p>
+  </article>
+    </div>
+    <footer class="foot">El rol viaja en el <span class="mono">claim rol</span> del JWT. Cada servicio lo valida <strong>localmente</strong>.</footer>
+  <div class="page__num" aria-hidden="true">5</div>
+</section>
+
+<section class="page page--wine" data-document-role="page" data-label="6. La tesis" data-speaker-notes="Este es el centro de la charla. Cuando alguien dice «tenemos una arquitectura de microservicios», solo está respondiendo una pregunta: cómo se corta el sistema en unidades desplegables. No dice nada sobre cómo hablan esas unidades entre sí, ni quién es dueño de qué datos, ni cómo está construida cada una por dentro. Son preguntas independientes, y cada una admite una respuesta distinta. Nosotros respondimos cinco. Descomposición: microservicios. Comunicación: híbrida, REST y eventos. Datos: una base por servicio. Estructura interna: la elige la complejidad de cada dominio. Y transversal: estrategia en los bordes de infraestructura. La afirmación importante es que estos estilos no compiten por el mismo hueco; se componen. Elegir microservicios no te obliga a elegir eventos. Elegir eventos no te obliga a elegir hexagonal. Cada nivel es una decisión con su propio porqué y su propio precio.
+
+[Tiempo objetivo: 75s · diapositiva 6 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">El centro de la charla</p>
+    <h2 class="h2">No es «una arquitectura de microservicios»</h2>
+    <p class="lead">Esa frase solo responde <em>cómo se corta el sistema</em>. Faltan cuatro preguntas más.</p>
+  </header>
+    <div class="levels">
+      <div class="level"><span class="level__n">1</span><h3 class="level__t">Descomposición</h3><p class="level__q">¿Cómo se corta?</p><p class="level__a">Microservicios<br>12 · políglotas</p></div>
+      <span class="arrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+      <div class="level"><span class="level__n">2</span><h3 class="level__t">Comunicación</h3><p class="level__q">¿Cómo hablan?</p><p class="level__a">Híbrida<br>REST + eventos</p></div>
+      <span class="arrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+      <div class="level"><span class="level__n">3</span><h3 class="level__t">Datos</h3><p class="level__q">¿Quién es dueño?</p><p class="level__a">Base por servicio<br>sin BD compartida</p></div>
+      <span class="arrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+      <div class="level"><span class="level__n">4</span><h3 class="level__t">Estructura</h3><p class="level__q">¿Cómo es por dentro?</p><p class="level__a">Según complejidad<br>hexagonal · capas</p></div>
+      <span class="arrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+      <div class="level"><span class="level__n">5</span><h3 class="level__t">Transversal</h3><p class="level__q">¿Qué se repite?</p><p class="level__a">Estrategia en los<br>bordes de infra</p></div>
+    </div>
+    <footer class="foot">No son alternativas compitiendo por el mismo hueco: <strong>se componen</strong>.</footer>
+  <div class="page__num" aria-hidden="true">6</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="7. Nivel 1 · Descomposición" data-speaker-notes="Nivel uno: descomposición. Doce servicios, cada uno con su propia base de datos, su propio despliegue y su propio stack. Sin base compartida y sin que un servicio toque la base de otro. Y el stack es deliberadamente políglota: cada servicio usa el runtime que mejor le encaja al problema y a la experiencia de quien lo mantiene. NestJS y TypeScript para autenticación, tutorías, materiales, notificaciones y comunidad: el contenedor de inyección de dependencias hace natural el patrón de puertos y adaptadores, y además comparte lenguaje con el frontend. Spring Boot para estudio, chat y tareas, por la madurez de JPA y del ecosistema de WebSocket. .NET 10 para gamificación: LINQ y Entity Framework encajan con consultas pesadas de ranking. Go para el servidor de juego, porque las goroutines le van bien a un bucle de tiempo real por ticks. Y Python para los modelos de inteligencia artificial, porque el ecosistema de machine learning vive ahí. El costo es real y lo asumimos: cinco runtimes son cinco cadenas de herramientas, cinco ecosistemas de dependencias y cinco conjuntos de modismos de seguridad que mantener alineados. Por eso nuestra página de seguridad tiene que ser comparativa.
+
+[Tiempo objetivo: 80s · diapositiva 7 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Nivel 1 · Descomposición</p>
+    <h2 class="h2">Doce servicios, cinco runtimes</h2>
+    <p class="lead">Cada dominio es un servicio independiente: su base, su despliegue, su stack.</p>
+  </header>
+    <div class="stack">
+      <div class="row"><span class="row__k mono">NestJS · TypeScript</span><span class="row__v mono">wise_auth · tutoring · materials · notifications · community</span><span class="row__w">Inyección de dependencias rica: puertos y adaptadores salen naturales. Comparte lenguaje con el front.</span></div>
+      <div class="row"><span class="row__k mono">Spring Boot · Java</span><span class="row__v mono">study · talk · todo</span><span class="row__w">JPA maduro y ecosistema WebSocket/STOMP.</span></div>
+      <div class="row"><span class="row__k mono">.NET 10 · C#</span><span class="row__v mono">gamification</span><span class="row__w">LINQ y EF Core encajan con consultas pesadas de ranking.</span></div>
+      <div class="row"><span class="row__k mono">Go</span><span class="row__v mono">game</span><span class="row__w">Goroutines para un bucle de tiempo real por ticks.</span></div>
+      <div class="row"><span class="row__k mono">Python</span><span class="row__v mono">dropout · performance</span><span class="row__w">El ecosistema de machine learning vive aquí.</span></div>
+      <div class="row"><span class="row__k mono">Angular 21 · SSR</span><span class="row__v mono">ECIWISE-Front</span><span class="row__w">Un solo cliente para todos los roles.</span></div>
+    </div>
+    <footer class="foot"><span class="foot__icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> El costo es real: cinco cadenas de herramientas y cinco modismos de seguridad que mantener <strong>alineados</strong>.</footer>
+  <div class="page__num" aria-hidden="true">7</div>
+</section>
+
+<section class="page page--wine" data-document-role="page" data-label="8. El sistema en una vista" data-speaker-notes="Este es el sistema completo. Arriba, el frontend en Angular: un solo cliente para los tres roles, que llega a todos los servicios por REST llevando el token en la cabecera. A la izquierda, wise_auth, que es quien emite el JWT tras validar contra Argon2id o contra Google OAuth. En el centro, los servicios agrupados por capacidad: el núcleo académico con tutorías, materiales, estudio y tareas; lo social y de tiempo real con chat, comunidad y el juego; y engagement con gamificación. Abajo, el bus de eventos, RabbitMQ, y sus consumidores: notificaciones, que envía el correo y persiste el aviso en la aplicación; los trabajadores de inteligencia artificial; y gamificación, que también consume. Dos cosas que quiero que noten. Primera: solo cuatro servicios publican eventos. No todo pasa por el bus, solo lo que es efecto colateral. Segunda: todas esas flechas que salen del frontend llevan la identidad con ellas, dentro del token. Ningún servicio llama a wise_auth para preguntar quién eres. Eso es exactamente lo que hace viable tener una base de datos por servicio, y es el hilo que conecta los tres niveles siguientes.
+
+[Tiempo objetivo: 90s · diapositiva 8 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Vista completa</p>
+    <h2 class="h2">El sistema en una vista</h2>
+    
+  </header>
+    <div class="sysmap">
+      <div class="sys__row">
+        <div class="node node--fe"><h3>ECIWISE-Front</h3><p class="mono">Angular 21 · SSR</p></div>
+        <div class="node node--auth"><h3>wise_auth</h3><p class="mono">Hexagonal · Argon2id<br>Google OAuth · emite JWT</p></div>
+      </div>
+      <p class="sys__edge">Bearer JWT · REST — la identidad viaja con la petición</p>
+      <div class="sys__row sys__row--3">
+        <div class="group"><p class="group__t">Núcleo académico</p><p class="mono">tutoring · materials<br>study · todo</p></div>
+        <div class="group"><p class="group__t">Social y tiempo real</p><p class="mono">talk · community<br>game</p></div>
+        <div class="group"><p class="group__t">Engagement</p><p class="mono">gamification</p></div>
+      </div>
+      <p class="sys__edge">Eventos de dominio — solo <strong>4</strong> servicios publican</p>
+      <div class="bus"><span class="bus__t">Bus de eventos · RabbitMQ / Azure Service Bus</span></div>
+      <div class="sys__row sys__row--3">
+        <div class="group group--cons"><p class="group__t">notifications</p><p class="mono">SendGrid / SMTP</p></div>
+        <div class="group group--cons"><p class="group__t">IA workers</p><p class="mono">dropout · performance</p></div>
+        <div class="group group--cons"><p class="group__t">gamification</p><p class="mono">puntos · logros</p></div>
+      </div>
+    </div>
+    <footer class="foot">Nadie llama a <span class="mono">wise_auth</span> en tiempo de petición. Eso es lo que hace viable <strong>una base por servicio</strong>.</footer>
+  <div class="page__num" aria-hidden="true">8</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="9. Nivel 2 · Comunicación" data-speaker-notes="Nivel dos: comunicación. Conviven dos estilos porque responden preguntas distintas. La regla es sobre quién necesita la respuesta y cuándo. REST con JWT cuando el usuario está esperando: un estudiante mirando cupos de tutoría necesita el dato ya. Eventos cuando el trabajo es un efecto colateral de algo que ya se decidió. Miren el ejemplo de la derecha, que es el que justifica todo el bus: una reserva confirmada tiene que mandar un correo y otorgar puntos. Pero si el servicio de notificaciones está caído, la reserva debe confirmarse igual. Si eso lo resolviéramos con una llamada HTTP directa, estaríamos acoplando el éxito de la reserva al tiempo de actividad del servicio de correo. Eso no es aceptable, y es la razón entera de que exista el bus. La propiedad que compramos es que el productor no conoce a sus consumidores: un servicio nuevo puede suscribirse a tutoring.session.completed sin tocar una línea de tutoring. Y el precio que pagamos es consistencia eventual: los puntos y los correos aterrizan milisegundos después de la acción, no dentro de ella.
+
+[Tiempo objetivo: 85s · diapositiva 9 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Nivel 2 · Comunicación</p>
+    <h2 class="h2">Quién necesita la respuesta, y cuándo</h2>
+    
+  </header>
+    <div class="two">
+      <section class="col">
+        <div class="col__head"><span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg></span><div><h3 class="col__t">REST + JWT</h3><p class="col__s">El usuario está esperando</p></div></div>
+        <ul class="list">
+          <li>El front consulta o actúa</li>
+          <li>Necesita una respuesta inmediata</li>
+          <li>Cualquier servicio valida el token <strong>localmente</strong></li>
+        </ul>
+      </section>
+      <section class="col col--accent">
+        <div class="col__head"><span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"/><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"/><circle cx="12" cy="9" r="2"/><path d="M16.2 4.8c2 2 2.26 5.11.8 7.47"/><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1"/><path d="M9.5 18h5"/><path d="m8 22 4-11 4 11"/></svg></span><div><h3 class="col__t">Eventos · RabbitMQ</h3><p class="col__s">Es un efecto colateral</p></div></div>
+        <ul class="list">
+          <li>Reserva confirmada <span class="mono">&rarr;</span> enviar correo</li>
+          <li>Sesión completada <span class="mono">&rarr;</span> otorgar puntos</li>
+          <li>Registro <span class="mono">&rarr;</span> predicción de IA</li>
+        </ul>
+      </section>
+    </div>
+    <div class="quote quote--tight">
+      <p>Si <span class="mono">notifications</span> está caído, <strong>la reserva debe confirmarse igual</strong>. Resolverlo con una llamada HTTP acoplaría el éxito de la reserva al <em>uptime</em> del correo.</p>
+    </div>
+    <footer class="foot">Compramos: el productor no conoce a sus consumidores. Pagamos: <strong>consistencia eventual</strong>.</footer>
+  <div class="page__num" aria-hidden="true">9</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="10. Nivel 3 · Datos" data-speaker-notes="Nivel tres: datos. Cada servicio es dueño de su base de datos, sin excepciones. Esto es lo que hace que el despliegue independiente sea real y no teórico: si dos servicios compartieran esquema, una migración en uno podría romper al otro, y ninguno podría desplegarse solo. Pero aparece el problema obvio: si ningún servicio puede leer la base de otro, ¿cómo sabe tutoring quién es el usuario? Tres mecanismos, y lo importante es que ninguno de los tres es una consulta. Uno: los claims del JWT. La identidad viaja con la petición, no se pregunta. Eso nos ahorra una llamada HTTP a wise_auth en cada request. Dos: aprovisionamiento justo a tiempo. Cuando tutoring necesita una fila local de usuarios contra la cual poner una clave foránea, hace un upsert a partir de los claims en la primera petición autenticada. Eso nos ahorra un job de sincronización o una tabla de usuarios compartida. Tres: eventos asíncronos, para el estado que cambia con el tiempo, como los puntos o las notificaciones. El costo aceptado, y esto es honesto, es que no hay JOINs entre servicios. Cualquier reporte que cruce servicios tiene que agregarse en la capa de aplicación o en un pipeline dedicado.
+
+[Tiempo objetivo: 85s · diapositiva 10 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Nivel 3 · Datos</p>
+    <h2 class="h2">Cada servicio, su propia base</h2>
+    <p class="lead">Si dos servicios comparten esquema, una migración en uno rompe al otro. Y ninguno despliega solo.</p>
+  </header>
+    <div class="grid grid--3 grid--tall">
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></span>
+    <span class="tag mono">¿quién llama?</span>
+    <h3 class="card__title">Claims del JWT</h3>
+    <p class="card__body">La identidad viaja <em>con</em> la petición. Evita una llamada HTTP a <span class="mono">wise_auth</span> en cada request.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6a9 9 0 0 0-9 9V3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/></svg></span>
+    <span class="tag mono">clave foránea local</span>
+    <h3 class="card__title">JIT provisioning</h3>
+    <p class="card__body">Upsert del espejo local del usuario desde los claims, en la primera petición autenticada. Evita un job de sincronización.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"/><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"/><circle cx="12" cy="9" r="2"/><path d="M16.2 4.8c2 2 2.26 5.11.8 7.47"/><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1"/><path d="M9.5 18h5"/><path d="m8 22 4-11 4 11"/></svg></span>
+    <span class="tag mono">estado que cambia</span>
+    <h3 class="card__title">Eventos asíncronos</h3>
+    <p class="card__body">Puntos, notificaciones. Propagación entre dominios sin lectura cruzada.</p>
+  </article>
+    </div>
+    <footer class="foot"><span class="foot__icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> Costo aceptado: <strong>sin JOINs entre servicios</strong>. Los reportes agregan en aplicación o en un pipeline dedicado.</footer>
+  <div class="page__num" aria-hidden="true">10</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="11. Nivel 4 · Estructura interna" data-speaker-notes="Nivel cuatro, y este es el que más discusión generó dentro del equipo: cómo está construido cada servicio por dentro. Aquí rechazamos deliberadamente tener un estilo de la casa. Hexagonal en todas partes sería puro andamiaje para un servicio con dominio delgado cuya infraestructura no cambia nunca. Y por capas en todas partes acoplaría los dominios ricos a su framework, y cambiar un adaptador sería una reescritura. La regla que aplicamos: la arquitectura sigue a la complejidad del dominio y al número de dependencias genuinamente intercambiables. Hexagonal para wise_auth, notificaciones, materiales y tareas, que tienen muchas dependencias salientes intercambiables. Hexagonal más DDD más vertical slicing solo para tutoring, que es el dominio más rico. Clean architecture para gamificación, que es la expresión en .NET de la misma idea. Por capas para estudio y chat: dominios delgados, Spring Data y MinIO fijos, no hay nada que intercambiar, así que los puertos serían ceremonia. Y hay servicios con forma de problema, sin capas en absoluto: el juego en Go es una goroutine por sala sobre estado en memoria, y los workers de IA son consumir, predecir, publicar. El costo aceptado: el código no es arquitectónicamente uniforme. Quien llega nuevo tiene que leer el README del servicio para saber qué patrón sigue. Ese es el precio de no cobrarle ceremonia a los servicios simples.
+
+[Tiempo objetivo: 85s · diapositiva 11 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Nivel 4 · Estructura interna</p>
+    <h2 class="h2">La elige el dominio, no la casa</h2>
+    
+  </header>
+    <div class="quote">
+      <p>La arquitectura sigue a la <strong>complejidad del dominio</strong> y al número de dependencias genuinamente intercambiables.</p>
+    </div>
+    <div class="grid grid--5">
+      
+  <article class="card">
+    
+    <span class="tag mono">muchas deps</span>
+    <h3 class="card__title">Hexagonal</h3>
+    <p class="card__body"><span class="mono">wise_auth</span> · <span class="mono">notifications</span> · <span class="mono">materials</span> · <span class="mono">todo</span></p>
+  </article>
+      
+  <article class="card">
+    
+    <span class="tag mono">dominio rico</span>
+    <h3 class="card__title">Hexagonal + DDD<br>+ Vertical Slicing</h3>
+    <p class="card__body"><span class="mono">tutoring</span></p>
+  </article>
+      
+  <article class="card">
+    
+    <span class="tag mono">sabor .NET</span>
+    <h3 class="card__title">Clean Architecture</h3>
+    <p class="card__body"><span class="mono">gamification</span></p>
+  </article>
+      
+  <article class="card">
+    
+    <span class="tag mono">dominio delgado</span>
+    <h3 class="card__title">Por capas</h3>
+    <p class="card__body"><span class="mono">study</span> · <span class="mono">talk</span><br>Nada que intercambiar: los puertos serían ceremonia.</p>
+  </article>
+      
+  <article class="card">
+    
+    <span class="tag mono">sin capas</span>
+    <h3 class="card__title">Con forma de problema</h3>
+    <p class="card__body"><span class="mono">game</span>: goroutine por sala<br><span class="mono">IA workers</span>: consumir, predecir, publicar</p>
+  </article>
+    </div>
+    <footer class="foot"><span class="foot__icon"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> Costo aceptado: el código <strong>no es uniforme</strong>. Hay que leer el README del servicio para saber qué patrón sigue.</footer>
+  <div class="page__num" aria-hidden="true">11</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="12. Zoom · tutoring" data-speaker-notes="Vale la pena bajar a un servicio, y elegimos tutoring porque es el dominio más rico y el único que reescribimos por completo. Está en NestJS 11 con Prisma sobre PostgreSQL, y combina hexagonal con DDD y vertical slicing: cinco rebanadas de negocio independientes. Identidad, catálogos, disponibilidad, tutorías y reservas. Cada capacidad es su propia rebanada, con su dominio y sus puertos. Dos mecanismos concretos que muestran por qué hacía falta un dominio de verdad. El primero es la concurrencia de reservas. Cuando dos estudiantes reservan el último cupo al mismo tiempo, PostgreSQL solo incrementa la capacidad mientras cupos ocupados sea menor que cupos máximos. La condición vive en la base, en la propia sentencia, no en un if de la aplicación que se puede colar entre la lectura y la escritura. El segundo es la materialización idempotente. Los tutores publican plantillas de disponibilidad recurrentes, y un job diario las expande en sesiones concretas y reservables. Ese job usa una restricción única sobre la tripleta tutor, franja y fecha, lo que hace que ejecutarlo repetidas veces sea seguro. Importa porque corremos varias réplicas y todas hacen el trabajo redundante; la unicidad es lo que lo vuelve inofensivo. Y las sesiones virtuales usan Jitsi autoalojado y un tablero de Excalidraw sincronizado por un relay de WebSocket.
+
+[Tiempo objetivo: 85s · diapositiva 12 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Zoom</p>
+    <h2 class="h2">tutoring: el dominio más rico</h2>
+    <p class="lead">El único servicio reescrito por completo. <span class="mono">NestJS 11 · Prisma · PostgreSQL</span></p>
+  </header>
+    <div class="slices">
+      <span class="slice">identidad</span><span class="slice">catálogos</span><span class="slice">disponibilidad</span><span class="slice">tutorías</span><span class="slice">reservas</span>
+      <span class="slices__tag">5 rebanadas verticales · cada capacidad, su dominio y sus puertos</span>
+    </div>
+    <div class="two">
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+    
+    <h3 class="card__title">Concurrencia de reservas</h3>
+    <p class="card__body">Dos estudiantes, el último cupo. PostgreSQL incrementa <em>solo mientras</em> <span class="mono">cupos_ocupados &lt; cupos_maximos</span>. La condición vive en la sentencia, no en un <span class="mono">if</span> que se cuela entre lectura y escritura.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg></span>
+    
+    <h3 class="card__title">Materialización idempotente</h3>
+    <p class="card__body">Un job diario expande plantillas recurrentes en sesiones reservables. Restricción única sobre <span class="mono">(tutorUserId, franjaId, fecha)</span>: varias réplicas repiten el trabajo y da igual.</p>
+  </article>
+    </div>
+    <footer class="foot">Sesiones virtuales: <strong>Jitsi</strong> autoalojado + tablero <strong>Excalidraw</strong> por relay de WebSocket.</footer>
+  <div class="page__num" aria-hidden="true">12</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="13. Nivel 5 · Transversal" data-speaker-notes="Nivel cinco: lo que se repite en todas partes. Un patrón aparece en tres servicios que no tienen nada que ver entre sí, y vale la pena nombrarlo explícitamente: cuando una dependencia de infraestructura tiene una segunda implementación creíble, va detrás de un puerto de dominio y se elige por variable de entorno, nunca por un cambio de código. Ahí están los cuatro interruptores. El broker de mensajes y el proveedor de correo en notificaciones; el almacenamiento y el bus en materiales. Son ortogonales y se resuelven una sola vez, al arrancar. El pago concreto: RabbitMQ más Mailpit nos da un stack local completamente offline, mientras que Azure Service Bus más SendGrid corre en producción, y ambos salen del mismo build. Las credenciales se validan condicionalmente en el arranque, así que elegir SMTP no te obliga a inventarte una llave falsa de SendGrid. El caso que probó que valía la pena fue el adaptador de SMTP en notificaciones: un transporte entero nuevo costó una clase y un ternario.
+
+[Tiempo objetivo: 70s · diapositiva 13 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Nivel 5 · Transversal</p>
+    <h2 class="h2">Un puerto y una variable de entorno</h2>
+    
+  </header>
+    <div class="quote quote--big">
+      <p>Cuando una dependencia de infraestructura tiene una <strong>segunda implementación creíble</strong>, va detrás de un puerto de dominio y se elige por <strong>variable de entorno</strong> — nunca por un cambio de código.</p>
+    </div>
+    <div class="stack stack--switches">
+      <div class="row"><span class="row__k mono">notifications</span><span class="row__v mono">MessagingProviderPort</span><span class="row__x mono">MESSAGING_BROKER</span><span class="row__w">RabbitMQ · Azure Service Bus</span></div>
+      <div class="row"><span class="row__k mono">notifications</span><span class="row__v mono">EmailSenderPort</span><span class="row__x mono">EMAIL_PROVIDER</span><span class="row__w">SendGrid · SMTP</span></div>
+      <div class="row"><span class="row__k mono">materials</span><span class="row__v mono">StoragePort</span><span class="row__x mono">STORAGE_PROVIDER</span><span class="row__w">Azure Blob · AWS S3</span></div>
+      <div class="row"><span class="row__k mono">materials</span><span class="row__v mono">MessageBusPort</span><span class="row__x mono">MESSAGE_BUS_PROVIDER</span><span class="row__w">Azure Service Bus · RabbitMQ</span></div>
+    </div>
+    <footer class="foot">Del <strong>mismo build</strong>: RabbitMQ + Mailpit offline en local, Azure + SendGrid en producción.</footer>
+  <div class="page__num" aria-hidden="true">13</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="14. Autenticación" data-speaker-notes="Autenticación. El flujo es corto a propósito. El usuario entra con correo y contraseña o con Google OAuth. wise_auth valida y devuelve un JWT firmado con los claims de identidad: sub, email, nombre, apellido y rol. A partir de ahí, el front manda ese token en la cabecera a cualquiera de los doce servicios, y cada servicio lo valida localmente con el secreto compartido. Fíjense en el paso cuatro: no hay ninguna llamada de vuelta a wise_auth. Ninguna. Esa es la propiedad que hace que todo lo demás funcione. Y el userId siempre sale del claim sub, nunca de la URL, lo que cierra los IDOR por diseño y no por revisión. ¿Por qué JWT y no PASETO? PASETO es la primitiva mejor diseñada, y lo reconocemos abiertamente. Pero el token lo tienen que parsear idénticamente cuatro runtimes: Node, la JVM, .NET y Go. Y JWT tiene librerías de primera parte en los cuatro; las de PASETO en .NET y Go no tienen ni de lejos el mismo rodaje. Así que elegimos madurez de ecosistema sobre elegancia de diseño, y cerramos el footgun de JWT, que es la confusión de algoritmos, fijando HS256 en cada verificador en vez de confiar en la cabecera del token.
+
+[Tiempo objetivo: 80s · diapositiva 14 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Identidad</p>
+    <h2 class="h2">Un token, cero llamadas de vuelta</h2>
+    
+  </header>
+    <div class="flow">
+      <div class="fnode"><span class="fnode__n">1</span><h3>Usuario</h3><p>Correo y contraseña<br>o Google OAuth</p></div>
+      <span class="arrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+      <div class="fnode"><span class="fnode__n">2</span><h3>Front</h3><p class="mono">POST /auth/login</p></div>
+      <span class="arrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+      <div class="fnode fnode--accent"><span class="fnode__n">3</span><h3>wise_auth</h3><p>Firma el JWT HS256<br><span class="mono">{ sub, email, nombre, apellido, rol }</span></p></div>
+      <span class="arrow"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></span>
+      <div class="fnode"><span class="fnode__n">4</span><h3>Cualquier servicio</h3><p>Valida <strong>localmente</strong><br><span class="mono">algorithms: ['HS256']</span></p></div>
+    </div>
+    <div class="two two--tight">
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg></span>
+    
+    <h3 class="card__title">¿Por qué no PASETO?</h3>
+    <p class="card__body">Es la primitiva mejor diseñada — y aun así lo rechazamos. El token lo parsean cuatro runtimes: Node, JVM, .NET y Go. JWT tiene librerías de primera parte en los cuatro; PASETO en .NET y Go no tiene el mismo rodaje.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
+    
+    <h3 class="card__title">El footgun, cerrado</h3>
+    <p class="card__body">La confusión de algoritmos se cierra <em>fijando</em> HS256 en cada verificador, en vez de confiar en la cabecera del token. El <span class="mono">userId</span> sale del claim <span class="mono">sub</span>, nunca de la URL: IDOR cerrado por diseño.</p>
+  </article>
+    </div>
+  <div class="page__num" aria-hidden="true">14</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="15. Seguridad" data-speaker-notes="Seguridad, y aquí prefiero ser honesto antes que vendedor. El modelo descansa en tres reglas. La identidad sale del token, nunca de la petición. Cada servicio valida de forma independiente, sin confiar en sus pares. Y el frontend no es una frontera de seguridad: los guards y los menús ocultos son experiencia de usuario; toda regla se vuelve a aplicar en el servidor. Tres controles concretos. Argon2id para contraseñas, con 19 mebibytes y dos iteraciones. Migramos desde bcrypt porque bcrypt trunca silenciosamente a 72 bytes y no es duro en memoria contra ataques con GPU. Y cuando el correo no está registrado, corremos una verificación falsa del mismo costo antes de rechazar, para que el tiempo de respuesta no revele qué correos existen. Segundo: validación por magic bytes en materiales. El Content-Type es una afirmación del atacante; los primeros cinco bytes son evidencia. Verificamos que el archivo empiece por %PDF-. Tercero: el token vive en localStorage, y lo sabemos. Lo mitigamos con una lista blanca de hosts en el interceptor, así el token nunca llega a un tercero, más CSP, más el escapado de Angular. Y ahora los riesgos que aceptamos, que están escritos tal cual en nuestra documentación. Cualquier XSS exitoso puede leer el token: mitigado en profundidad, nunca eliminado. No hay revocación antes de la expiración: cerrar sesión es descartar el token en el cliente. Y el secreto compartido está en todos los servicios. Esa es la decisión que más probablemente revisemos: si aparecen equipos por servicio, RS256 con un JWKS centralizado se vuelve viable.
+
+[Tiempo objetivo: 85s · diapositiva 15 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">Seguridad</p>
+    <h2 class="h2">Tres reglas, y los riesgos que aceptamos</h2>
+    
+  </header>
+    <div class="rules">
+      <div class="rule"><span class="rule__n">1</span><p>La identidad sale del <strong>token</strong>, nunca de la petición.</p></div>
+      <div class="rule"><span class="rule__n">2</span><p>Cada servicio valida <strong>independientemente</strong>. No confía en sus pares.</p></div>
+      <div class="rule"><span class="rule__n">3</span><p>El frontend <strong>no es una frontera</strong> de seguridad. Toda regla se reaplica en servidor.</p></div>
+    </div>
+    <div class="grid grid--3">
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></span>
+    
+    <h3 class="card__title">Argon2id</h3>
+    <p class="card__body">19 MiB · 2 iteraciones. bcrypt truncaba a 72 bytes. Si el correo no existe, corre una verificación <em>falsa</em> del mismo costo: el reloj no delata quién está registrado.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="m9 15 2 2 4-4"/></svg></span>
+    
+    <h3 class="card__title">Magic bytes</h3>
+    <p class="card__body">El <span class="mono">Content-Type</span> es una <em>afirmación</em> del atacante. Los primeros cinco bytes son <em>evidencia</em>: el archivo debe empezar por <span class="mono">%PDF-</span>.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
+    
+    <h3 class="card__title">Riesgos aceptados</h3>
+    <p class="card__body">XSS lee el token: mitigado en profundidad, <strong>nunca eliminado</strong>. Sin revocación antes de <span class="mono">exp</span>. Secreto compartido en todos los servicios.</p>
+  </article>
+    </div>
+    <footer class="foot">La decisión que más probablemente revisemos: <strong>RS256 con JWKS centralizado</strong>, si aparecen equipos por servicio.</footer>
+  <div class="page__num" aria-hidden="true">15</div>
+</section>
+
+<section class="page " data-document-role="page" data-label="16. Frontend" data-speaker-notes="El frontend, brevemente. Angular 21 con componentes standalone, signals para el estado reactivo y renderizado en servidor. Sin NgRx y sin ninguna librería de estado externa: el estado de cada feature vive en un servicio inyectable que expone signals computados. Para el tamaño de este equipo, un store global habría sido ceremonia. Internacionalización en tiempo de ejecución con ngx-translate, en cuatro idiomas. Y una decisión que parece pequeña y no lo es: las URLs base de los doce servicios se resuelven en tiempo de ejecución desde un archivo env.json, generado a partir de variables de entorno. Eso permite que un único artefacto de build se promueva sin cambios entre ambientes; no recompilamos para pasar de desarrollo a producción. Tiene un timeout de tres segundos para que no bloquee la hidratación. Y sobre el token en localStorage, que ya mencioné: el interceptor tiene una lista blanca de orígenes propios, así que el JWT solo se adjunta a nuestros servicios y nunca sale hacia un tercero.
+
+[Tiempo objetivo: 70s · diapositiva 16 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    
+  <header class="head">
+    <p class="eyebrow">El cliente</p>
+    <h2 class="h2">Un solo front para todos los roles</h2>
+    <p class="lead">Angular 21 · standalone · signals · SSR</p>
+  </header>
+    <div class="grid grid--4">
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15.536 11.293a1 1 0 0 0 0 1.414l2.376 2.377a1 1 0 0 0 1.414 0l2.377-2.377a1 1 0 0 0 0-1.414l-2.377-2.377a1 1 0 0 0-1.414 0z"/><path d="M2.297 11.293a1 1 0 0 0 0 1.414l2.377 2.377a1 1 0 0 0 1.414 0l2.377-2.377a1 1 0 0 0 0-1.414L6.088 8.916a1 1 0 0 0-1.414 0z"/><path d="M8.916 17.912a1 1 0 0 0 0 1.415l2.377 2.376a1 1 0 0 0 1.414 0l2.377-2.376a1 1 0 0 0 0-1.415l-2.377-2.376a1 1 0 0 0-1.414 0z"/><path d="M8.916 4.674a1 1 0 0 0 0 1.414l2.377 2.376a1 1 0 0 0 1.414 0l2.377-2.376a1 1 0 0 0 0-1.414l-2.377-2.377a1 1 0 0 0-1.414 0z"/></svg></span>
+    
+    <h3 class="card__title">Sin store</h3>
+    <p class="card__body">Ni NgRx ni librería externa. El estado vive en servicios <span class="mono">@Injectable</span> que exponen signals computados.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg></span>
+    
+    <h3 class="card__title">SSR</h3>
+    <p class="card__body">Renderizado en servidor con hidratación. Un cliente para estudiante, tutor y admin.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg></span>
+    
+    <h3 class="card__title">env.json</h3>
+    <p class="card__body">Las URLs de los 12 servicios se resuelven <em>en runtime</em>. Un build se promueve sin recompilar.</p>
+  </article>
+      
+  <article class="card">
+    <span class="chip"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+    
+    <h3 class="card__title">Egreso del token</h3>
+    <p class="card__body">El interceptor tiene lista blanca de orígenes propios. El JWT <strong>nunca</strong> llega a un tercero.</p>
+  </article>
+    </div>
+    <footer class="foot">i18n en runtime con <span class="mono">ngx-translate</span> · español, inglés, francés y portugués.</footer>
+  <div class="page__num" aria-hidden="true">16</div>
+</section>
+
+<section class="page page--wine page--close" data-document-role="page" data-label="17. Cierre y documentación" data-speaker-notes="Y ahí lo dejamos. Recapitulando en una frase: cinco decisiones independientes que se componen, cada una con su porqué y su precio escrito. Todo lo que vieron hoy, y bastante más, está documentado: los dieciocho registros de decisiones de arquitectura con su contexto y sus alternativas rechazadas, el desglose comparativo de seguridad servicio por servicio, y las páginas de cada microservicio. Está en eciwise.github.io, ahí tienen el código QR. Muchas gracias. Quedamos atentos a preguntas.
+
+[Tiempo objetivo: 45s · diapositiva 17 de 17]">
+  <div class="page__deco" aria-hidden="true"></div>
+  
+    <div class="close__left">
+      <div class="brand"><svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+  <path d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z" fill="var(--logo-astroid)"/>
+  <path d="M24 17 V31 M17 24 H31" fill="none" stroke="var(--logo-plus)" stroke-width="3" stroke-linecap="round"/>
+</svg><span class="brand__word">ECIWISE<span class="brand__plus">+</span></span></div>
+      <h2 class="h2">Gracias</h2>
+      <p class="close__lead">Cinco decisiones independientes que <strong>se componen</strong>. Cada una con su porqué y su precio.</p>
+      <ul class="close__list">
+        <li><span class="close__k">18</span> registros de decisiones (ADR) con alternativas rechazadas</li>
+        <li><span class="close__k">12</span> páginas de servicio y desglose de seguridad comparativo</li>
+      </ul>
+      <p class="close__url mono">eciwise.github.io</p>
+    </div>
+    <div class="close__right">
+      <div class="qr"><svg class="qr__svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 33 33" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h33v33H0z"/><path stroke="#000000" d="M4 4.5h7m3 0h4m2 0h1m1 0h7M4 5.5h1m5 0h1m3 0h3m2 0h2m1 0h1m5 0h1M4 6.5h1m1 0h3m1 0h1m1 0h2m1 0h2m1 0h1m1 0h1m1 0h1m1 0h3m1 0h1M4 7.5h1m1 0h3m1 0h1m1 0h1m3 0h4m2 0h1m1 0h3m1 0h1M4 8.5h1m1 0h3m1 0h1m1 0h5m1 0h1m1 0h1m1 0h1m1 0h3m1 0h1M4 9.5h1m5 0h1m1 0h3m3 0h2m2 0h1m5 0h1M4 10.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M12 11.5h1m2 0h2m3 0h1M4 12.5h1m1 0h5m2 0h3m1 0h2m3 0h5M5 13.5h1m2 0h2m1 0h1m1 0h1m2 0h2m5 0h1m3 0h1M4 14.5h2m1 0h5m2 0h3m2 0h2m1 0h2m1 0h1m1 0h2M6 15.5h1m1 0h2m3 0h1m1 0h2m2 0h3m1 0h1m4 0h1M5 16.5h1m1 0h2m1 0h10m1 0h2m1 0h1m1 0h3M4 17.5h1m1 0h1m2 0h1m1 0h1m1 0h1m4 0h1m1 0h1m2 0h1m1 0h1m1 0h1M4 18.5h1m1 0h1m3 0h1m1 0h1m2 0h2m1 0h3m2 0h3m1 0h2M4 19.5h1m3 0h2m4 0h2m2 0h1m2 0h4m3 0h1M4 20.5h1m1 0h1m3 0h1m1 0h13m1 0h1M12 21.5h1m3 0h1m3 0h1m3 0h2M4 22.5h7m3 0h1m2 0h1m2 0h1m1 0h1m1 0h1m1 0h3M4 23.5h1m5 0h1m1 0h4m4 0h1m3 0h2m1 0h2M4 24.5h1m1 0h3m1 0h1m1 0h6m1 0h6m1 0h1M4 25.5h1m1 0h3m1 0h1m1 0h4m1 0h1m3 0h2m1 0h5M4 26.5h1m1 0h3m1 0h1m1 0h3m2 0h5m3 0h2m1 0h1M4 27.5h1m5 0h1m2 0h2m1 0h1m2 0h7m2 0h1M4 28.5h7m1 0h1m2 0h4m2 0h1m1 0h6"/></svg><p class="qr__label">Documentación</p></div>
+      <img class="pet pet--close" src="assets/eciwise-pet-reading.svg" alt="Mascota de ECIWise+ leyendo un libro">
+    </div>
+  <div class="page__num" aria-hidden="true">17</div>
+</section>
+</body>
+</html>
