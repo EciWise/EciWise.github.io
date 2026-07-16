@@ -35,7 +35,12 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
+  /* 9999px solo se conserva en el import de Canva cuando el elemento es
+     cuadrado (lo convierte en círculo). Sobre un rectángulo ancho no sabe
+     hacer la forma de estadio y lo aplana a rectángulo, así que las píldoras
+     usan un radio concreto. --radius-full queda para los círculos. */
   --radius-full: 9999px;
+  --radius-pill: 22px;
 
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
   --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.18);
@@ -193,7 +198,7 @@ em { font-style: italic; }
   font-weight: 600;
   color: var(--brand-red);
   background: var(--accent-soft);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-pill);
   padding: 4px 14px;
 }
 .page--wine .tag { background: rgba(255, 255, 255, 0.14); color: #ffffff; }
@@ -228,13 +233,10 @@ em { font-style: italic; }
 .brand__word { font-size: 36px; font-weight: 800; letter-spacing: -0.02em; }
 .brand__plus { color: var(--brand-plus); }
 
-.pills { display: flex; flex-wrap: wrap; gap: 12px; }
-.pill {
-  font-size: 19px;
+.cover__meta {
+  font-size: 22px;
   font-weight: 600;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: var(--radius-full);
-  padding: 8px 20px;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .cover__team { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -368,7 +370,7 @@ em { font-style: italic; }
 .group--cons { border-color: rgba(255, 255, 255, 0.34); background: rgba(255, 255, 255, 0.1); }
 .bus {
   border: 1px solid #ffffff;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.16);
   padding: 12px;
   text-align: center;
@@ -435,7 +437,7 @@ em { font-style: italic; }
   color: var(--brand-red);
   background: var(--accent-soft);
   border: 1px solid rgba(200, 16, 46, 0.25);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-pill);
   padding: 9px 24px;
 }
 .slices__tag { font-size: 18px; color: var(--text-muted); margin-left: 8px; }
@@ -507,18 +509,18 @@ em { font-style: italic; }
 .close__lead { font-size: 28px; line-height: 1.45; color: rgba(255, 255, 255, 0.78); max-width: 780px; }
 .close__lead strong { color: #ffffff; }
 .close__list { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+/* Todo en una línea de texto: el `display:flex` de antes lo desarmaba Canva
+   al importar, partiendo el número y su descripción en renglones distintos. */
 .close__list p {
   font-size: 21px;
   color: rgba(255, 255, 255, 0.78);
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
+  line-height: 1.4;
 }
 .close__k {
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 800;
   color: #ffffff;
-  min-width: 44px;
+  margin-right: 8px;
 }
 .close__url {
   margin-top: 10px;
@@ -559,16 +561,12 @@ em { font-style: italic; }
   
     <div class="cover__left">
       <div class="brand"><svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
-  <path d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z" fill="var(--logo-astroid)"/>
-  <path d="M24 17 V31 M17 24 H31" fill="none" stroke="var(--logo-plus)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z" fill="#ffffff"/>
+  <path d="M24 17 V31 M17 24 H31" fill="none" stroke="#7a0f20" stroke-width="3" stroke-linecap="round"/>
 </svg><span class="brand__word">ECIWISE<span class="brand__plus">+</span></span></div>
       <p class="eyebrow">Presentación de arquitectura</p>
       <h1 class="h1">Arquitectura</h1>
-      <div class="pills">
-        <span class="pill">Vivaldi</span>
-        <span class="pill">2026-I</span>
-        <span class="pill">Escuela Colombiana de Ingeniería</span>
-      </div>
+      <p class="cover__meta">Vivaldi · 2026-I · Escuela Colombiana de Ingeniería</p>
       <div class="cover__team">
         <p class="cover__team-label">Presentan</p>
         <div class="cover__names">
@@ -1170,14 +1168,14 @@ em { font-style: italic; }
   
     <div class="close__left">
       <div class="brand"><svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
-  <path d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z" fill="var(--logo-astroid)"/>
-  <path d="M24 17 V31 M17 24 H31" fill="none" stroke="var(--logo-plus)" stroke-width="3" stroke-linecap="round"/>
+  <path d="M24 4 C20 16 16 20 4 24 C16 28 20 32 24 44 C28 32 32 28 44 24 C32 20 28 16 24 4 Z" fill="#ffffff"/>
+  <path d="M24 17 V31 M17 24 H31" fill="none" stroke="#7a0f20" stroke-width="3" stroke-linecap="round"/>
 </svg><span class="brand__word">ECIWISE<span class="brand__plus">+</span></span></div>
       <h2 class="h2">Gracias</h2>
       <p class="close__lead">Cinco decisiones independientes que <strong>se componen</strong>. Cada una con su porqué y su precio.</p>
       <div class="close__list">
-        <p><span class="close__k">18</span> registros de decisiones (ADR) con alternativas rechazadas</p>
-        <p><span class="close__k">12</span> páginas de servicio y desglose de seguridad comparativo</p>
+        <p><strong class="close__k">18</strong> registros de decisiones (ADR) con alternativas rechazadas</p>
+        <p><strong class="close__k">12</strong> páginas de servicio y desglose de seguridad comparativo</p>
       </div>
       <p class="close__url mono">eciwise.github.io</p>
     </div>
