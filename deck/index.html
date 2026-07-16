@@ -555,7 +555,7 @@ em { font-style: italic; }
 <body>
 <section class="page page--wine page--cover" data-document-role="page" data-label="1. Portada" data-speaker-notes="Buenos días. Somos el equipo Vivaldi y venimos a contarles la arquitectura de ECIWise+, la plataforma de apoyo académico para Ingeniería de Sistemas de la Escuela. Veinte minutos, cuatro bloques, un ponente por bloque. La idea que queremos que se lleven es esta: ECIWise+ no es «una arquitectura de microservicios». Esa frase solo responde cómo se corta el sistema en piezas, y no dice nada de cómo hablan entre ellas, quién es dueño de qué datos, ni cómo está construida cada una por dentro. Son cinco decisiones independientes, y las respondimos una a una.
 
-[Tiempo objetivo: 25s · diapositiva 1 de 17]">
+[Tiempo objetivo: 39s · diapositiva 1 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     <div class="cover__left">
@@ -588,7 +588,7 @@ em { font-style: italic; }
 
 <section class="page " data-document-role="page" data-label="2. Agenda" data-speaker-notes="Esta es la ruta. Primero el contexto: qué problema existía y qué construimos. Después el corazón de la charla, que son los cinco niveles de decisión: cómo cortamos el sistema y cómo se comunican las piezas; luego quién es dueño de los datos y cómo está construido cada servicio por dentro. Y cerramos con seguridad, frontend y documentación. Cada bloque lo lleva uno de nosotros. Si algo queda suelto, al final tienen el código QR con la documentación completa, que es bastante más extensa que estos veinte minutos.
 
-[Tiempo objetivo: 35s · diapositiva 2 de 17]">
+[Tiempo objetivo: 36s · diapositiva 2 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -633,7 +633,7 @@ em { font-style: italic; }
 
 <section class="page " data-document-role="page" data-label="3. El problema" data-speaker-notes="Antes de ECIWise+ el ecosistema de monitorías funcionaba así. Los horarios se publicaban en papel, pegados en una cartelera: no había forma de consultarlos digitalmente. El estudiante caminaba hasta el salón sin saber si quedaban cupos. No existía modalidad virtual, todo era presencial. La encuesta de satisfacción era un formulario manual que no generaba ninguna estadística aprovechable. No había historial de tutorías ni seguimiento del progreso. No se podía elegir monitor por reputación o especialidad. No llegaban avisos cuando algo cambiaba o se cancelaba. Y no existía ninguna herramienta institucional para practicar con preguntas tipo examen de la Escuela. Documentamos nueve carencias; estas cuatro las resumen. El patrón de fondo es el mismo en todas: la información existía, pero no era accesible ni accionable.
 
-[Tiempo objetivo: 70s · diapositiva 3 de 17]">
+[Tiempo objetivo: 51s · diapositiva 3 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -678,7 +678,7 @@ em { font-style: italic; }
 
 <section class="page " data-document-role="page" data-label="4. Qué es ECIWise+" data-speaker-notes="ECIWise+ es una plataforma digital institucional que centraliza el acceso a las herramientas de apoyo académico para los estudiantes de Ingeniería de Sistemas. La palabra que importa es integrar. No es una herramienta de tutorías con cosas pegadas alrededor: son cinco pilares que se alimentan entre sí. Tutorías virtuales y presenciales. Estudio interactivo con flashcards y quizzes tipo Kahoot. Gamificación con puntos, logros y tablas de posiciones. Comunicación por chat y foros. Y recomendaciones basadas en inteligencia artificial. El objetivo declarado del proyecto es fortalecer el aprendizaje y el acompañamiento académico, y con eso reducir la deserción estudiantil. Ese último punto es el que justifica los modelos de predicción que verán más adelante.
 
-[Tiempo objetivo: 65s · diapositiva 4 de 17]">
+[Tiempo objetivo: 47s · diapositiva 4 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -730,7 +730,7 @@ em { font-style: italic; }
 
 <section class="page " data-document-role="page" data-label="5. Actores y roles" data-speaker-notes="Tres roles, y el rol viaja dentro del token. El estudiante es el rol por defecto: se asigna solo al registrarse. Reserva tutorías, practica, ve el ranking, recibe sugerencias de la inteligencia artificial, accede a materiales y participa en chat y foros. El tutor, o monitor, lo autoriza un administrador: publica su disponibilidad, atiende las sesiones, registra asistencia y evalúa la participación. El administrador tiene acceso completo: gestiona usuarios y roles, autoriza tutores, carga colecciones de preguntas y ve la estadística institucional. Un detalle que importa para la parte de seguridad: estos valores, estudiante, tutor y admin, son literalmente el claim rol del JWT, y cada servicio lo lee localmente sin preguntarle a nadie.
 
-[Tiempo objetivo: 55s · diapositiva 5 de 17]">
+[Tiempo objetivo: 47s · diapositiva 5 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -768,7 +768,7 @@ em { font-style: italic; }
 
 <section class="page page--wine" data-document-role="page" data-label="6. La tesis" data-speaker-notes="Este es el centro de la charla. Cuando alguien dice «tenemos una arquitectura de microservicios», solo está respondiendo una pregunta: cómo se corta el sistema en unidades desplegables. No dice nada sobre cómo hablan esas unidades entre sí, ni quién es dueño de qué datos, ni cómo está construida cada una por dentro. Son preguntas independientes, y cada una admite una respuesta distinta. Nosotros respondimos cinco. Descomposición: microservicios. Comunicación: híbrida, REST y eventos. Datos: una base por servicio. Estructura interna: la elige la complejidad de cada dominio. Y transversal: estrategia en los bordes de infraestructura. La afirmación importante es que estos estilos no compiten por el mismo hueco; se componen. Elegir microservicios no te obliga a elegir eventos. Elegir eventos no te obliga a elegir hexagonal. Cada nivel es una decisión con su propio porqué y su propio precio.
 
-[Tiempo objetivo: 75s · diapositiva 6 de 17]">
+[Tiempo objetivo: 58s · diapositiva 6 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -817,7 +817,7 @@ em { font-style: italic; }
 
 <section class="page page--wine" data-document-role="page" data-label="8. El sistema en una vista" data-speaker-notes="Este es el sistema completo. Arriba, el frontend en Angular: un solo cliente para los tres roles, que llega a todos los servicios por REST llevando el token en la cabecera. A la izquierda, wise_auth, que es quien emite el JWT tras validar contra Argon2id o contra Google OAuth. En el centro, los servicios agrupados por capacidad: el núcleo académico con tutorías, materiales, estudio y tareas; lo social y de tiempo real con chat, comunidad y el juego; y engagement con gamificación. Abajo, el bus de eventos, RabbitMQ, y sus consumidores: notificaciones, que envía el correo y persiste el aviso en la aplicación; los trabajadores de inteligencia artificial; y gamificación, que también consume. Dos cosas que quiero que noten. Primera: solo cuatro servicios publican eventos. No todo pasa por el bus, solo lo que es efecto colateral. Segunda: todas esas flechas que salen del frontend llevan la identidad con ellas, dentro del token. Ningún servicio llama a wise_auth para preguntar quién eres. Eso es exactamente lo que hace viable tener una base de datos por servicio, y es el hilo que conecta los tres niveles siguientes.
 
-[Tiempo objetivo: 90s · diapositiva 8 de 17]">
+[Tiempo objetivo: 77s · diapositiva 8 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -851,7 +851,7 @@ em { font-style: italic; }
 
 <section class="page " data-document-role="page" data-label="9. Nivel 2 · Comunicación" data-speaker-notes="Nivel dos: comunicación. Conviven dos estilos porque responden preguntas distintas. La regla es sobre quién necesita la respuesta y cuándo. REST con JWT cuando el usuario está esperando: un estudiante mirando cupos de tutoría necesita el dato ya. Eventos cuando el trabajo es un efecto colateral de algo que ya se decidió. Miren el ejemplo de la derecha, que es el que justifica todo el bus: una reserva confirmada tiene que mandar un correo y otorgar puntos. Pero si el servicio de notificaciones está caído, la reserva debe confirmarse igual. Si eso lo resolviéramos con una llamada HTTP directa, estaríamos acoplando el éxito de la reserva al tiempo de actividad del servicio de correo. Eso no es aceptable, y es la razón entera de que exista el bus. La propiedad que compramos es que el productor no conoce a sus consumidores: un servicio nuevo puede suscribirse a tutoring.session.completed sin tocar una línea de tutoring. Y el precio que pagamos es consistencia eventual: los puntos y los correos aterrizan milisegundos después de la acción, no dentro de ella.
 
-[Tiempo objetivo: 85s · diapositiva 9 de 17]">
+[Tiempo objetivo: 73s · diapositiva 9 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -887,7 +887,7 @@ em { font-style: italic; }
 
 <section class="page " data-document-role="page" data-label="10. Nivel 3 · Datos" data-speaker-notes="Nivel tres: datos. Cada servicio es dueño de su base de datos, sin excepciones. Esto es lo que hace que el despliegue independiente sea real y no teórico: si dos servicios compartieran esquema, una migración en uno podría romper al otro, y ninguno podría desplegarse solo. Pero aparece el problema obvio: si ningún servicio puede leer la base de otro, ¿cómo sabe tutoring quién es el usuario? Tres mecanismos, y lo importante es que ninguno de los tres es una consulta. Uno: los claims del JWT. La identidad viaja con la petición, no se pregunta. Eso nos ahorra una llamada HTTP a wise_auth en cada request. Dos: aprovisionamiento justo a tiempo. Cuando tutoring necesita una fila local de usuarios contra la cual poner una clave foránea, hace un upsert a partir de los claims en la primera petición autenticada. Eso nos ahorra un job de sincronización o una tabla de usuarios compartida. Tres: eventos asíncronos, para el estado que cambia con el tiempo, como los puntos o las notificaciones. El costo aceptado, y esto es honesto, es que no hay JOINs entre servicios. Cualquier reporte que cruce servicios tiene que agregarse en la capa de aplicación o en un pipeline dedicado.
 
-[Tiempo objetivo: 85s · diapositiva 10 de 17]">
+[Tiempo objetivo: 83s · diapositiva 10 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -925,7 +925,7 @@ em { font-style: italic; }
 
 <section class="page " data-document-role="page" data-label="11. Nivel 4 · Estructura interna" data-speaker-notes="Nivel cuatro, y este es el que más discusión generó dentro del equipo: cómo está construido cada servicio por dentro. Aquí rechazamos deliberadamente tener un estilo de la casa. Hexagonal en todas partes sería puro andamiaje para un servicio con dominio delgado cuya infraestructura no cambia nunca. Y por capas en todas partes acoplaría los dominios ricos a su framework, y cambiar un adaptador sería una reescritura. La regla que aplicamos: la arquitectura sigue a la complejidad del dominio y al número de dependencias genuinamente intercambiables. Hexagonal para wise_auth, notificaciones, materiales y tareas, que tienen muchas dependencias salientes intercambiables. Hexagonal más DDD más vertical slicing solo para tutoring, que es el dominio más rico. Clean architecture para gamificación, que es la expresión en .NET de la misma idea. Por capas para estudio y chat: dominios delgados, Spring Data y MinIO fijos, no hay nada que intercambiar, así que los puertos serían ceremonia. Y hay servicios con forma de problema, sin capas en absoluto: el juego en Go es una goroutine por sala sobre estado en memoria, y los workers de IA son consumir, predecir, publicar. El costo aceptado: el código no es arquitectónicamente uniforme. Quien llega nuevo tiene que leer el README del servicio para saber qué patrón sigue. Ese es el precio de no cobrarle ceremonia a los servicios simples.
 
-[Tiempo objetivo: 85s · diapositiva 11 de 17]">
+[Tiempo objetivo: 91s · diapositiva 11 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -980,7 +980,7 @@ em { font-style: italic; }
 
 <section class="page " data-document-role="page" data-label="12. Zoom · tutoring" data-speaker-notes="Vale la pena bajar a un servicio, y elegimos tutoring porque es el dominio más rico y el único que reescribimos por completo. Está en NestJS 11 con Prisma sobre PostgreSQL, y combina hexagonal con DDD y vertical slicing: cinco rebanadas de negocio independientes. Identidad, catálogos, disponibilidad, tutorías y reservas. Cada capacidad es su propia rebanada, con su dominio y sus puertos. Dos mecanismos concretos que muestran por qué hacía falta un dominio de verdad. El primero es la concurrencia de reservas. Cuando dos estudiantes reservan el último cupo al mismo tiempo, PostgreSQL solo incrementa la capacidad mientras cupos ocupados sea menor que cupos máximos. La condición vive en la base, en la propia sentencia, no en un if de la aplicación que se puede colar entre la lectura y la escritura. El segundo es la materialización idempotente. Los tutores publican plantillas de disponibilidad recurrentes, y un job diario las expande en sesiones concretas y reservables. Ese job usa una restricción única sobre la tripleta tutor, franja y fecha, lo que hace que ejecutarlo repetidas veces sea seguro. Importa porque corremos varias réplicas y todas hacen el trabajo redundante; la unicidad es lo que lo vuelve inofensivo. Y las sesiones virtuales usan Jitsi autoalojado y un tablero de Excalidraw sincronizado por un relay de WebSocket.
 
-[Tiempo objetivo: 85s · diapositiva 12 de 17]">
+[Tiempo objetivo: 89s · diapositiva 12 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -1039,7 +1039,7 @@ em { font-style: italic; }
 
 <section class="page " data-document-role="page" data-label="14. Autenticación" data-speaker-notes="Autenticación. El flujo es corto a propósito. El usuario entra con correo y contraseña o con Google OAuth. wise_auth valida y devuelve un JWT firmado con los claims de identidad: sub, email, nombre, apellido y rol. A partir de ahí, el front manda ese token en la cabecera a cualquiera de los doce servicios, y cada servicio lo valida localmente con el secreto compartido. Fíjense en el paso cuatro: no hay ninguna llamada de vuelta a wise_auth. Ninguna. Esa es la propiedad que hace que todo lo demás funcione. Y el userId siempre sale del claim sub, nunca de la URL, lo que cierra los IDOR por diseño y no por revisión. ¿Por qué JWT y no PASETO? PASETO es la primitiva mejor diseñada, y lo reconocemos abiertamente. Pero el token lo tienen que parsear idénticamente cuatro runtimes: Node, la JVM, .NET y Go. Y JWT tiene librerías de primera parte en los cuatro; las de PASETO en .NET y Go no tienen ni de lejos el mismo rodaje. Así que elegimos madurez de ecosistema sobre elegancia de diseño, y cerramos el footgun de JWT, que es la confusión de algoritmos, fijando HS256 en cada verificador en vez de confiar en la cabecera del token.
 
-[Tiempo objetivo: 80s · diapositiva 14 de 17]">
+[Tiempo objetivo: 85s · diapositiva 14 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -1076,9 +1076,9 @@ em { font-style: italic; }
   <div class="page__num" aria-hidden="true">14</div>
 </section>
 
-<section class="page " data-document-role="page" data-label="15. Seguridad" data-speaker-notes="Seguridad, y aquí prefiero ser honesto antes que vendedor. El modelo descansa en tres reglas. La identidad sale del token, nunca de la petición. Cada servicio valida de forma independiente, sin confiar en sus pares. Y el frontend no es una frontera de seguridad: los guards y los menús ocultos son experiencia de usuario; toda regla se vuelve a aplicar en el servidor. Tres controles concretos. Argon2id para contraseñas, con 19 mebibytes y dos iteraciones. Migramos desde bcrypt porque bcrypt trunca silenciosamente a 72 bytes y no es duro en memoria contra ataques con GPU. Y cuando el correo no está registrado, corremos una verificación falsa del mismo costo antes de rechazar, para que el tiempo de respuesta no revele qué correos existen. Segundo: validación por magic bytes en materiales. El Content-Type es una afirmación del atacante; los primeros cinco bytes son evidencia. Verificamos que el archivo empiece por %PDF-. Tercero: el token vive en localStorage, y lo sabemos. Lo mitigamos con una lista blanca de hosts en el interceptor, así el token nunca llega a un tercero, más CSP, más el escapado de Angular. Y ahora los riesgos que aceptamos, que están escritos tal cual en nuestra documentación. Cualquier XSS exitoso puede leer el token: mitigado en profundidad, nunca eliminado. No hay revocación antes de la expiración: cerrar sesión es descartar el token en el cliente. Y el secreto compartido está en todos los servicios. Esa es la decisión que más probablemente revisemos: si aparecen equipos por servicio, RS256 con un JWKS centralizado se vuelve viable.
+<section class="page " data-document-role="page" data-label="15. Seguridad" data-speaker-notes="Seguridad, y aquí prefiero ser honesto antes que vendedor. El modelo descansa en tres reglas. La identidad sale del token, nunca de la petición. Cada servicio valida de forma independiente, sin confiar en sus pares. Y el frontend no es una frontera de seguridad: los guards y los menús ocultos son experiencia de usuario; toda regla se reaplica en el servidor. Tres controles concretos. Argon2id para contraseñas: migramos desde bcrypt porque truncaba silenciosamente a 72 bytes y no es duro en memoria contra ataques con GPU. Y si el correo no está registrado, corremos una verificación falsa del mismo costo antes de rechazar, para que el reloj no revele qué correos existen. Segundo: magic bytes en materiales. El Content-Type es una afirmación del atacante; los primeros cinco bytes son evidencia. Y ahora los riesgos que aceptamos, escritos tal cual en nuestra documentación. Cualquier XSS exitoso puede leer el token: mitigado en profundidad, nunca eliminado. No hay revocación antes de la expiración: cerrar sesión es descartar el token en el cliente. Y el secreto compartido vive en todos los servicios. Esa es la decisión que más probablemente revisemos: si aparecen equipos por servicio, RS256 con un JWKS centralizado se vuelve viable.
 
-[Tiempo objetivo: 85s · diapositiva 15 de 17]">
+[Tiempo objetivo: 83s · diapositiva 15 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -1121,7 +1121,7 @@ em { font-style: italic; }
 
 <section class="page " data-document-role="page" data-label="16. Frontend" data-speaker-notes="El frontend, brevemente. Angular 21 con componentes standalone, signals para el estado reactivo y renderizado en servidor. Sin NgRx y sin ninguna librería de estado externa: el estado de cada feature vive en un servicio inyectable que expone signals computados. Para el tamaño de este equipo, un store global habría sido ceremonia. Internacionalización en tiempo de ejecución con ngx-translate, en cuatro idiomas. Y una decisión que parece pequeña y no lo es: las URLs base de los doce servicios se resuelven en tiempo de ejecución desde un archivo env.json, generado a partir de variables de entorno. Eso permite que un único artefacto de build se promueva sin cambios entre ambientes; no recompilamos para pasar de desarrollo a producción. Tiene un timeout de tres segundos para que no bloquee la hidratación. Y sobre el token en localStorage, que ya mencioné: el interceptor tiene una lista blanca de orígenes propios, así que el JWT solo se adjunta a nuestros servicios y nunca sale hacia un tercero.
 
-[Tiempo objetivo: 70s · diapositiva 16 de 17]">
+[Tiempo objetivo: 68s · diapositiva 16 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     
@@ -1166,7 +1166,7 @@ em { font-style: italic; }
 
 <section class="page page--wine page--close" data-document-role="page" data-label="17. Cierre y documentación" data-speaker-notes="Y ahí lo dejamos. Recapitulando en una frase: cinco decisiones independientes que se componen, cada una con su porqué y su precio escrito. Todo lo que vieron hoy, y bastante más, está documentado: los dieciocho registros de decisiones de arquitectura con su contexto y sus alternativas rechazadas, el desglose comparativo de seguridad servicio por servicio, y las páginas de cada microservicio. Está en eciwise.github.io, ahí tienen el código QR. Muchas gracias. Quedamos atentos a preguntas.
 
-[Tiempo objetivo: 45s · diapositiva 17 de 17]">
+[Tiempo objetivo: 31s · diapositiva 17 de 17]">
   <div class="page__deco" aria-hidden="true"></div>
   
     <div class="close__left">
