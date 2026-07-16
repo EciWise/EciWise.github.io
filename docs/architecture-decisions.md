@@ -7,6 +7,29 @@ title: Architecture Decisions
 
 This page documents the key architectural decisions made throughout the ECIWise project — what was decided, why, the trade-offs accepted, and how each service evolved over time.
 
+| # | Decision | Scope | Status |
+|---|----------|-------|--------|
+| [ADR-001](#adr-001--microservice-architecture--event-driven-architecture) | Microservices + Event-Driven Architecture | Platform | Accepted |
+| [ADR-002](#adr-002--rabbitmq-as-the-event-broker-azure-service-bus-kept-as-a-contingency-alternative) | RabbitMQ as the event broker (Azure SB as contingency) | Platform | Accepted |
+| [ADR-003](#adr-003--architecture-pattern-per-service-hexagonal-for-complex-domains-layered-for-simple-ones) | Hexagonal for complex domains, layered for simple ones | Platform | Accepted |
+| [ADR-004](#adr-004--wise_auth-migration-from-layered-to-hexagonal) | `wise_auth`: layered → hexagonal migration | `wise_auth` | Accepted |
+| [ADR-005](#adr-005--tutoring-complete-rewrite-with-hexagonal--ddd--vertical-slicing) | `tutoring`: rewrite with Hexagonal + DDD + Vertical Slicing | `tutoring` | Accepted |
+| [ADR-006](#adr-006--gamification-net-10--c-with-hexagonal-architecture) | `gamification`: .NET 10 / C# with Clean Architecture | `gamification` | Accepted |
+| [ADR-007](#adr-007--two-ai-models-dropout-prediction-and-performance-prediction) | Two independent AI models (dropout · performance) | AI | Accepted |
+| [ADR-008](#adr-008--database-per-service) | Database per service | Platform | Accepted |
+| [ADR-009](#adr-009--vector-database-in-the-ai-service-for-semantic-search-and-rag) | Qdrant vector database for semantic search and RAG | AI | Accepted |
+| [ADR-010](#adr-010--wise_auth-password-hashing-migration-from-bcrypt-to-argon2id) | `wise_auth`: bcrypt → Argon2id password hashing | `wise_auth` | Accepted |
+| [ADR-011](#adr-011--self-hosted-jitsi-meet-for-tutoring-video-calls) | Self-hosted Jitsi Meet for video calls | `tutoring` | Accepted |
+| [ADR-012](#adr-012--collaborative-whiteboard-via-excalidraw-with-a-websocket-relay) | Excalidraw whiteboard with a WebSocket relay | `tutoring` | Accepted |
+| [ADR-013](#adr-013--notifications-smtp-as-a-first-class-alternative-to-sendgrid) | `notifications`: SMTP as an alternative to SendGrid | `notifications` | Accepted |
+| [ADR-014](#adr-014--jwt-hs256-as-the-cross-service-token-format) | JWT HS256 as the cross-service token format | Security | Accepted |
+| [ADR-015](#adr-015--frontend-angular-standalone--signals--ssr-with-no-external-state-library) | Frontend: Angular standalone + signals + SSR, no store | Frontend | Accepted |
+| [ADR-016](#adr-016--frontend-jwt-in-localstorage-with-host-restricted-attachment) | Frontend: JWT in `localStorage`, host-restricted | Frontend · Security | Accepted |
+| [ADR-017](#adr-017--frontend-runtime-configuration-via-assetsenvjson) | Frontend: runtime config via `assets/env.json` | Frontend | Accepted |
+| [ADR-018](#adr-018--materials-storage-provider-abstraction-azure-blob--s3) | `materials`: storage provider abstraction + upload validation | `materials` | Accepted |
+
+A recurring pattern across ADR-002, ADR-013, and ADR-018: **when an infrastructure dependency has a credible second implementation, it goes behind a domain port and is selected by an environment variable** — never by a code change. See [Security](/docs/security/) for how these decisions compose into the platform's security posture.
+
 ---
 
 ## ADR-001 — Microservice Architecture + Event-Driven Architecture
@@ -944,3 +967,460 @@ sequenceDiagram
 
 - **Good:** Real-time collaboration that reuses the tutoring service's JWT contract and the exact same access rules as the video call, with **no extra infrastructure** — the relay runs inside the existing `tutoring` process. The server stays domain-agnostic (Excalidraw elements are opaque JSON), reconciliation happens on the client, writes are debounced to batch updates, and abandoned boards are cleaned up automatically after a week.
 - **Accepted cost:** The relay keeps each active room's state **in memory in a single process**, so it does not scale horizontally without shared room state or sticky WebSocket sessions. The server stores the *last scene it received* rather than a merged authoritative state, so correctness of merges is trusted to the client's `reconcileElements`. The JWT travels in the WebSocket query string (a browser handshake limitation) rather than in a header.
+
+---
+
+## ADR-013 — notifications: SMTP as a First-Class Alternative to SendGrid
+
+**Status:** Accepted
+
+### Context
+
+The `notifications` service sent every transactional email through the **SendGrid API**. SendGrid is a good production choice — deliverability analytics, suppression lists, and a single API call for bulk fan-out — but it imposes a requirement the project could not meet during development:
+
+- **SendGrid requires a verified sender identity.** Ideally that means a domain the team owns, with SPF and DKIM records published for it.
+- ECIWise is a student project without its own mail domain. Sending as an address on a domain we do not control means the message is **not signed by that domain's SPF/DKIM**, so it **fails DMARC** at the receiving side and lands in spam — or is rejected outright. Emails were effectively not arriving.
+- **Local development required real sends.** Testing the email path meant a real API key and real messages to real inboxes. There was no way to exercise templates, i18n resolution, and the dispatch flow offline.
+
+We needed a way to actually deliver mail without owning a domain, and a way to test the whole path with nothing but Docker.
+
+### Decision
+
+**Add a second `EmailSenderPort` adapter, `SmtpEmailSender` (nodemailer), selected at runtime via `EMAIL_PROVIDER`.** SendGrid stays the default; SMTP becomes a fully supported alternative rather than a test double.
+
+The key insight is *who signs the message*. Authenticating against the sender's own mailbox (e.g. Gmail with an app password) means **the provider signs the message with its own SPF/DKIM** — the mail is sent as the mailbox owner, which is exactly what the receiving side expects, so it passes DMARC and is delivered. No domain to own, no cost.
+
+```mermaid
+graph LR
+  DNS["DispatchNotificationService\n(application layer)"]
+  PORT["EmailSenderPort\n(domain — no provider knowledge)"]
+
+  subgraph Root["notifications.module.ts"]
+    SWITCH{"envs.emailProvider"}
+  end
+
+  SG["SendgridEmailSender\n@sendgrid/mail"]
+  SMTP["SmtpEmailSender\nnodemailer"]
+
+  API["SendGrid HTTPS API\n(verified sender required)"]
+  GMAIL["Own mailbox via SMTP\n(signed by provider SPF/DKIM)"]
+  MAILPIT["Mailpit :1025\n(local, no credentials)"]
+
+  DNS --> PORT --> SWITCH
+  SWITCH -->|"'sendgrid' — default"| SG --> API
+  SWITCH -->|"'smtp'"| SMTP --> GMAIL
+  SMTP -.->|"SMTP_HOST=localhost:1025"| MAILPIT
+```
+
+This is the **same strategy pattern already used for the broker** (ADR-002), applied to the outbound email edge. Both switches are orthogonal and resolved once, at composition time:
+
+| Switch | Chooses | Values |
+|--------|---------|--------|
+| `MESSAGING_BROKER` | Where messages come **from** | `azure` · `rabbitmq` |
+| `EMAIL_PROVIDER` | Where emails go **to** | `sendgrid` · `smtp` |
+
+**Why the deliverability difference matters:**
+
+```mermaid
+sequenceDiagram
+  participant N as notifications
+  participant SG as SendGrid
+  participant SMTP as Own mailbox (SMTP)
+  participant RX as Recipient mail server
+
+  Note over N,RX: Path A — SendGrid without an owned domain
+  N->>SG: send as noreply@dominio-que-no-poseemos
+  SG->>RX: message, not signed by that domain
+  RX->>RX: SPF/DKIM ✗ → DMARC fails
+  RX-->>N: spam / rejected
+
+  Note over N,RX: Path B — SMTP authenticated against our own mailbox
+  N->>SMTP: AUTH + send as <mailbox owner>
+  SMTP->>RX: message signed with provider SPF/DKIM
+  RX->>RX: SPF/DKIM ✓ → DMARC passes
+  RX-->>N: delivered to inbox
+```
+
+**Adapter differences** (deliberately confined to the adapter — the port contract is identical):
+
+| Aspect | `SendgridEmailSender` | `SmtpEmailSender` |
+|--------|----------------------|-------------------|
+| Transport | SendGrid HTTPS API | SMTP/TLS (`465` implicit · `587` STARTTLS · `1025` plain) |
+| Credentials | API key (revocable, no mailbox password) | Mailbox / app password |
+| Bulk strategy | One API call using `personalizations` | One message per recipient (addresses never exposed to each other) |
+| Deliverability | Needs a verified sender or DMARC fails | Signed by the relay's own SPF/DKIM |
+| Cost | Free tier, then per-message | Free (existing mailbox) |
+| Local testing | Real key, real sends | Mailpit — offline, no credentials |
+
+Provider credentials are validated **conditionally at boot** with Joi (`SENDGRID_API_KEY` required only when `EMAIL_PROVIDER=sendgrid`, `SMTP_HOST`/`SMTP_PORT` only when `smtp`), so a misconfiguration fails at startup rather than when the first notification needs to go out. `SMTP_USER`/`SMTP_PASS` stay optional because Mailpit accepts unauthenticated mail.
+
+### Consequences
+
+- **Good:** Email is actually delivered without owning a domain — the original blocker is gone. The full email path (templates, i18n, dispatch, logo embedding) is now testable offline against Mailpit with no API key and no real sends. Hexagonal architecture proved its value concretely: a whole second transport cost **one adapter class plus one ternary in the composition root**, with zero changes to the domain, use cases, templates, or consumers. SendGrid remains the default for production, and switching providers — or falling back if SendGrid has an incident — is one environment variable.
+- **Accepted cost:** Two email libraries now ship in the image (`@sendgrid/mail` and `nodemailer`). Bulk sending is genuinely slower under SMTP — one message per recipient in a loop instead of a single batched API call — and mailbox providers such as Gmail impose their own daily send limits, so SMTP does not scale to large campaigns. SMTP also means holding a mailbox app password in configuration, which is a broader credential than a scoped, revocable SendGrid API key. And SMTP gives up SendGrid's analytics, bounce handling, and suppression lists entirely. Under SMTP, `MAIL_FROM` must match the authenticated mailbox or DMARC fails for exactly the reason the adapter exists to avoid.
+
+---
+
+## ADR-014 — JWT (HS256) as the Cross-Service Token Format
+
+**Status:** Accepted
+
+### Context
+
+Every microservice must authenticate requests that originate from the frontend, and the platform is polyglot: NestJS (`wise_auth`, `tutoring`, `materials`, `notifications`, `community`), Spring Boot (`study`, `talk`, `todo`), .NET (`gamification`), and Go (`game`). A service must be able to decide *who is calling and with what role* on every request.
+
+The options considered:
+
+- **Opaque tokens + introspection** — `wise_auth` issues a random token; every service calls back to validate it.
+- **PASETO** (Platform-Agnostic Security Tokens) — a modern alternative designed specifically to remove JWT's footguns.
+- **JWT with RS256** — asymmetric: `wise_auth` signs with a private key, services verify with a public key.
+- **JWT with HS256** — symmetric: one shared secret signs and verifies.
+
+### Decision
+
+**Use JWT signed with HS256 and a `JWT_SECRET` shared across services**, validated locally by each service with no call back to `wise_auth`.
+
+```mermaid
+graph LR
+  AUTH["wise_auth\nsigns HS256 with JWT_SECRET"]
+
+  subgraph Verify["Local verification — no network call to auth"]
+    NEST["NestJS services\npassport-jwt · algorithms: ['HS256']"]
+    SPRING["Spring services\njjwt · verifyWith(key)"]
+    NET["gamification (.NET)\nSystem.IdentityModel.Tokens.Jwt"]
+    GO["game (Go)\nJWTMiddleware"]
+  end
+
+  FE["Angular Frontend"]
+
+  AUTH -->|"access_token"| FE
+  FE -->|"Authorization: Bearer <jwt>"| NEST & SPRING & NET & GO
+  AUTH -. "shared JWT_SECRET (config, not runtime)" .-> NEST & SPRING & NET & GO
+```
+
+**Why JWT over the alternatives:**
+
+| Option | Verdict | Reasoning |
+|--------|---------|-----------|
+| **Opaque + introspection** | Rejected | Every request from every service would need an HTTP round-trip to `wise_auth`, making it a **latency tax and a single point of failure** for the whole platform. It directly contradicts ADR-008 (database per service, no inter-service lookups for identity). Revocation is its one real advantage — not enough to justify coupling every request to auth's availability. |
+| **PASETO** | Rejected | Genuinely the better-designed primitive: versioned protocols, no `alg` header, so **algorithm-confusion and `alg: none` attacks are impossible by construction** rather than by correct configuration. It was rejected on **ecosystem maturity across four runtimes**, not on cryptographic merit. JWT has first-party, battle-tested libraries everywhere we need them (`passport-jwt`, `jjwt`, `System.IdentityModel.Tokens.Jwt`, `golang-jwt`); PASETO's libraries for .NET and Go are third-party, less maintained, and would have to interoperate flawlessly across all four stacks. A token format that four independent runtimes must agree on byte-for-byte is the wrong place to take an ecosystem risk. We mitigate JWT's footgun explicitly instead — see below. |
+| **JWT RS256** | Rejected *for now* | The right choice **once services are operated by separate teams**: only `wise_auth` holds the private key, so a compromised downstream service can verify tokens but not mint them. Under HS256 the shared secret is a **signing** key in every service — anyone holding it can forge a token for any user and any role. Today all services are deployed by one team from one configuration source, so the blast radius is the same either way, and HS256 avoids operating a JWKS endpoint and a key-rotation story. **This is the decision most likely to be revisited.** |
+| **JWT HS256** | **Accepted** | Universally supported across NestJS, Spring, .NET, and Go. Zero-latency local validation. Claims carry the identity data (`sub`, `email`, `nombre`, `apellido`, `rol`) that services need, which is precisely what makes the no-shared-database rule practical. |
+
+**JWT's known footgun, and how it is closed.** JWT's fatal weakness is that the *token* declares its own algorithm in the `alg` header. A verifier that trusts that header can be tricked into `alg: none` (accept anything) or into verifying an RS256 token as HS256 using the public key as the HMAC secret. **The mitigation is to pin the algorithm at the verifier**, which every service does:
+
+```ts
+// wise_auth — jwt.strategy.ts
+super({
+  jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+  ignoreExpiration: false,
+  secretOrKey: envs.jwtSecret,
+  // Fijamos el algoritmo (HS256) para evitar ataques de confusión de algoritmo.
+  algorithms: ['HS256'],
+});
+```
+
+This is exactly the class of bug PASETO removes by design. We accept the obligation to configure it correctly on every service instead.
+
+**Token contract** — the claims every service can rely on:
+
+| Claim | Purpose |
+|-------|---------|
+| `sub` | User UUID — **the only accepted source of user identity**; never read from the URL |
+| `email` | User email |
+| `nombre` / `apellido` | Display name, used for JIT provisioning |
+| `rol` | `estudiante` · `tutor` · `admin` — drives role guards |
+| `exp` | Expiry, configurable via `JWT_EXPIRATION`; `ignoreExpiration: false` everywhere |
+
+### Consequences
+
+- **Good:** Any service in any of the four runtimes validates a token in microseconds with no network call, so authentication does not couple services to `wise_auth`'s uptime. Claims carry enough identity to make JIT provisioning work without cross-service lookups (ADR-008). Algorithm pinning closes the main JWT attack class.
+- **Accepted cost:** **The shared secret is a signing key in every service** — a leak anywhere lets an attacker mint a token for any user and any role. `JWT_SECRET` is a minimum-16-character Joi-validated secret managed only through deployment configuration, never committed. **Tokens cannot be revoked before expiry**: a logout is a client-side discard, so a stolen token is valid until `exp`. This is the fundamental trade for stateless validation, and it is why token lifetime is kept short. Rotating the secret invalidates every live session across the platform at once and requires coordinated redeployment of every service. Migrating to RS256 is the documented escape hatch when service ownership diverges.
+
+---
+
+## ADR-015 — Frontend: Angular Standalone + Signals + SSR, with No External State Library
+
+**Status:** Accepted
+
+### Context
+
+The frontend is a single Angular application serving three roles (student, tutor, admin) across a wide feature surface: tutoring, materials, chat, forums, flashcards, quizzes, games, gamification, AI predictions, video calls, and a collaborative whiteboard. Two decisions had to be made early: how to structure the app, and how to manage state.
+
+The default reflex for an app this size is a state management library (NgRx or similar). That brings actions, reducers, effects, and selectors — a large amount of ceremony that pays off when many distant components share and mutate the same state.
+
+### Decision
+
+**Use Angular 21 with standalone components, signals for state, and SSR — with no external state management library.** Feature state lives in `@Injectable({ providedIn: 'root' })` services that expose signals.
+
+```mermaid
+graph TB
+  subgraph Core["src/app/core — cross-cutting"]
+    AUTH["auth/\nAuthService · authGuard · roleGuard\nauthInterceptor"]
+    HTTP["http/\nerrorInterceptor"]
+    CONFIG["config/\nEnvService · api-hosts · feature flags"]
+    I18N["i18n/ · theme/ · a11y/"]
+    DOMAIN["tutoring/ · study/ · talk/ · game/\ncommunity/ · notifications/ · ia/\ngamification/ · todo/"]
+  end
+
+  subgraph Features["src/app/features — one folder per domain"]
+    LANDING["landing/ · auth/"]
+    STUDENT["student/ · tutor/ · admin/"]
+    LEARN["aprendizaje/ · practica/"]
+    RT["chat/ · videollamada/ · pizarra/"]
+    AI["ia/ · ai-assistant/ · ai-quiz/"]
+  end
+
+  subgraph Shared["src/app/shared"]
+    UI["ui/ — eci-button · eci-card · eci-icon\neci-modal · eci-select"]
+    LAYOUT["layout/ — AppShell · top-bar · side-nav"]
+    UTIL["util/ · styles/ · ethics/"]
+  end
+
+  Features --> Core
+  Features --> Shared
+  Shared --> Core
+```
+
+**State model — signals in services, not a store:**
+
+```mermaid
+graph LR
+  SVC["AuthService\n_user — signal of User or null"]
+  RO["user\n_user.asReadonly()"]
+  C1["isAuthenticated\ncomputed — user is not null"]
+  C2["role\ncomputed — user role or null"]
+  CMP["Components\n(OnPush — re-render on signal change)"]
+
+  SVC --> RO --> CMP
+  SVC --> C1 --> CMP
+  SVC --> C2 --> CMP
+```
+
+| Choice | Alternative rejected | Reasoning |
+|--------|---------------------|-----------|
+| Signals in root services | NgRx / global store | State here is **owned by one domain and read by a few components** — session, theme, chat, flags. There is almost no distant cross-domain mutation, which is the problem a store solves. `computed()` gives derived state without selectors, and OnPush components re-render precisely. NgRx would add reducers and effects to state that is genuinely one signal. |
+| Standalone components | NgModules | No module bookkeeping; each component declares its own imports. The Angular team's own direction. |
+| SSR (`@angular/ssr`) | SPA only | First paint before hydration, and crawlable public pages (landing, help). Cost: **browser-only code must be guarded** with `isPlatformBrowser` — `AuthService` and `ChatService` guard every `localStorage` access. |
+| Runtime i18n (`@ngx-translate`) | Angular built-in i18n | One build serves all locales; the user switches language live. Angular's compile-time i18n needs one build per locale. Enforced by convention: **no visible string is hardcoded** — every one goes through the `translate` pipe. |
+| `eci-*` UI kit | Component framework (Material) | The design system follows ECI's institutional identity. A shared `eci-icon` (Lucide) is mandatory — **never emojis** — and every screen must respect light, dark, and accessibility themes. |
+
+**Bootstrap order matters** (`app.config.ts`): `provideAppInitializer` loads `EnvService` *before* feature flags, because resolving flags needs `wise_auth`'s URL — which comes from the env file. Flag initialization is deliberately **not awaited**: it seeds synchronously from local cache and syncs in the background, so a slow or down backend cannot stall hydration behind a fetch.
+
+### Consequences
+
+- **Good:** Far less ceremony than a store for state that is genuinely local to a domain. `computed()` derives state with no selector boilerplate. Standalone components keep imports honest and explicit. SSR gives fast first paint and crawlable public pages. One build serves every locale and every environment.
+- **Accepted cost:** No store means **no time-travel debugging and no centralized action log** — tracing a state change means reading the owning service. Signals are still comparatively new, so patterns are less established than NgRx's. SSR imposes a permanent discipline: any new browser-only API must be guarded, and forgetting breaks the server render. If cross-domain state coupling grows substantially, this decision should be revisited.
+
+---
+
+## ADR-016 — Frontend: JWT in `localStorage` with Host-Restricted Attachment
+
+**Status:** Accepted
+
+### Context
+
+The frontend must persist the JWT issued by `wise_auth` across reloads and attach it to API calls. The canonical secure answer is an **`httpOnly` cookie**: JavaScript cannot read it, so an XSS payload cannot exfiltrate the token.
+
+That answer does not fit this architecture:
+
+- The frontend calls **twelve different services on different origins** (`wise_auth`, tutoring, materials, notifications, study, talk, todo, community, gamification, game, and two AI services). A cookie is scoped to a domain — making one cookie work across all of them requires a shared parent domain and per-service CORS credential handling.
+- Services are **stateless and validate the token locally** (ADR-014). Cookie auth would push CSRF protection into every one of them, in four different runtimes.
+- The frontend also opens **WebSockets** (chat, game, whiteboard) where the browser cannot set an `Authorization` header at all, so the token must be readable by JavaScript to be passed another way.
+
+### Decision
+
+**Store the JWT in `localStorage`, and mitigate the resulting XSS exposure with a defense-in-depth stack rather than with cookie semantics.**
+
+```mermaid
+graph TB
+  LOGIN["Login / OAuth callback"]
+  LS["localStorage\neciwise.token · eciwise.session"]
+
+  subgraph Guards["Mitigations"]
+    HOST["authInterceptor\nattaches token ONLY to isOwnApiUrl(...)"]
+    CSP["CSP + HSTS + X-Frame-Options: DENY\nframe-ancestors 'none' · no token to steal via clickjacking"]
+    NG["Angular built-in escaping\n(no bypassSecurityTrust* · no innerHTML)"]
+    EXP["isUsableToken()\nstale/expired tokens purged on read"]
+  end
+
+  API["Own services\n(wise_auth · tutoring · … )"]
+  THIRD["Third-party origins"]
+
+  LOGIN --> LS --> HOST
+  HOST -->|"Authorization: Bearer"| API
+  HOST -->|"no token attached"| THIRD
+  CSP & NG & EXP -.->|"reduce XSS surface"| LS
+```
+
+**The critical mitigation is host restriction.** A naive interceptor attaches the token to *every* outgoing request — so any third-party URL the app ever calls receives the user's credentials. Ours attaches it only to a **centrally maintained allowlist** of our own service hosts:
+
+```ts
+// auth.interceptor.ts
+const token = localStorage.getItem(TOKEN_KEY);
+if (!token || !isOwnApiUrl(req.url, ownApiHosts())) {
+  return next(req);   // third-party host → no token leaves
+}
+return next(req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
+```
+
+`ownApiHosts()` is the single source of truth, deliberately shared with the `errorInterceptor` so that **token attachment and 401/403 session handling can never disagree about which hosts are ours**.
+
+**Session hygiene:**
+
+| Behaviour | Implementation |
+|-----------|---------------|
+| Expired token never used | `isUsableToken()` decodes `exp` on every read; an expired token is purged and treated as no session |
+| Stale session cleared on boot | `restoreUser()` drops the persisted user if the token is missing, expired, or corrupt — no "logged-in" UI with a dead token |
+| Dead session → logout | `errorInterceptor` logs out on 401/403 from our hosts **only when `sessionExpired()`** is true |
+| Permission denial ≠ logout | A 403 with a still-valid token is a **permission** error and must not end the session |
+| SSR safety | Every `localStorage` access is guarded by `isPlatformBrowser`; the server has no token |
+
+### Consequences
+
+- **Good:** One token works across twelve origins with no shared-domain requirement and no per-service CORS credential configuration. Services stay stateless with no CSRF machinery in four runtimes. WebSocket auth is possible at all. Host restriction means the token is never sent to a third party even if the app calls one. Expired sessions are cleaned deterministically instead of failing at the API.
+- **Accepted cost:** **`localStorage` is readable by any JavaScript running on the origin — a successful XSS means token theft, and no amount of CSP fully removes that risk.** This is a real, permanent trade, accepted because cookie auth is impractical across twelve origins plus WebSockets. It raises the stakes on the mitigations: Angular's escaping must not be bypassed (`bypassSecurityTrust*` and raw `innerHTML` stay out of the codebase), CSP and HSTS must stay in place, and any dependency that could inject script is a token-theft vector. Combined with ADR-014's lack of revocation, a stolen token is usable until `exp` — which is precisely why token lifetime is kept short.
+
+---
+
+## ADR-017 — Frontend: Runtime Configuration via `assets/env.json`
+
+**Status:** Accepted
+
+### Context
+
+The frontend must know the base URL of **twelve backend services**. Those URLs differ per environment: `localhost` ports in development, Azure hostnames in production.
+
+Angular's conventional answer is `environment.ts` / `environment.prod.ts`, swapped at build time by the CLI. That makes **the build artifact environment-specific**: promoting the exact binary that passed CI to production is impossible, because production needs a different build. Changing one service's hostname means a full rebuild and redeploy.
+
+### Decision
+
+**Resolve service URLs at runtime from `/assets/env.json`, fetched during app initialization.** The build is environment-agnostic; `scripts/write-env.mjs` generates `env.json` from process environment variables at container start or deploy time.
+
+```mermaid
+graph LR
+  ENVVARS["Environment variables\nAUTH_SERVICE · TALK_SERVICE\nTUTORING_SERVICE · …"]
+  SCRIPT["scripts/write-env.mjs\n(prestart / prebuild)"]
+  JSON["/assets/env.json"]
+  SVC["EnvService.load()\nfetch · no-cache · 3s timeout"]
+  TOKENS["Injection tokens\nAUTH_CONFIG · TALK_CONFIG\nTUTORING_CONFIG · …"]
+  APP["Services & components"]
+
+  ENVVARS --> SCRIPT --> JSON --> SVC --> TOKENS --> APP
+  SVC -.->|"fetch fails or times out"| DEF["localhost defaults"] --> TOKENS
+```
+
+Each service gets a **typed injection token** wired by a factory, so no component ever reads a raw URL:
+
+```ts
+{
+  provide: TUTORING_CONFIG,
+  useFactory: (env: EnvService) => ({
+    tutoringApiUrl: env.get('tutoringApiUrl', 'http://localhost:3007'),
+  }),
+  deps: [EnvService],
+}
+```
+
+**The timeout is load-bearing.** `env.load()` blocks app initialization. Without a bound, a backend that accepts the connection but never responds leaves the page **rendered by SSR but never hydrated** — visible and completely unresponsive. A 3-second `AbortSignal.timeout` falls through to the same `catch` path as a failed fetch, so the app boots with defaults instead of hanging:
+
+```ts
+const res = await fetch('/assets/env.json', {
+  cache: 'no-cache',
+  signal: AbortSignal.timeout(LOAD_TIMEOUT_MS),  // 3000
+});
+```
+
+| Property | Consequence |
+|----------|------------|
+| One artifact, many environments | The binary that passed CI is the binary that ships |
+| Hostname change without rebuild | Edit `env.json` (or the env var + restart) — no CI round-trip |
+| `cache: 'no-cache'` | A stale cached `env.json` can't pin the app to a dead backend |
+| Timeout + `catch` → defaults | A hung or missing config never blocks hydration |
+| Typed tokens, not raw strings | URLs are injectable and mockable; tests override the token |
+
+### Consequences
+
+- **Good:** One build artifact promotes unchanged from CI to production. Service URLs change without a rebuild. `EnvService` degrades to sensible localhost defaults, so a developer with no `env.json` still gets a working app. Typed tokens keep URL knowledge out of components and make tests trivial to configure. `ownApiHosts()` (ADR-016) reads the same tokens, so **the security allowlist automatically follows the runtime configuration** — no second list to drift.
+- **Accepted cost:** One extra network round-trip before the app initializes (bounded at 3s). Configuration errors surface at **runtime, not build time** — a typo in `env.json` is not caught by the compiler and silently falls back to a localhost default, which in production looks like a service being down. `env.json` is public: it is served to the browser, so **it may only ever contain non-secret values** — URLs, never keys.
+
+---
+
+## ADR-018 — materials: Storage Provider Abstraction (Azure Blob / S3)
+
+**Status:** Accepted
+
+### Context
+
+The `materials` service stores academic PDFs uploaded by students and tutors. The files must live in object storage, not in the database. Azure Blob Storage was the natural default since the platform deploys to Azure — but committing the domain to the Azure SDK would make a later move to AWS (or to MinIO for local development) a rewrite of every code path that touches a file.
+
+The service also publishes domain events (material uploaded, rated) and faces the same broker question as `notifications` (ADR-002).
+
+### Decision
+
+**Abstract both the storage backend and the message bus behind domain ports, and select the concrete adapter via environment variables** — consistent with `notifications` (ADR-013) and the broker strategy (ADR-002).
+
+```mermaid
+graph LR
+  UC["Use cases\n(MaterialService)"]
+
+  subgraph Ports["Domain ports"]
+    SP["StoragePort"]
+    MB["MessageBusPort"]
+  end
+
+  subgraph Storage["STORAGE_PROVIDER"]
+    AZ["azure-blob.adapter\nAzure Blob Storage"]
+    S3["s3.adapter\nAWS S3"]
+  end
+
+  subgraph Bus["MESSAGE_BUS_PROVIDER"]
+    ASB["Azure Service Bus"]
+    RMQ["RabbitMQ"]
+  end
+
+  UC --> SP & MB
+  SP -->|"'azure' (default)"| AZ
+  SP -->|"'s3'"| S3
+  MB -->|"'azure'"| ASB
+  MB -->|"'rabbitmq'"| RMQ
+```
+
+| Variable | Options | Default |
+|----------|---------|---------|
+| `STORAGE_PROVIDER` | `azure` (Blob Storage) · `s3` (AWS S3) | `azure` |
+| `MESSAGE_BUS_PROVIDER` | `azure` (Service Bus) · `rabbitmq` | `azure` |
+
+Each provider's credentials are **conditionally required** by Joi (`BLOB_STORAGE_CONNECTION_STRING` only when `azure`; `AWS_ACCESS_KEY_ID` only when `s3`), so a misconfiguration fails at boot.
+
+**Upload validation is layered, because MIME type is a claim, not a fact.** The `Content-Type` header is attacker-controlled — trusting it means accepting an executable renamed to `.pdf`. The controller therefore checks the **magic bytes** as well:
+
+```mermaid
+graph TB
+  UP["POST /material (multipart)"]
+  JWT["JwtAuthGuard\nverify token · JIT upsert user"]
+  MIME["mimetype === 'application/pdf'"]
+  MAGIC["magic bytes: %PDF- (0x25 50 44 46 2D)"]
+  SIZE["size ≤ MAX_FILE_SIZE_MB"]
+  AI["AI content validation"]
+  STORE["StoragePort.upload → Azure Blob / S3"]
+  EV["MessageBusPort.publish(material.uploaded)"]
+
+  UP --> JWT --> MIME --> MAGIC --> SIZE --> AI --> STORE --> EV
+  MIME -.->|reject| ERR["400 — not a PDF"]
+  MAGIC -.->|reject| ERR2["400 — MIME spoofing"]
+  SIZE -.->|reject| ERR3["400 — too large"]
+```
+
+| Layer | Check | Attack blocked |
+|-------|-------|---------------|
+| Guard | Valid JWT + JIT user upsert | Anonymous upload |
+| MIME | `mimetype === 'application/pdf'` | Casual wrong-type upload |
+| Magic bytes | First 5 bytes are `%PDF-` | **MIME spoofing** — the declared type is a claim; the bytes are evidence |
+| Size | `MAX_FILE_SIZE_MB` enforced in the controller *and* in the Multer limit | Storage exhaustion / DoS |
+| AI validation | Content screening before persistence | Irrelevant or inappropriate material |
+
+### Consequences
+
+- **Good:** The domain never imports a cloud SDK — moving from Azure Blob to S3 is an environment variable, and the same is true for the broker. Local development can point at S3-compatible storage without touching code. Conditional Joi validation means credentials for the *unselected* provider need not exist. The dual MIME + magic-byte check makes a spoofed content type useless, and the size limit is enforced twice (framework and controller) so neither alone is a single point of failure.
+- **Accepted cost:** Two storage SDKs ship in the image even though one is active. The port is a lowest-common-denominator abstraction: provider-specific features (Azure lifecycle policies, S3 storage classes) are not exposed and would need a port change to reach. Magic-byte checking requires the file to be buffered in memory before validation, which is fine at the current size ceiling but would need streaming validation for substantially larger files.

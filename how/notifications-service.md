@@ -9,10 +9,12 @@ title: Notifications Service
 
 The `notifications` service is the asynchronous messaging and email delivery backbone of the ECIWISE platform. It follows a **hexagonal (ports and adapters)** architecture: the domain core defines port interfaces, the application layer orchestrates use cases, and the infrastructure layer wires concrete adapters — none of which the domain or application layers know about directly.
 
-- **Email Delivery**: Sends transactional emails (individual, role-based, and bulk) via the SendGrid API with configurable sender identity and template-driven content.
+- **Email Delivery**: Sends transactional emails (individual, role-based, and bulk) through a **swappable provider** — SendGrid API or SMTP (nodemailer) — selectable at runtime via `EMAIL_PROVIDER`, with configurable sender identity and template-driven content.
 - **Template Engine**: Maintains 17 Handlebars HTML templates covering authentication events, tutoring lifecycle, materials and forum activity — with optional internationalization (es, en, de, pt, fr).
 - **Message Queue Consumer**: Consumes from Azure Service Bus or RabbitMQ (selectable at runtime via `MESSAGING_BROKER`) with two-layer message validation.
 - **REST API**: Exposes notification management endpoints. All user identity is derived from the JWT `sub` claim — never from the URL — preventing IDOR attacks.
+
+The service has **two independent runtime switches**, both resolved at startup and both invisible to the domain: `MESSAGING_BROKER` picks where messages come *from*, and `EMAIL_PROVIDER` picks where emails go *to*.
 
 ---
 
@@ -44,6 +46,7 @@ graph LR
     PR_N["PrismaNotificationRepository\n[PostgreSQL]"]
     PR_U["PrismaUserRepository\n[PostgreSQL]"]
     SG["SendgridEmailSender\n[SendGrid API]"]
+    SMTP["SmtpEmailSender\n[nodemailer / SMTP]"]
     HBS["HandlebarsTemplateRenderer\n[*.hbs]"]
   end
 
@@ -57,9 +60,62 @@ graph LR
   DNS --> POUT
   POUT --> PR_N
   POUT --> PR_U
-  POUT --> SG
+  POUT -->|"EMAIL_PROVIDER=sendgrid"| SG
+  POUT -->|"EMAIL_PROVIDER=smtp"| SMTP
   POUT --> HBS
 ```
+
+### Email Provider Selection
+
+`EmailSenderPort` has **two interchangeable implementations**. The composition root binds exactly one at startup based on `EMAIL_PROVIDER`; `DispatchNotificationService` only ever sees the port, so neither the domain nor the application layer knows which provider is live.
+
+```mermaid
+graph LR
+  DNS["DispatchNotificationService\n(application — knows only the port)"]
+  PORT["EmailSenderPort\nsendToRecipient · sendBulk"]
+
+  subgraph Root["notifications.module.ts — composition root"]
+    SWITCH{"envs.emailProvider"}
+  end
+
+  SG["SendgridEmailSender\n@sendgrid/mail\none API call for bulk"]
+  SMTP["SmtpEmailSender\nnodemailer\none message per recipient"]
+
+  API["SendGrid HTTPS API"]
+  RELAY["SMTP relay\nGmail · Outlook · Mailpit"]
+
+  DNS --> PORT --> SWITCH
+  SWITCH -->|"'sendgrid' (default)"| SG --> API
+  SWITCH -->|"'smtp'"| SMTP --> RELAY
+```
+
+Binding happens once, at module construction:
+
+```ts
+{
+  // Selección del proveedor de correo por env (EMAIL_PROVIDER).
+  provide: EMAIL_SENDER,
+  useClass:
+    envs.emailProvider === 'smtp' ? SmtpEmailSender : SendgridEmailSender,
+}
+```
+
+**Why a second provider exists.** SendGrid requires a verified sender identity, and sending on behalf of a domain the team does not own makes messages fail DMARC and land in spam. The SMTP adapter authenticates against the sender's *own* mailbox (e.g. Gmail with an app password), so the provider signs the message with its own SPF/DKIM and it is actually delivered — at no cost and with no domain to own. Pointing `SMTP_HOST` at `localhost:1025` targets a local mailcatcher (Mailpit), which makes the whole email path testable offline with no credentials and no real delivery.
+
+| Aspect | `SendgridEmailSender` (default) | `SmtpEmailSender` |
+|--------|--------------------------------|-------------------|
+| Transport | SendGrid HTTPS API (`@sendgrid/mail`) | SMTP over TLS (`nodemailer`) |
+| Selected by | `EMAIL_PROVIDER=sendgrid` | `EMAIL_PROVIDER=smtp` |
+| Required config | `SENDGRID_API_KEY` | `SMTP_HOST`, `SMTP_PORT` (+ optional `SMTP_USER` / `SMTP_PASS`) |
+| Credentials | API key, revocable per key, no mailbox password | Mailbox password / app password |
+| Bulk strategy | **One API call** using `personalizations` | **One message per recipient** in a loop |
+| Deliverability | Needs a verified sender / domain; DMARC fails without it | Signed by the relay's own SPF/DKIM — delivered as the mailbox owner |
+| Cost | Free tier, then per-message billing | Free (uses an existing mailbox) |
+| TLS | Handled by the provider's API over HTTPS | Port `465` = implicit TLS; `587`/`1025` = STARTTLS negotiated by nodemailer |
+| Local testing | Requires a real API key and real sends | `SMTP_HOST=localhost:1025` → Mailpit, no credentials, no real delivery |
+| Best for | Production volume, delivery analytics, suppression lists | Zero-cost institutional sending, local dev, contingency if SendGrid is unavailable |
+
+Both adapters embed the institutional logo as an inline `cid:logo` attachment and both fail soft on a missing logo file — the email is still sent. The only behavioural difference the domain could ever notice is bulk fan-out: SendGrid batches recipients into a single request, while SMTP sends one message per recipient so that addresses are never exposed to each other.
 
 ### Ports and Adapters
 
@@ -118,6 +174,7 @@ classDiagram
   class PrismaNotificationRepository
   class PrismaUserRepository
   class SendgridEmailSender
+  class SmtpEmailSender
   class HandlebarsTemplateRenderer
 
   ManageNotificationsService ..|> ManageNotificationsUseCase : implements
@@ -125,6 +182,7 @@ classDiagram
   PrismaNotificationRepository ..|> NotificationRepositoryPort : implements
   PrismaUserRepository ..|> UserRepositoryPort : implements
   SendgridEmailSender ..|> EmailSenderPort : implements
+  SmtpEmailSender ..|> EmailSenderPort : implements
   HandlebarsTemplateRenderer ..|> TemplateRendererPort : implements
 
   NotificationController --> ManageNotificationsUseCase : uses
@@ -179,8 +237,9 @@ src/
 │   │       ├── persistence/
 │   │       │   ├── prisma-notification.repository.ts
 │   │       │   └── prisma-user.repository.ts
-│   │       ├── email/
-│   │       │   └── sendgrid-email-sender.adapter.ts
+│   │       ├── email/                     # Dos adaptadores, un solo puerto
+│   │       │   ├── sendgrid-email-sender.adapter.ts  # EMAIL_PROVIDER=sendgrid (default)
+│   │       │   └── smtp-email-sender.adapter.ts      # EMAIL_PROVIDER=smtp (nodemailer)
 │   │       └── templating/
 │   │           └── handlebars-template-renderer.adapter.ts
 │   └── notifications.module.ts           # Composition root: ports → adapters via DI
@@ -198,8 +257,8 @@ src/
 |-----------|------------|
 | Framework | NestJS 11 + TypeScript |
 | ORM | Prisma 7 + `@prisma/adapter-pg` |
-| Messaging | Azure Service Bus (`@azure/service-bus` 7.x) and RabbitMQ (`amqplib`) |
-| Email | SendGrid (`@sendgrid/mail` 8.x) |
+| Messaging | Azure Service Bus (`@azure/service-bus` 7.x) and RabbitMQ (`amqplib`) — one active per instance (`MESSAGING_BROKER`) |
+| Email | SendGrid (`@sendgrid/mail` 8.x) and SMTP (`nodemailer` 9.x) — one active per instance (`EMAIL_PROVIDER`) |
 | Templates | Handlebars (`hbs`) with i18n (es, en, de, pt, fr) |
 | Auth | Passport-JWT HS256 with shared `JWT_SECRET` |
 | Validation | `class-validator`, `class-transformer`, Zod (contract schemas) |
@@ -216,7 +275,7 @@ sequenceDiagram
   participant V as Validators
   participant D as DispatchNotificationService
   participant R as HandlebarsTemplateRenderer
-  participant E as SendGrid
+  participant E as EmailSenderPort (SendGrid / SMTP)
   participant DB as PostgreSQL
 
   P->>B: NotificationEnvelope {eventType, notificationType, language, data}
@@ -236,7 +295,8 @@ sequenceDiagram
       D->>R: render(template, context, locale?)
       R-->>D: HTML
       D->>E: sendToRecipient / sendBulk
-      E-->>D: 202 Accepted
+      Note over E: adapter bound at startup by EMAIL_PROVIDER<br/>SendGrid → 202 Accepted · SMTP → 250 OK
+      E-->>D: delivered
       opt save = true
         D->>DB: notifications.create(...)
       end
@@ -452,13 +512,16 @@ graph TB
     SYNC["UsuariosSyncService\n[JIT provisioning]"]
     JWT["JwtStrategy\n[HS256 validation]"]
     HBS_R["HandlebarsTemplateRenderer\n[outbound adapter]"]
+    SG_A["SendgridEmailSender\n[outbound adapter]"]
+    SMTP_A["SmtpEmailSender\n[outbound adapter]"]
     PRISMA["PrismaService"]
   end
 
   subgraph External["External Systems"]
     ASB["Azure Service Bus\n[3 queues]"]
     RABBITMQ["RabbitMQ\n[exchange + 3 queues]"]
-    SENDGRID["SendGrid API"]
+    SENDGRID["SendGrid API\n[HTTPS]"]
+    SMTP_S["SMTP relay\n[Gmail · Outlook · Mailpit]"]
     PG[("PostgreSQL\nnotifications · usuarios · roles")]
   end
 
@@ -473,7 +536,8 @@ graph TB
   RMQ_C --> RABBITMQ
   AZ_C & RMQ_C --> DNS
   DNS --> HBS_R
-  DNS --> SENDGRID
+  DNS -->|"EMAIL_PROVIDER=sendgrid"| SG_A --> SENDGRID
+  DNS -->|"EMAIL_PROVIDER=smtp"| SMTP_A --> SMTP_S
   MNS --> PRISMA
   DNS --> PRISMA
   SYNC --> PRISMA
@@ -500,16 +564,20 @@ graph TB
     SVC["notifications :3000\n(NestJS + Prisma)"]
     PG["postgres:16 :5432"]
     RMQ["rabbitmq:3 :5672 / management :15672"]
+    MAILPIT["Mailpit :1025\n(mailcatcher — no credentials)"]
   end
 
-  SENDGRID["SendGrid API\n(external)"]
+  SENDGRID["SendGrid API\n(external · HTTPS)"]
+  SMTP_EXT["SMTP relay\n(external · Gmail/Outlook)"]
 
   GHA -->|"Azure OIDC"| WEBAPP
   WEBAPP -->|AMQP| ASB
-  WEBAPP -->|HTTPS| SENDGRID
+  WEBAPP -->|"HTTPS · EMAIL_PROVIDER=sendgrid"| SENDGRID
+  WEBAPP -->|"SMTP/TLS · EMAIL_PROVIDER=smtp"| SMTP_EXT
   SVC --> PG
   SVC --> RMQ
-  SVC -->|HTTPS| SENDGRID
+  SVC -->|"EMAIL_PROVIDER=smtp\nSMTP_HOST=localhost:1025"| MAILPIT
+  SVC -.->|"EMAIL_PROVIDER=sendgrid"| SENDGRID
 ```
 
 ### Environment Variables
@@ -517,8 +585,13 @@ graph TB
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `PORT` | yes | — | HTTP server port |
-| `MAIL_FROM` | yes | — | Sender email address |
-| `SENDGRID_API_KEY` | yes | — | SendGrid API key |
+| `MAIL_FROM` | yes | — | Sender email address (must be a valid email) |
+| `EMAIL_PROVIDER` | no | `'sendgrid'` | `'sendgrid'` or `'smtp'` — selects the `EmailSenderPort` adapter |
+| `SENDGRID_API_KEY` | if sendgrid | — | SendGrid API key |
+| `SMTP_HOST` | if smtp | — | SMTP server host (e.g. `smtp.gmail.com`, `localhost` for Mailpit) |
+| `SMTP_PORT` | if smtp | — | SMTP port — `465` implicit TLS · `587` STARTTLS · `1025` Mailpit |
+| `SMTP_USER` | no | — | SMTP username. Omit for credential-less relays like Mailpit |
+| `SMTP_PASS` | no | — | SMTP password / app password. Omit for Mailpit |
 | `JWT_SECRET` | yes (min 16 chars) | — | HMAC secret for JWT verification |
 | `MESSAGING_BROKER` | no | `'azure'` | `'azure'` or `'rabbitmq'` |
 | `SERVICE_BUS_CONNECTION_STRING` | if azure | — | Azure Service Bus connection string |
@@ -531,17 +604,46 @@ graph TB
 | `THROTTLE_TTL` | no | `60` | Rate-limit window in seconds |
 | `THROTTLE_LIMIT` | no | `100` | Max requests per window per client |
 
+**Conditional validation.** `src/config/env.ts` validates the environment with Joi at boot and makes each provider's credentials required *only when that provider is selected* — the same pattern already used for `MESSAGING_BROKER`. Choosing `smtp` therefore does not force a dummy SendGrid key into the environment, and vice versa:
+
+```ts
+EMAIL_PROVIDER: joi.string().valid('sendgrid', 'smtp').default('sendgrid'),
+SENDGRID_API_KEY: joi.string().when('EMAIL_PROVIDER', {
+  is: 'sendgrid', then: joi.required(), otherwise: joi.optional().allow(''),
+}),
+SMTP_HOST: joi.string().when('EMAIL_PROVIDER', {
+  is: 'smtp', then: joi.required(), otherwise: joi.optional().allow(''),
+}),
+// Credenciales opcionales: Gmail/Outlook las requieren; Mailpit no.
+SMTP_USER: joi.string().optional().allow(''),
+SMTP_PASS: joi.string().optional().allow(''),
+```
+
+A misconfigured provider fails **at startup with an explicit message**, not at the moment the first notification needs to go out.
+
+### Provider Configuration Recipes
+
+| Scenario | Configuration |
+|----------|--------------|
+| Production (SendGrid) | `EMAIL_PROVIDER=sendgrid` · `SENDGRID_API_KEY=SG.…` · `MAIL_FROM=<verified sender>` |
+| Institutional mailbox (Gmail) | `EMAIL_PROVIDER=smtp` · `SMTP_HOST=smtp.gmail.com` · `SMTP_PORT=587` · `SMTP_USER=<mailbox>` · `SMTP_PASS=<app password>` · `MAIL_FROM=<same mailbox>` |
+| Local development | `EMAIL_PROVIDER=smtp` · `SMTP_HOST=localhost` · `SMTP_PORT=1025` — no user, no password, nothing leaves the machine |
+
+For SMTP, `MAIL_FROM` should match the authenticated mailbox: the relay signs for its own domain, so a mismatched `From` is exactly what triggers the DMARC failure this adapter exists to avoid.
+
 ---
 
 ## Design Principles
 
-- **Hexagonal Architecture (Ports and Adapters)**: The domain and application layers only depend on port interfaces — never on Prisma, SendGrid, Handlebars, or any broker. The `NotificationsModule` is the only place where ports are bound to concrete adapters.
+- **Hexagonal Architecture (Ports and Adapters)**: The domain and application layers only depend on port interfaces — never on Prisma, SendGrid, nodemailer, Handlebars, or any broker. The `NotificationsModule` is the only place where ports are bound to concrete adapters. Adding the SMTP provider is the clearest proof the pattern pays for itself: a whole second email transport landed as **one new adapter class and one ternary in the composition root**, with zero changes to the domain, the use cases, the templates, or the consumers.
 
 - **Two-Layer Validation**: Messages are validated at the envelope level first, then at the type-specific data level. Invalid messages are ACK'd (not retried) to avoid poison-pill queue scenarios.
 
 - **Anti-IDOR by Design**: The `userId` is always extracted from the JWT `sub` claim via `@GetUser('id')`, never from the request URL. All `read/:id` and `DELETE /:id` operations are owner-scoped and return `404` for unauthorized access.
 
 - **Strategy Pattern (Broker Selection)**: `MessagingOrchestratorService` selects `AzureMessagingConsumer` or `RabbitMQMessagingConsumer` at startup. Only one is active per instance. The common dispatch logic lives in `BaseMessagingConsumer`.
+
+- **Strategy Pattern (Email Provider Selection)**: The same idea applied to the outbound edge — `EMAIL_PROVIDER` binds `EmailSenderPort` to `SendgridEmailSender` or `SmtpEmailSender` at composition time. The two switches are orthogonal: any broker can feed any email provider (RabbitMQ + Mailpit for a fully offline local stack, Azure SB + SendGrid in production).
 
 - **Just-in-Time User Provisioning**: `UsuariosSyncService` upserts JWT user data into the local `usuarios` table on each authenticated request, eliminating inter-service synchronization calls.
 

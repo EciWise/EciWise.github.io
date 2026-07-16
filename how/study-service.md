@@ -370,7 +370,7 @@ Students, monitors, and administrators use the platform through `ECIWISE Front` 
 
 ## C4 — Level 2: Containers
 
-![Sin título.png](study/Sin%20t%C3%ADtulo.png)
+[![C4 Level 2 — Containers](study/c4-contenedores.png)](study/c4-contenedores.png)
 
 ### Actor
 
