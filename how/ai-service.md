@@ -989,6 +989,30 @@ classDiagram
         +sender
     }
 
+    class IMessageBusPort {
+        <<interface>>
+        +send(queue, body, options)
+        +subscribe(queue, onMessage)
+        +close()
+    }
+
+    class createMessageBus {
+        <<factory>>
+        +createMessageBus() IMessageBusPort
+    }
+
+    class AzureServiceBusAdapter {
+        +send(queue, body, options)
+        +subscribe(queue, onMessage)
+        +close()
+    }
+
+    class RabbitMqAdapter {
+        +send(queue, body, options)
+        +subscribe(queue, onMessage)
+        +close()
+    }
+
     class BlobStorageService
 
     IChatPort <|.. ChatUseCase
@@ -1015,6 +1039,11 @@ classDiagram
     ServiceBusService --> GeminiService
     ServiceBusService --> BlobStorageService
     ServiceBusService --> PrismaService
+
+    ServiceBusService ..> IMessageBusPort
+    createMessageBus ..> IMessageBusPort : builds
+    IMessageBusPort <|.. AzureServiceBusAdapter
+    IMessageBusPort <|.. RabbitMqAdapter
 ```
 
 ### Ports and their adapters
@@ -1024,11 +1053,16 @@ classDiagram
 | `IChatPort` | input | `ChatUseCase` | RAG chat, recommendations, navigation, streaming |
 | `ISocraticPort` | input | `SocraticUseCase` | Socratic dialogue |
 | `IQuizPort` | input | `QuizUseCase` | Generation, evaluation, analytics |
-| `ILLMPort` | output | `GeminiService` | Multi-provider: Gemini · Groq · Ollama |
+| `ILLMPort` | output | `GeminiService` | Multi-provider: Gemini · OpenAI-compatible · Groq · Ollama ([ADR-021](/docs/architecture-decisions/#adr-021--multi-provider-llm-and-embedding-abstraction)) |
 | `IEmbeddingPort` | output | `GeminiService`, `EmbeddingService` | Gemini · OpenAI · Ollama · Jina — 768 dims |
 | `IDocumentRepositoryPort` | output | `PrismaService` | Summary · DocumentChunk · Session · ChatHistory · QuizResult |
+| `IMessageBusPort` | output | `AzureServiceBusAdapter`, `RabbitMqAdapter` | Built by `createMessageBus()` from `MESSAGE_BUS_PROVIDER` ([ADR-022](/docs/architecture-decisions/#adr-022--provider-agnostic-message-bus-azure-service-bus--rabbitmq)) |
 
-`GeminiService` is the one class worth watching: it satisfies **two output ports at once** (`ILLMPort` and `IEmbeddingPort`) and additionally reaches into `AdvancedSearchService`. That is why the class is named after a provider but is not tied to one — the provider is a runtime choice behind the port, and swapping Gemini for Groq or a local Ollama never touches a use case.
+Two classes are worth watching:
+
+**`GeminiService`** satisfies **two output ports at once** (`ILLMPort` and `IEmbeddingPort`) and additionally reaches into `AdvancedSearchService`. That is why the class is named after a provider but is not tied to one — the provider is a runtime choice behind the port, and swapping Gemini for Groq or a local Ollama never touches a use case.
+
+**`ServiceBusService`** keeps its name for historical reasons but no longer talks to Azure directly: it depends on `IMessageBusPort`, and `createMessageBus()` decides which adapter backs it. Both adapters normalise the broker's quirks — subject, correlation ID, ack and nack all live in different places on Azure Service Bus than on RabbitMQ — so the service sees one uniform contract. See [Message Bus Integration](#message-bus-integration-provider-agnostic) for the normalisation table.
 
 ### Why the search weights are what they are
 
