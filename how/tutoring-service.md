@@ -461,6 +461,267 @@ The Auth service is external and shares the JWT validation contract. There is no
 
 ---
 
+## C4 — Level 3: Components
+
+Tutoring combines **hexagonal architecture** with **vertical slicing**: rather than global `controllers/` `services/` `repositories/` folders, each business capability is a self-contained module with its own `domain/`, `application/` and `infrastructure/`.
+
+```mermaid
+graph TB
+    subgraph Auth["auth — cross-cutting"]
+        JWTG["JwtAuthGuard · RolesGuard\nPassport JWT · HS256"]
+        DEC["decorators/ · types/"]
+    end
+
+    subgraph Catalogos["modules/catalogos"]
+        CATC["Controllers\nmaterias · salas · franjas\ntutor-materia"]
+        CATU["Use cases"]
+        CATP["Ports\nMateriaRepository · SalaRepository\nFranjaHorariaRepository\nTutorMateriaRepository\n+ consulta ports"]
+        CATA["Prisma adapters"]
+    end
+
+    subgraph Disp["modules/disponibilidad"]
+        DISPC["Controllers"]
+        DISPU["Use cases"]
+        DISPP["DisponibilidadRepository port"]
+        DISPA["Prisma adapter"]
+    end
+
+    subgraph Tuts["modules/tutorias"]
+        TC["TutoriasController"]
+        TU["buscar-tutorias\nobtener-detalle-tutoria"]
+        TP["TutoriaRepository port\nTutoriaQuery port"]
+        TA["Prisma adapters\n(repository + read model)"]
+    end
+
+    subgraph Res["modules/reservas"]
+        RC["ReservasController"]
+        RU["reservar · cancelar · reprogramar\nfinalizar · calificar\ncancelar-por-tutor\nlistar-*"]
+        RP["ReservaRepository port"]
+        RA["Prisma adapter"]
+    end
+
+    subgraph Ident["modules/identidad"]
+        IP["UsuarioDirectory port"]
+        IA["Prisma usuario-local adapter"]
+    end
+
+    subgraph Integr["modules/integraciones — outbound bridges"]
+        GFWD["GamificationEventForwarder\n@OnEvent"]
+        NLIS["TutoringNotificationsListener\n@OnEvent"]
+    end
+
+    subgraph Shared["shared"]
+        EVP["IEventPublisher port\nEVENT_PUBLISHER symbol"]
+        INMEM["InMemoryEventPublisher\nEventEmitter2 · in-process"]
+        RMQ["RabbitMQService"]
+        VO["Value objects\nCalificacion · Cupos"]
+        ENUMS["Enums\nEstadoTutoria · Modalidad\nEstadoAsistencia · RolUsuario"]
+        FILTER["DomainExceptionFilter"]
+        PRISMA["PrismaService"]
+    end
+
+    PG[("PostgreSQL / Neon")]
+    MQ["RabbitMQ"]
+
+    JWTG --> CATC
+    JWTG --> DISPC
+    JWTG --> TC
+    JWTG --> RC
+
+    CATC --> CATU --> CATP
+    CATP -.->|implemented by| CATA
+    DISPC --> DISPU --> DISPP
+    DISPP -.->|implemented by| DISPA
+    TC --> TU --> TP
+    TP -.->|implemented by| TA
+    RC --> RU --> RP
+    RP -.->|implemented by| RA
+
+    RU --> EVP
+    RU --> IP
+    IP -.->|implemented by| IA
+    EVP -.->|implemented by| INMEM
+    INMEM -->|"emits in-process"| GFWD
+    INMEM -->|"emits in-process"| NLIS
+    GFWD --> RMQ
+    NLIS --> RMQ
+    RMQ --> MQ
+
+    CATA --> PRISMA
+    DISPA --> PRISMA
+    TA --> PRISMA
+    RA --> PRISMA
+    IA --> PRISMA
+    PRISMA --> PG
+    RU --> VO
+    RU --> ENUMS
+    RC -.->|domain errors| FILTER
+```
+
+| Module | Capability |
+|---|---|
+| `catalogos` | Subjects, rooms, time slots, tutor↔subject assignment |
+| `disponibilidad` | Tutor availability, from which sessions are materialized |
+| `tutorias` | Search and detail of materialized sessions (read side) |
+| `reservas` | The booking lifecycle: reserve, cancel, reschedule, finish, grade |
+| `identidad` | A local mirror of users, behind `UsuarioDirectory` |
+| `shared` | Event publisher port, value objects, enums, Prisma, error filter |
+
+The `domain/` layer is **plain TypeScript** — it imports neither NestJS nor Prisma. Controllers and the materialization job are inbound adapters; Prisma repositories and the event publisher are outbound adapters.
+
+Note that `tutorias` splits its outbound contract in two: `TutoriaRepository` (write) and `TutoriaQuery` (read). Search needs denormalized joins that the aggregate should not carry, so the read model gets its own port and its own adapter — a light CQRS split inside one module.
+
+---
+
+## C4 — Level 4: Code
+
+```mermaid
+classDiagram
+    class IEventPublisher {
+        <<interface>>
+        +publish(event) Promise~void~
+        +publishAll(events) Promise~void~
+    }
+
+    class DomainEvent {
+        <<abstract>>
+        +string aggregateId
+        +Date ocurridoEn
+        +get nombre()* string
+    }
+
+    class TutoriaReservada
+    class ReservaCancelada
+    class TutoriaRealizada
+    class TutoriaCalificada
+    class TutoriaCanceladaPorTutor
+    class TutoriaMaterializada
+
+    class InMemoryEventPublisher {
+        -EventEmitter2 emitter
+        +publish(event) Promise~void~
+        +publishAll(events) Promise~void~
+    }
+
+    class GamificationEventForwarder {
+        -RabbitMQService rabbit
+        +onTutoriaRealizada(event) void
+        +onTutoriaCalificada(event) void
+        -publish(routingKey, payload) void
+    }
+
+    class TutoringNotificationsListener {
+        -RabbitMQService rabbit
+        +onTutoriaReservada(event) void
+        +onReservaCancelada(event) void
+        +onTutoriaCanceladaPorTutor(event) void
+        +onTutoriaRealizada(event) void
+    }
+
+    class RabbitMQService {
+        +publish(exchange, routingKey, payload) boolean
+    }
+
+    class ReservarTutoriaUseCase {
+        -IReservaRepository reservas
+        -IEventPublisher events
+        -IUsuarioDirectory usuarios
+        +execute(cmd)
+    }
+
+    class CalificarTutoriaUseCase {
+        -IReservaRepository reservas
+        -IEventPublisher events
+        +execute(cmd)
+    }
+
+    class IReservaRepository {
+        <<interface>>
+    }
+
+    class PrismaReservaRepository
+
+    class Calificacion {
+        <<value object>>
+    }
+
+    class Cupos {
+        <<value object>>
+    }
+
+    class ValueObject~T~ {
+        <<abstract>>
+        #Readonly~T~ props
+        +equals(other) boolean
+    }
+
+    DomainEvent <|-- TutoriaReservada
+    DomainEvent <|-- ReservaCancelada
+    DomainEvent <|-- TutoriaRealizada
+    DomainEvent <|-- TutoriaCalificada
+    DomainEvent <|-- TutoriaCanceladaPorTutor
+    DomainEvent <|-- TutoriaMaterializada
+
+    IEventPublisher <|.. InMemoryEventPublisher
+    InMemoryEventPublisher ..> GamificationEventForwarder : emits to
+    InMemoryEventPublisher ..> TutoringNotificationsListener : emits to
+    GamificationEventForwarder --> RabbitMQService
+    TutoringNotificationsListener --> RabbitMQService
+    ReservarTutoriaUseCase ..> IEventPublisher : EVENT_PUBLISHER symbol
+    ReservarTutoriaUseCase ..> IReservaRepository
+    CalificarTutoriaUseCase ..> IEventPublisher
+    IReservaRepository <|.. PrismaReservaRepository
+    ValueObject <|-- Calificacion
+    ValueObject <|-- Cupos
+```
+
+### Domain events and the outbound bridges
+
+Use cases raise **domain events**, never messages. They depend on `IEventPublisher` (injected by the `EVENT_PUBLISHER` symbol) and know nothing about RabbitMQ. The chain has two hops:
+
+```mermaid
+flowchart LR
+    UC["Use case\n(reservas)"]
+    PUB["IEventPublisher\n«port»"]
+    IMP["InMemoryEventPublisher\nemitter.emit(event.nombre)"]
+    BUS["EventEmitter2\n(in-process)"]
+    GF["GamificationEventForwarder\n@OnEvent"]
+    NL["TutoringNotificationsListener\n@OnEvent"]
+    RMQ["RabbitMQService"]
+    EX1["exchange eciwise.events"]
+    EX2["exchange notifications"]
+
+    UC --> PUB
+    PUB -.-> IMP
+    IMP --> BUS
+    BUS --> GF
+    BUS --> NL
+    GF --> RMQ --> EX1
+    NL --> RMQ --> EX2
+```
+
+`InMemoryEventPublisher` dispatches **in-process over `EventEmitter2`** — it does not know the broker exists. The `modules/integraciones/` listeners subscribe with `@OnEvent(event.nombre)` and are the only components that talk to RabbitMQ:
+
+| Listener | Listens to | Publishes | Exchange |
+|---|---|---|---|
+| `GamificationEventForwarder` | `tutoria.realizada` | `tutoria.dictada` (for the tutor) **and** `tutoria.realizada` (per student) | `eciwise.events` |
+| `GamificationEventForwarder` | `tutoria.calificada` | `tutoria.calificada` (for the tutor) | `eciwise.events` |
+| `TutoringNotificationsListener` | `tutoria.reservada`, `reserva.cancelada`, `tutoria.cancelada-por-tutor`, `tutoria.realizada` | `notification.individual` | `notifications` |
+
+Note the fan-out: one `tutoria.realizada` domain event becomes **two different routing keys** — `tutoria.dictada` carrying the tutor's `userId` and `tutoria.realizada` carrying each student's — because gamification rewards teaching and attending differently. Each message gets its own `eventId` as the idempotency key, and the envelope (`eventType`, `eventId`, `userId`) matches what the .NET consumer expects.
+
+Routing keys are **equal to the event type** by convention, and the constants live in `shared/infrastructure/messaging/rabbitmq.constants.ts` so they cannot drift from the consumers' bindings.
+
+The port's docstring states the intent plainly — *"in-memory today, RabbitMQ later"*. That is the payoff of the port: use cases were written against the interface, so the transport can change without touching a single use case.
+
+### Value objects
+
+`Calificacion` and `Cupos` extend a generic `ValueObject<T extends object>` base. The base does two things and no more: it `Object.freeze`s the props on construction, and it compares **by value, not identity** (`other.constructor !== this.constructor` first, then structural comparison).
+
+Subclasses receive already-validated props, so an instance that exists is an instance that is valid — invalid states are rejected at construction rather than re-checked at every call site.
+
+---
+
 ## Design Patterns & Best Practices
 
 ### 1. Hexagonal Architecture

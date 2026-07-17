@@ -493,6 +493,62 @@ Fallback locale is configurable via `TRANSLATED_TEMPLATES_FALLBACK` (default `'e
 
 ---
 
+## C4 — Level 1: System Context
+
+```mermaid
+graph TB
+    subgraph Actors["Actors"]
+        USR["Estudiante · Tutor · Admin\nreads the in-app inbox\nreceives the emails"]
+    end
+
+    NOTIF["Notifications Service\nTransactional email + in-app inbox\nNestJS 11"]
+
+    subgraph Producers["Producer Services (publish only)"]
+        AUTH["Auth Service\nverification codes · CSV welcome"]
+        COMM["Community Service"]
+        MATS["Materials Service\nupload confirmations"]
+        TUTS["Tutoring Service"]
+    end
+
+    FE["ECIWISE+ Frontend\nAngular SPA"]
+
+    subgraph External["External / Infrastructure"]
+        BROKER["Message Broker\nAzure Service Bus or RabbitMQ\n3 queues"]
+        MAIL["Email Provider\nSendGrid API or SMTP relay"]
+        PG[("PostgreSQL\nnotifications · usuarios · roles")]
+    end
+
+    USR --> FE
+    FE -->|"REST + Bearer JWT\n/notificacion"| NOTIF
+    AUTH --> BROKER
+    COMM --> BROKER
+    MATS --> BROKER
+    TUTS --> BROKER
+    BROKER -->|"consumes 3 queues"| NOTIF
+    NOTIF -->|"renders + sends"| MAIL
+    MAIL -->|"inbox"| USR
+    NOTIF -->|"Prisma"| PG
+```
+
+### Actors
+
+| Actor | Interaction |
+|---|---|
+| Any authenticated user | Reads and manages their own in-app notifications; receives the emails |
+
+### Neighbouring systems
+
+| System | Relationship |
+|---|---|
+| Producer services | **Fire-and-forget** over the broker. They never call Notifications over HTTP |
+| Auth Service | Also the JWT issuer — Notifications validates locally and mirrors users just-in-time |
+| Email provider | SendGrid or an SMTP relay, chosen by `EMAIL_PROVIDER` |
+| Message broker | Azure Service Bus or RabbitMQ, chosen by `MESSAGING_BROKER` |
+
+Notifications is a **pure sink**: it consumes and sends, but publishes nothing back. Its only synchronous surface is the inbox REST API for the frontend.
+
+---
+
 ## C4 — Level 2: Containers
 
 ```mermaid
@@ -544,6 +600,216 @@ graph TB
   JWT --> SYNC
   PRISMA --> PG
 ```
+
+---
+
+## C4 — Level 3: Components
+
+The service is a textbook hexagon: two **inbound** ports (driving) and four **outbound** ports (driven). Every adapter sits on the edge; the two application services in the middle import nothing from `infrastructure/`.
+
+```mermaid
+graph TB
+    subgraph InboundAdapters["Inbound adapters (driving)"]
+        REST["NotificationController\nREST /notificacion\nJwtAuthGuard · Throttler"]
+        ORCH["MessagingOrchestratorService\npicks the broker at boot"]
+        AZC["AzureMessagingConsumer"]
+        RMQC["RabbitMQMessagingConsumer"]
+        BASEC["BaseMessagingConsumer\nshared envelope handling"]
+    end
+
+    subgraph InboundPorts["Inbound ports"]
+        MNUC["ManageNotificationsUseCase\n«interface»"]
+        DNUC["DispatchNotificationUseCase\n«interface»"]
+    end
+
+    subgraph Core["Application core"]
+        MNS["ManageNotificationsService\ninbox · read · delete"]
+        DNS["DispatchNotificationService\nrender + send + persist"]
+    end
+
+    subgraph OutboundPorts["Outbound ports"]
+        NRP["NotificationRepositoryPort\n«interface»"]
+        URP["UserRepositoryPort\n«interface»"]
+        ESP["EmailSenderPort\n«interface»"]
+        TRP["TemplateRendererPort\n«interface»"]
+    end
+
+    subgraph OutboundAdapters["Outbound adapters (driven)"]
+        PNR["PrismaNotificationRepository"]
+        PUR["PrismaUserRepository"]
+        SG["SendgridEmailSender"]
+        SMTP["SmtpEmailSender"]
+        HBS["HandlebarsTemplateRenderer"]
+    end
+
+    subgraph Auth["Auth"]
+        JWTS["JwtStrategy\nHS256"]
+        SYNC["UsuariosSyncService\njust-in-time mirror"]
+    end
+
+    PG[("PostgreSQL")]
+
+    REST --> MNUC
+    ORCH --> AZC
+    ORCH --> RMQC
+    AZC --> BASEC
+    RMQC --> BASEC
+    BASEC --> DNUC
+
+    MNUC -.->|implemented by| MNS
+    DNUC -.->|implemented by| DNS
+
+    MNS --> NRP
+    DNS --> NRP
+    DNS --> URP
+    DNS --> ESP
+    DNS --> TRP
+
+    NRP -.->|implemented by| PNR
+    URP -.->|implemented by| PUR
+    ESP -.->|implemented by| SG
+    ESP -.->|implemented by| SMTP
+    TRP -.->|implemented by| HBS
+
+    REST --> JWTS
+    JWTS --> SYNC
+    PNR --> PG
+    PUR --> PG
+    SYNC --> PG
+```
+
+| Component | Layer | Role |
+|---|---|---|
+| `NotificationController` | inbound adapter | The inbox REST API, always scoped to the authenticated user |
+| `MessagingOrchestratorService` | inbound adapter | Reads `MESSAGING_BROKER` and starts exactly one consumer |
+| `BaseMessagingConsumer` | inbound adapter | Envelope validation and flag handling shared by both brokers |
+| `ManageNotificationsService` | core | Inbox queries, mark-read, delete |
+| `DispatchNotificationService` | core | Resolves recipients, renders the template, sends, persists |
+| `UsuariosSyncService` | auth | Mirrors the JWT's user into the local `usuarios` table on first sight |
+
+### Ports and their adapters
+
+| Port | Direction | Token | Adapter(s) | Selected by |
+|---|---|---|---|---|
+| `ManageNotificationsUseCase` | inbound | `MANAGE_NOTIFICATIONS_USE_CASE` | `ManageNotificationsService` | — |
+| `DispatchNotificationUseCase` | inbound | `DISPATCH_NOTIFICATION_USE_CASE` | `DispatchNotificationService` | — |
+| `NotificationRepositoryPort` | outbound | `NOTIFICATION_REPOSITORY` | `PrismaNotificationRepository` | — |
+| `UserRepositoryPort` | outbound | `USER_REPOSITORY` | `PrismaUserRepository` | — |
+| `EmailSenderPort` | outbound | `EMAIL_SENDER` | `SendgridEmailSender`, `SmtpEmailSender` | `EMAIL_PROVIDER` |
+| `TemplateRendererPort` | outbound | `TEMPLATE_RENDERER` | `HandlebarsTemplateRenderer` | — |
+
+Tokens are `Symbol`s rather than strings, so two ports can never collide in the DI container.
+
+---
+
+## C4 — Level 4: Code
+
+```mermaid
+classDiagram
+    class DispatchNotificationUseCase {
+        <<interface>>
+        +userExists(email) Promise~boolean~
+        +userExistsById(userId) Promise~boolean~
+        +sendIndividual(data, locale) Promise~void~
+        +saveIndividual(data) Promise~void~
+        +sendByRole(data, locale) Promise~void~
+        +saveByRole(data) Promise~void~
+        +sendBulk(emails, data, locale) Promise~void~
+    }
+
+    class ManageNotificationsUseCase {
+        <<interface>>
+        +findByUser(userId) Promise~Notification[]~
+        +countUnread(userId) Promise~number~
+        +markRead(userId, id) Promise~Notification~
+        +markAllRead(userId) Promise~number~
+        +deleteById(userId, id) Promise~void~
+    }
+
+    class DispatchNotificationService {
+        -NotificationRepositoryPort notifications
+        -UserRepositoryPort users
+        -EmailSenderPort email
+        -TemplateRendererPort renderer
+    }
+
+    class ManageNotificationsService {
+        -NotificationRepositoryPort notifications
+    }
+
+    class NotificationRepositoryPort {
+        <<interface>>
+        +findByUser(userId) Promise~Notification[]~
+        +countUnread(userId) Promise~number~
+        +countUnreadChat(userId) Promise~number~
+        +markAllRead(userId) Promise~number~
+        +markRead(userId, id) Promise~Notification~
+        +deleteById(userId, id) Promise~void~
+        +deleteAllByUser(userId) Promise~number~
+        +create(notification) Promise~void~
+    }
+
+    class UserRepositoryPort {
+        <<interface>>
+        +findByEmail(email) Promise~NotificationUser~
+        +findById(id) Promise~NotificationUser~
+        +findByRole(role) Promise~NotificationUser[]~
+    }
+
+    class EmailSenderPort {
+        <<interface>>
+        +sendToRecipient(to, subject, html) Promise~void~
+        +sendBulk(recipients, subject, html) Promise~void~
+    }
+
+    class TemplateRendererPort {
+        <<interface>>
+        +render(template, context, locale) string
+    }
+
+    class PrismaNotificationRepository
+    class PrismaUserRepository
+    class SendgridEmailSender
+    class SmtpEmailSender
+    class HandlebarsTemplateRenderer
+
+    ManageNotificationsUseCase <|.. ManageNotificationsService
+    DispatchNotificationUseCase <|.. DispatchNotificationService
+
+    DispatchNotificationService ..> NotificationRepositoryPort
+    DispatchNotificationService ..> UserRepositoryPort
+    DispatchNotificationService ..> EmailSenderPort
+    DispatchNotificationService ..> TemplateRendererPort
+    ManageNotificationsService ..> NotificationRepositoryPort
+
+    NotificationRepositoryPort <|.. PrismaNotificationRepository
+    UserRepositoryPort <|.. PrismaUserRepository
+    EmailSenderPort <|.. SendgridEmailSender
+    EmailSenderPort <|.. SmtpEmailSender
+    TemplateRendererPort <|.. HandlebarsTemplateRenderer
+```
+
+### Why `send*` and `save*` are separate operations
+
+`DispatchNotificationUseCase` deliberately exposes sending and persisting as **atomic, independent** operations rather than one `notify()`. The envelope carries two flags — `mandarCorreo` and `guardar` — and the consumer composes them:
+
+| `mandarCorreo` | `guardar` | Result |
+|---|---|---|
+| `true` | `true` | Email sent **and** stored in the in-app inbox |
+| `true` | `false` | Email only — e.g. Auth's verification codes, which must not linger in an inbox |
+| `false` | `true` | In-app only, no email |
+
+That is why `userExists` / `userExistsById` are part of the port: a recipient may have no local mirror row yet (Auth can email an address that has never logged in), so the consumer checks before attempting to persist.
+
+### Queue and routing-key contract
+
+| Queue | RabbitMQ routing key | Payload |
+|---|---|---|
+| `mail.envio.individual` | `notification.individual` | One recipient resolved by email or id |
+| `mail.envio.rol` | `notification.rol` | Every user holding a role |
+| `mail.envio.masivo` | `notification.masivo` | An explicit list of addresses |
+
+On RabbitMQ the three queues bind to the `notifications` topic exchange (`notification.*`); on Azure Service Bus they are three plain queues. `BaseMessagingConsumer` holds the shared envelope logic, so neither broker adapter reimplements it.
 
 ---
 

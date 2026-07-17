@@ -403,6 +403,245 @@ Students, monitors, and administrators use the platform through `ECIWISE Front` 
 | `ECIWISE Study API` | `Base de datos` | `JDBC 5432` | Reads and writes via `Spring Data JPA / Hibernate`. Flyway runs on startup. |
 
 
+---
+
+## C4 — Level 3: Components
+
+The service is organised **by domain package**, not by technical layer: `subject`, `quiz`, `flashcard` and `user` each hold their own controllers, services, entities and repositories. Inside a package the flow is always Controller → Service → Repository → Entity.
+
+```mermaid
+graph TB
+    subgraph Sec["auth + config — cross-cutting"]
+        FILTER["JwtAuthenticationFilter"]
+        JWTS["JwtService\nHS256 · shared secret"]
+        AU["AuthenticatedUser\nexternalId · email · role"]
+        SECCFG["SecurityConfig\nstateless · csrf off\nanyRequest authenticated"]
+        AUDIT["JpaAuditingConfig"]
+        ERR["GlobalExceptionHandler\n@RestControllerAdvice"]
+    end
+
+    subgraph UserPkg["user — identity mirror"]
+        CUS["CurrentUserService\ngetOrCreate() · JIT provisioning"]
+        AUSER["AppUser · AppUserRepository"]
+    end
+
+    subgraph SubjectPkg["subject"]
+        SC["SubjectController"]
+        SS["SubjectService"]
+        SMAP["SubjectMapper"]
+        SREPO["SubjectRepository"]
+    end
+
+    subgraph QuizPkg["quiz"]
+        QC["QuestionController\nQuestionCollectionController"]
+        QS["QuestionService\nQuestionCollectionService"]
+        PSEL["ParcialSelector\nexam composition"]
+        LB["LeaderboardService"]
+        QREPO["QuestionRepository\nQuestionOptionRepository\nQuestionCollection*Repository"]
+    end
+
+    subgraph FlashPkg["flashcard"]
+        FC["CollectionController · FlashcardController\nReviewController · UsageController"]
+        FS["CollectionService · FlashcardService\nReviewService · UsageService"]
+        SRS["SpacedRepetitionScheduler\nSM-2 adapted"]
+        FMAP["FlashcardMapper"]
+        FREPO["FlashcardRepository\nFlashcardCollectionRepository\nFlashcardReviewRepository\nFlashcardUsageRepository\nCollectionFavoriteRepository"]
+    end
+
+    PG[("PostgreSQL 16\nFlyway migrations")]
+
+    SECCFG --> FILTER
+    FILTER --> JWTS
+    JWTS --> AU
+    FILTER --> SC
+    FILTER --> QC
+    FILTER --> FC
+
+    SC --> SS --> SREPO
+    SS --> SMAP
+    QC --> QS --> QREPO
+    QS --> PSEL
+    QC --> LB
+    FC --> FS --> FREPO
+    FS --> SRS
+    FS --> FMAP
+
+    SS --> CUS
+    QS --> CUS
+    FS --> CUS
+    CUS --> AUSER
+
+    SREPO --> PG
+    QREPO --> PG
+    FREPO --> PG
+    AUSER --> PG
+```
+
+| Component | Role |
+|---|---|
+| `JwtAuthenticationFilter` / `JwtService` | Validate the HS256 token per request and build an `AuthenticatedUser` |
+| `CurrentUserService` | `getOrCreate()` — resolves the JWT into a local `AppUser`, creating it on first sight |
+| `SubjectService` | Subject catalog |
+| `QuestionService` / `QuestionCollectionService` | Question bank and question collections |
+| `ParcialSelector` | Builds an exam from the bank according to `ParcialParams` |
+| `LeaderboardService` | Quiz ranking |
+| `ReviewService` + `SpacedRepetitionScheduler` | Flashcard review scheduling |
+| `UsageService` | Usage tracking per flashcard |
+
+`SecurityConfig` is `STATELESS` with CSRF disabled and `anyRequest().authenticated()` — there is no anonymous surface. Study is a **pure consumer** of identity: it publishes no events and calls no other service.
+
+### Just-in-time user provisioning
+
+Study never receives a user-creation event. It mirrors users lazily from the token:
+
+```mermaid
+flowchart TD
+    REQ["Authenticated request"]
+    F["JwtAuthenticationFilter\n→ AuthenticatedUser"]
+    CTRL["Controller"]
+    GOC["CurrentUserService.getOrCreate()"]
+    FIND{"findByExternalId(sub)\nexists?"}
+    SYNC["syncSnapshot()\nupdate email · name · role\nonly if changed"]
+    CREATE["save(new AppUser)\nfrom JWT claims"]
+    BIZ["business logic"]
+
+    REQ --> F --> CTRL --> GOC --> FIND
+    FIND -->|yes| SYNC --> BIZ
+    FIND -->|no| CREATE --> BIZ
+```
+
+`app_users` is keyed by `externalId` — the JWT `sub` from `wise_auth`. The snapshot fields (email, name, role) are **refreshed on every request but written only when they actually differ**, so a role change in `wise_auth` propagates on the user's next action without a dirty write per request.
+
+---
+
+## C4 — Level 4: Code
+
+```mermaid
+classDiagram
+    class CurrentUserService {
+        -AppUserRepository appUserRepository
+        +getOrCreate() AppUser
+        -currentPrincipal() AuthenticatedUser
+        -syncSnapshot(existing, principal) AppUser
+        -equalsNullable(a, b) boolean
+    }
+
+    class AuthenticatedUser {
+        <<record>>
+        +String externalId
+        +String email
+        +String firstName
+        +String lastName
+        +Role role
+    }
+
+    class AppUser {
+        <<entity>>
+        +Long id
+        +String externalId
+        +String email
+        +String firstName
+        +String lastName
+        +Role role
+    }
+
+    class SpacedRepetitionScheduler {
+        <<stateless @Component>>
+        +int LEARNED_THRESHOLD_DAYS$
+        +double MIN_EASE$
+        +double DEFAULT_EASE$
+        +double REPETIR_EASE_PENALTY$
+        +double APRENDIDO_EASE_BONUS$
+        +double APRENDIDO_INTERVAL_BONUS$
+        +Duration REPETIR_DELAY$
+        +apply(review, grade, now) void
+        -applyRepetir(review, now) void
+        -applyAceptable(review, now) void
+        -applyAprendido(review, now) void
+        -deriveState(review, interval) ReviewState
+    }
+
+    class FlashcardReview {
+        <<entity>>
+        +int repetitions
+        +int lapses
+        +int intervalDays
+        +double easeFactor
+        +ReviewState state
+        +Instant dueAt
+        +Instant lastReviewedAt
+    }
+
+    class ReviewGrade {
+        <<enum>>
+        REPETIR
+        ACEPTABLE
+        APRENDIDO
+    }
+
+    class ReviewState {
+        <<enum>>
+        EN_APRENDIZAJE
+        REPETIR
+        ACEPTABLE
+        APRENDIDO
+    }
+
+    class ReviewService {
+        -SpacedRepetitionScheduler scheduler
+        -FlashcardReviewRepository reviewRepo
+        -CurrentUserService currentUser
+    }
+
+    CurrentUserService --> AppUser
+    CurrentUserService ..> AuthenticatedUser
+    ReviewService --> SpacedRepetitionScheduler
+    ReviewService ..> FlashcardReview
+    SpacedRepetitionScheduler ..> FlashcardReview : mutates
+    SpacedRepetitionScheduler ..> ReviewGrade
+    SpacedRepetitionScheduler ..> ReviewState
+```
+
+### The spaced-repetition algorithm
+
+`SpacedRepetitionScheduler` is **SM-2 adapted to three grades** instead of SM-2's six. It is a stateless `@Component`: `apply()` mutates the `FlashcardReview` it is handed with a new interval, ease factor, state and due date.
+
+```mermaid
+flowchart TD
+    G{"ReviewGrade"}
+    R["REPETIR\nlapses++ · repetitions = 0\nintervalDays = 0\nease = max(1.3, ease − 0.20)\nstate = REPETIR\ndueAt = now + 10 min"]
+    A["ACEPTABLE\nrepetitions 0 → 1 day\nrepetitions 1 → 3 days\nelse → round(interval × ease)\nrepetitions++"]
+    L["APRENDIDO\nrepetitions 0 → 2 days\nelse → round(interval × ease × 1.3)\nrepetitions++ · ease += 0.15"]
+    D["deriveState(review, interval)"]
+    S1["APRENDIDO\ninterval ≥ 21 days"]
+    S2["ACEPTABLE\nrepetitions ≥ 2"]
+    S3["EN_APRENDIZAJE\notherwise"]
+
+    G -->|REPETIR| R
+    G -->|ACEPTABLE| A
+    G -->|APRENDIDO| L
+    A --> D
+    L --> D
+    D -->|"interval ≥ 21"| S1
+    D -->|"repetitions ≥ 2"| S2
+    D -->|else| S3
+```
+
+`REPETIR` does **not** go through `deriveState` — it sets `ReviewState.REPETIR` directly and resets progress (`repetitions = 0`, `intervalDays = 0`, `lapses++`), so a failed card starts its ladder over.
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `DEFAULT_EASE` | 2.5 | Starting ease factor (as in SM-2) |
+| `MIN_EASE` | 1.3 | Floor — a card can never spiral to an unusable interval |
+| `REPETIR_EASE_PENALTY` | 0.20 | Ease lost on a failed recall |
+| `APRENDIDO_EASE_BONUS` | 0.15 | Ease gained on an easy recall |
+| `APRENDIDO_INTERVAL_BONUS` | 1.3 | Extra interval multiplier for `APRENDIDO` |
+| `REPETIR_DELAY` | 10 min | A failed card returns within the same session, not tomorrow |
+| `LEARNED_THRESHOLD_DAYS` | 21 | Interval at which a card counts as learned |
+
+Note the distinction between `ReviewGrade` (what the **user pressed**) and `ReviewState` (what the **card has become**). They share three names but are not the same axis: state is *derived* from the resulting interval, never set directly by the grade.
+
+---
 
 ## Design Patterns & Best Practices
 

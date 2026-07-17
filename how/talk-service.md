@@ -20,89 +20,296 @@ The service handles six core domains:
 
 ---
 
-## System Architecture
+## C4 — Level 1: System Context
 
 ```mermaid
 graph TB
-    subgraph Clients["Clients"]
-        Web["Browser / App"]
+    subgraph Actors["Actors"]
+        EST["Estudiante\nchats · reacts · attaches files"]
+        TUT["Tutor\nsame chat surface"]
+        ADM["Administrador\nmanages the censored-word blocklist"]
     end
 
-    subgraph TalkService["Talk Service — Spring Boot / Java 21"]
-        Security["Security Layer\nJwtAuthFilter · JwtValidator"]
-        
-        subgraph Controllers["Controllers"]
-            CC["ConversationController\n/api/v1/conversations"]
-            MC["MessageController\n/api/v1/conversations/{id}/messages"]
-            CensC["CensorshipController\n/api/v1/censorship/words"]
-            WsC["ChatWsController\nSTOMP /app/*"]
-        end
+    TALK["Talk Service\nReal-time chat for ECIWISE+\nSpring Boot · Java 21"]
 
-        subgraph Services["Services"]
-            ConvSvc["ConversationService"]
-            MsgSvc["MessageService"]
-            CensSvc["CensorshipService"]
-            ReacSvc["ReactionService"]
-            AttSvc["AttachmentStorageService"]
-            Notifier["WebSocketNotifier\nSTOMP broker"]
-        end
+    subgraph Ecosystem["ECIWISE+ Ecosystem"]
+        FE["ECIWISE+ Frontend\nAngular SPA · @stomp/stompjs"]
+        AUTH["Auth Service\nissues the HS256 JWT"]
     end
 
-    subgraph Storage["Storage & Cache"]
-        PG[("PostgreSQL\nFlyway schema")]
-        Redis[("Redis\ncensored words cache")]
-        MinIO["MinIO / AWS S3\nfile attachments"]
+    subgraph External["External / Infrastructure"]
+        PG[("PostgreSQL\nconversations · messages\nreactions · reads · censored words")]
+        REDIS[("Redis\ncensored-word cache\ntalk:censored_words · TTL 1 h")]
+        S3["MinIO / AWS S3\nmessage attachments"]
     end
 
-    Web -->|"REST — Bearer JWT"| Security
-    Web -->|"WS — Bearer JWT (STOMP)"| Security
-    Security --> Controllers
-    Controllers --> Services
-    Services --> PG
-    CensSvc --> Redis
-    AttSvc --> MinIO
-    Services --> Notifier
-    Notifier -->|"STOMP /topic/conversation/{id}"| Web
+    EST --> FE
+    TUT --> FE
+    ADM --> FE
+
+    FE -->|"REST + Bearer JWT"| TALK
+    FE <-->|"WebSocket STOMP /ws/chat\nJWT on CONNECT"| TALK
+    AUTH -.->|"shared JWT secret\nvalidated locally — no HTTP call"| TALK
+
+    TALK -->|"JPA / Flyway"| PG
+    TALK -->|"blocklist cache"| REDIS
+    TALK -->|"upload · presigned GET"| S3
 ```
+
+### Actors
+
+| Actor | Interaction |
+|---|---|
+| Estudiante / Tutor | Creates conversations, sends/edits/pins messages, reacts, reads, attaches files |
+| Administrador | Manages the censored-word blocklist via `/api/v1/censorship/words` |
+
+### Neighbouring systems
+
+| System | Relationship |
+|---|---|
+| Auth Service | Issues the JWT. Talk validates it locally with `jjwt` — no runtime call to Auth |
+| Frontend | Talks REST for state and STOMP for live events; both authenticate with the same Bearer token |
+| MinIO / AWS S3 | Holds attachment blobs; Talk stores only the `storageKey` and serves presigned URLs |
+| Redis | Caches the active blocklist so censorship does not hit PostgreSQL per message |
+
+Talk is **self-contained**: it publishes no events and calls no other microservice.
 
 ---
 
-## Internal Component Diagram
+## C4 — Level 2: Containers
 
 ```mermaid
-graph LR
-    subgraph Config["Configuration"]
-        JwtProp["JwtProperties"]
-        RedisCfg["RedisConfig"]
-        S3Cfg["S3Config + S3Properties"]
-        WsCfg["WebSocketConfig\nSTOMP endpoint"]
-        SecCfg["SecurityConfig\nfilter chain"]
-    end
+graph TB
+    FE["ECIWISE+ Frontend\nAngular SPA"]
 
-    subgraph Domain["Domain (JPA entities)"]
-        Conv["Conversation\n+ ConversationType\n+ Participant"]
-        Msg["Message\n+ MessageAttachment\n+ MessageRead\n+ MessageReaction"]
-        Word["CensoredWord"]
-    end
-
-    subgraph AppLayer["Application"]
-        ConvSvc2["ConversationService"]
-        MsgSvc2["MessageService"]
-        CensSvc2["CensorshipService"]
-        ReacSvc2["ReactionService"]
+    subgraph TalkSystem["Talk Service — single Spring Boot process"]
+        REST["REST API\nSpring Web · Java 21\nstateless · JwtAuthFilter\n/api/v1/**"]
+        WS["WebSocket / STOMP\nspring-boot-starter-websocket\nendpoint /ws/chat\nin-memory simple broker"]
+        JPA["Persistence\nSpring Data JPA · Hibernate\nFlyway migrations"]
+        STORE["Attachment Storage\nAWS SDK v2 (S3 API)"]
     end
 
     subgraph Infra["Infrastructure"]
-        JwtFilt["JwtAuthFilter"]
-        WsNotif["WebSocketNotifier"]
-        AttStore["AttachmentStorageService\nMinIO / S3"]
-        ErrHandler["GlobalExceptionHandler"]
+        PG[("PostgreSQL")]
+        REDIS[("Redis")]
+        S3["MinIO / AWS S3"]
     end
 
-    Config --> AppLayer
-    Domain --> AppLayer
-    AppLayer --> Infra
+    FE -->|"HTTPS REST\nBearer JWT"| REST
+    FE <-->|"ws:// STOMP\nBearer JWT on CONNECT"| WS
+    REST --> JPA
+    WS --> JPA
+    REST --> STORE
+    JPA --> PG
+    REST -->|"blocklist cache"| REDIS
+    STORE --> S3
 ```
+
+| Container | Technology | Responsibility |
+|---|---|---|
+| REST API | Spring Web, Java 21 | Conversations, messages, reactions, read receipts, censorship admin |
+| WebSocket / STOMP | Spring WebSocket | Live fan-out of messages, edits, reactions, typing and read events |
+| Persistence | Spring Data JPA + Flyway | Entities and schema migrations |
+| Attachment storage | AWS SDK v2 | Uploads, presigned GET URLs, deletion |
+| PostgreSQL / Redis / S3 | — | Durable state, blocklist cache, attachment blobs |
+
+The REST API and the STOMP broker are **logical containers inside one JVM** — they are not separate deployments. The broker is Spring's in-memory `SimpleBroker`, so horizontal scaling would require an external relay (RabbitMQ/ActiveMQ).
+
+---
+
+## C4 — Level 3: Components
+
+```mermaid
+graph TB
+    subgraph Security["Security"]
+        FILTER["JwtAuthFilter\nOncePerRequestFilter"]
+        VALID["JwtValidator\njjwt · HS256"]
+        PRINC["UserPrincipal\nid · email · rol"]
+        SECCFG["SecurityConfig\nstateless · csrf off\n/actuator/health · /ws/** permitAll\nanyRequest authenticated"]
+    end
+
+    subgraph Controllers["Controllers"]
+        CC["ConversationController\n/api/v1/conversations"]
+        MC["MessageController\n/api/v1/conversations/{id}/messages"]
+        CENSC["CensorshipController\n/api/v1/censorship/words"]
+        WSC["ChatWsController\n@MessageMapping /app/*"]
+    end
+
+    subgraph Services["Services"]
+        CONVS["ConversationService"]
+        MSGS["MessageService\nsend · edit · delete · pin"]
+        CENSS["CensorshipService\nleet-aware blocklist"]
+        REACS["ReactionService"]
+        ATTS["AttachmentStorageService\nvalidate · upload · presign"]
+        NOTIF["WebSocketNotifier\nSimpMessagingTemplate"]
+    end
+
+    subgraph Repos["Repositories (Spring Data)"]
+        R1["ConversationRepository\nParticipantRepository"]
+        R2["MessageRepository\nMessageAttachmentRepository\nMessageReactionRepository\nMessageReadRepository"]
+        R3["CensoredWordRepository"]
+    end
+
+    subgraph Config["Configuration"]
+        WSCFG["WebSocketConfig\nSTOMP + CONNECT interceptor"]
+        REDISCFG["RedisConfig"]
+        S3CFG["S3Config · S3Properties"]
+        JWTP["JwtProperties"]
+        ERR["GlobalExceptionHandler\n@RestControllerAdvice"]
+    end
+
+    FILTER --> VALID
+    VALID --> PRINC
+    SECCFG --> FILTER
+    FILTER --> Controllers
+    WSCFG -->|"validates JWT on CONNECT"| WSC
+
+    CC --> CONVS
+    MC --> MSGS
+    MC --> REACS
+    CENSC --> CENSS
+    WSC --> MSGS
+
+    MSGS --> CENSS
+    MSGS --> ATTS
+    MSGS --> NOTIF
+    CONVS --> NOTIF
+    REACS --> NOTIF
+
+    CONVS --> R1
+    MSGS --> R2
+    CENSS --> R3
+    Controllers -.->|"errors"| ERR
+```
+
+| Component | Role |
+|---|---|
+| `JwtAuthFilter` / `JwtValidator` | Validate the Bearer token per request and build a `UserPrincipal` |
+| `WebSocketConfig` | Registers `/ws/chat` and intercepts STOMP `CONNECT` to authenticate the socket |
+| `MessageService` | Send/edit/delete/pin; runs censorship, stores attachments, then notifies |
+| `CensorshipService` | Leet-aware regex blocklist, cached in Redis for 1 h |
+| `AttachmentStorageService` | Validates and uploads files, returns presigned GET URLs |
+| `WebSocketNotifier` | The only component that touches `SimpMessagingTemplate` |
+
+Authentication happens **twice by different paths**: `JwtAuthFilter` guards REST, while the STOMP `CONNECT` interceptor guards the socket. `/ws/**` is `permitAll` in the HTTP chain precisely because the handshake is authenticated at the STOMP layer instead.
+
+---
+
+## C4 — Level 4: Code
+
+```mermaid
+classDiagram
+    class MessageService {
+        -MessageRepository messageRepo
+        -ConversationRepository conversationRepo
+        -CensorshipService censorship
+        -AttachmentStorageService attachments
+        -WebSocketNotifier notifier
+        +send(conversationId, req, sender) MessageResponse
+        +send(conversationId, req, file, sender) MessageResponse
+        +list(conversationId, user, pageable) Page~MessageResponse~
+        +getPinned(conversationId, user) List~MessageResponse~
+        +edit(conversationId, messageId, req, user) MessageResponse
+    }
+
+    class CensorshipService {
+        -CensoredWordRepository wordRepo
+        -RedisTemplate redisTemplate
+        +censor(content) CensorResult
+        +listAll() List~CensoredWordResponse~
+        +addWord(word, admin) CensoredWordResponse
+        +deactivateWord(wordId) void
+        -loadActiveWords() Set~String~
+        -invalidateCache() void
+        -buildLeetPattern(word) Pattern
+    }
+
+    class AttachmentStorageService {
+        +upload(conversationId, file) StoredFile
+        +presignedGetUrl(storageKey) String
+        +delete(storageKey) void
+        +isImage(mimeType) boolean
+        -validate(file) void
+        -sanitizeFileName(raw) String
+    }
+
+    class WebSocketNotifier {
+        -SimpMessagingTemplate template
+        +broadcastMessage(conversationId, event) void
+        +broadcastTyping(conversationId, event) void
+        +notifyUser(userId, payload) void
+        +notifyNewConversation(targetUserId, conversation) void
+    }
+
+    class JwtValidator {
+        -JwtProperties jwtProperties
+        +validate(token) UserPrincipal
+        -signingKey() SecretKey
+    }
+
+    class UserPrincipal {
+        <<record>>
+        +String id
+        +String email
+        +String rol
+    }
+
+    class Conversation {
+        <<entity>>
+        +UUID id
+        +ConversationType type
+        +String name
+        +List~Participant~ participants
+    }
+
+    class Message {
+        <<entity>>
+        +UUID id
+        +UUID conversationId
+        +String senderId
+        +String content
+        +boolean pinned
+        +boolean deleted
+        +Message replyTo
+    }
+
+    class MessageAttachment {
+        <<entity>>
+        +String storageKey
+        +String mimeType
+        +long sizeBytes
+    }
+
+    class CensoredWord {
+        <<entity>>
+        +UUID id
+        +String word
+        +boolean active
+    }
+
+    MessageService --> CensorshipService
+    MessageService --> AttachmentStorageService
+    MessageService --> WebSocketNotifier
+    MessageService ..> Message
+    JwtValidator ..> UserPrincipal
+    Conversation "1" --> "*" Message
+    Message "1" --> "*" MessageAttachment
+    CensorshipService ..> CensoredWord
+```
+
+### Censorship — why the regex is unusual
+
+`CensorshipService` does not do a plain `contains`. Each blocked word is compiled into a **leet-speak-tolerant pattern**, so `tonto` also matches `T0nt0` or `t0NT@`:
+
+| Rule | Detail |
+|---|---|
+| Character classes | `a→[a4@]`, `e→[e3]`, `i→[i1!\|]`, `o→[o0]`, `s→[s5$]`, `t→[t7]`, … |
+| Length-preserving | Every substitution is 1↔1, so match offsets survive `replaceAll()` |
+| Custom boundaries | `(?<![\p{L}\d])` / `(?![\p{L}\d])` instead of `\b` — a native `\b` breaks on the letter↔digit transition inside `t0nt0` |
+| Case | Handled by `CASE_INSENSITIVE`, not by the classes |
+| Cache | Active words in Redis under `talk:censored_words`, TTL 1 h, invalidated on write |
+
+Matches are replaced with `*****` **before persistence** — the raw text never reaches the database.
 
 ---
 

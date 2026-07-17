@@ -203,15 +203,47 @@ The following sequence diagram shows the full interaction flow for creating or r
 
 ---
 
-## Containers Diagram
+## Deployment
 
-> _No diagram available at this time._
+> See [C4 — Level 2: Containers](#c4--level-2-containers) for the container diagram.
 
 The service is deployed using Docker with a multi-stage `Dockerfile`. The build stage compiles the application and the runtime stage serves it on port `3000`. All configuration is injected through environment variables. Database schema changes are applied automatically by Prisma Migrate on startup.
 
 ---
 
 ## C4 — Level 1: System Context
+
+```mermaid
+graph TB
+    subgraph Actors["Actors"]
+        EST["Estudiante\nthreads · posts · votes · chat"]
+        TUT["Tutor\nsame capabilities as a student"]
+        ADM["Administrador\nmoderates reported content"]
+    end
+
+    COMM["ECIWISE Comunidad\nwise-comunidad\nchat · forums · threads\nvotes · moderation"]
+
+    subgraph Internal["Internal"]
+        FE["ECIWISE Front\nAngular SPA"]
+    end
+
+    subgraph External["External"]
+        AUTH["Microservicio de Autenticación\nissues JWT (sub · rol)"]
+        ASB["Azure Service Bus\nmail.envio.individual"]
+        NOTIF["Notifications Service"]
+    end
+
+    EST --> FE
+    TUT --> FE
+    ADM --> FE
+
+    FE -->|"JSON/HTTPS + Bearer JWT"| COMM
+    FE <-->|"WebSocket + Bearer JWT\n/chat namespace"| COMM
+    FE -->|"login"| AUTH
+    AUTH -.->|"shared JWT_SECRET\nlocal signature validation — no runtime call"| COMM
+    COMM -->|"AMQP"| ASB
+    ASB --> NOTIF
+```
 
 ### Actors
 
@@ -244,6 +276,28 @@ The service is deployed using Docker with a multi-stage `Dockerfile`. The build 
 ---
 
 ## C4 — Level 2: Containers
+
+```mermaid
+graph TB
+    USR["Usuario\nEstudiante · Tutor · Administrador"]
+    FE["ECIWISE Front\nAngular SPA"]
+
+    subgraph CommSystem["ECIWISE Comunidad"]
+        API["ECIWISE Comunidad API\nNestJS 11 · TypeScript\nstateless · port 3000\nREST + Socket.IO gateway"]
+    end
+
+    PG[("Base de datos\nPostgreSQL 14+\nschema wise_comunidad\nPrisma Migrate on startup")]
+    ASB["Azure Service Bus\nqueue mail.envio.individual"]
+    AUTH["Microservicio de Autenticación\nissues JWT (sub · rol)"]
+
+    USR -->|"HTTPS"| FE
+    FE -->|"JSON/HTTPS\n/chats/* /forums/*\n/threads/* /reportes/*"| API
+    FE <-->|"WebSocket /chat"| API
+    FE -->|"login"| AUTH
+    API -.->|"local signature validation\nshared JWT_SECRET"| AUTH
+    API -->|"TCP 5432 · Prisma ORM"| PG
+    API -->|"AMQP"| ASB
+```
 
 ### Actor
 
@@ -278,6 +332,199 @@ The service is deployed using Docker with a multi-stage `Dockerfile`. The build 
 | `ECIWISE Comunidad API` | `Azure Service Bus` | `AMQP` | Sends outbound notifications to the `mail.envio.individual` queue. |
 
 ---
+
+## C4 — Level 3: Components
+
+One NestJS module per domain, each with its own controller, service and Prisma access. Every request crosses the security layer first.
+
+```mermaid
+graph TB
+    FE["ECIWISE Front"]
+
+    subgraph Security["auth — security layer"]
+        JWTG["JwtAuthGuard\nPassport JWT · HS256"]
+        ROLES["RolesGuard\n@Roles() · @Public()"]
+        DEC["decorators\ncurrent user"]
+    end
+
+    subgraph Modules["Domain modules"]
+        CHATS["chats/\nChatsController\nChatsService\nChatGateway (/chat)"]
+        FORUMS["forums/\nForumsController · ForumsService"]
+        THREADS["threads/\nThreadsController · ThreadsService"]
+        RESP["responses/\nResponsesController · ResponsesService"]
+        VOTES["votes/\nvoting over WebSocket"]
+        REP["reportes/\nReportesController · ReportesService\nmoderation + statistics"]
+    end
+
+    subgraph Infra["Infrastructure"]
+        PRISMA["prisma/\nPrismaService"]
+        CFG["config/\nenv validation"]
+        BUS["Azure Service Bus client\nmail.envio.individual"]
+        FILTER["Exception filters\nconsistent HTTP errors"]
+    end
+
+    PG[("PostgreSQL 14+")]
+    ASB["Azure Service Bus"]
+
+    FE -->|"REST + Bearer JWT"| JWTG
+    FE <-->|"WS handshake + JWT"| CHATS
+    JWTG --> ROLES
+    ROLES --> CHATS
+    ROLES --> FORUMS
+    ROLES --> THREADS
+    ROLES --> RESP
+    ROLES --> VOTES
+    ROLES --> REP
+
+    CHATS --> PRISMA
+    FORUMS --> PRISMA
+    THREADS --> PRISMA
+    RESP --> PRISMA
+    VOTES --> PRISMA
+    REP --> PRISMA
+    PRISMA --> PG
+
+    FORUMS --> BUS
+    THREADS --> BUS
+    RESP --> BUS
+    BUS --> ASB
+
+    Modules -.->|"errors"| FILTER
+    CFG --> Modules
+```
+
+| Module | Responsibility |
+|---|---|
+| `auth` | JWT guards, decorators, role validation |
+| `chats` | Chat groups — REST **and** the Socket.IO gateway |
+| `forums` | Forum management, likes, closing, subjects |
+| `threads` | Discussion threads, likes, author-only editing |
+| `responses` | Thread responses |
+| `votes` | Real-time voting (útil / no útil) over WebSocket |
+| `reportes` | Content reports, moderation states, statistics |
+| `prisma` / `config` | Prisma client; environment validation |
+
+Two access paths coexist: **REST** for state and **Socket.IO** (`/chat` namespace) for live messaging and voting. Both authenticate with the same JWT — REST via the guard, the socket via the connection handshake.
+
+Authorization is layered: `@Roles()` + `RolesGuard` at the controller level for coarse role checks (`Estudiante`, `Tutor`, `Admin`), and **ownership validation inside the services** for the finer rules — only a thread's author may edit it, only a forum's creator may close it. Duplicate reports are prevented at the database level rather than in code.
+
+---
+
+## C4 — Level 4: Code
+
+```mermaid
+classDiagram
+    class JwtAuthGuard {
+        +canActivate(context) boolean
+    }
+
+    class RolesGuard {
+        -Reflector reflector
+        +canActivate(context) boolean
+    }
+
+    class ChatGateway {
+        <<WebSocketGateway /chat>>
+        +handleConnection(client)
+        +handleDisconnect(client)
+        +joinGroup(client, payload)
+        +leaveGroup(client, payload)
+        +sendMessage(client, payload)
+        +typing(client, payload)
+        +stopTyping(client, payload)
+    }
+
+    class ChatsService {
+        -PrismaService prisma
+        +create(dto, userId)
+        +findAllForUser(userId)
+        +findOne(id, userId)
+        +getMessages(id, userId)
+        +sendMessage(id, dto, userId)
+        +remove(id, userId)
+    }
+
+    class ForumsService {
+        -PrismaService prisma
+        +create(dto, userId)
+        +findAll()
+        +findOne(id)
+        +createThread(id, dto, userId)
+        +like(id, userId)
+        +close(id, userId)
+    }
+
+    class ThreadsService {
+        -PrismaService prisma
+        +create(dto, userId)
+        +findOne(id)
+        +like(id, userId)
+        +edit(id, dto, userId)
+    }
+
+    class ReportesService {
+        -PrismaService prisma
+        +create(dto, userId)
+        +findAll()
+        +findMine(userId)
+        +estadisticas()
+        +updateEstado(id, dto)
+    }
+
+    class PrismaService {
+        <<Injectable>>
+    }
+
+    class Roles {
+        <<decorator>>
+    }
+
+    class Public {
+        <<decorator>>
+    }
+
+    JwtAuthGuard --> RolesGuard : then
+    RolesGuard ..> Roles : reads metadata
+    JwtAuthGuard ..> Public : bypassed by
+    ChatGateway --> ChatsService
+    ChatsService --> PrismaService
+    ForumsService --> PrismaService
+    ThreadsService --> PrismaService
+    ReportesService --> PrismaService
+```
+
+### The chat gateway protocol
+
+Authentication happens **in the Socket.IO handshake**, not per event:
+
+```javascript
+const socket = io('http://localhost:3000/chat', {
+  auth: { token: 'tu-jwt-token' }
+});
+```
+
+The event contract is a small state machine, and the ordering rule is enforced server-side:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Connected : handshake + JWT
+    Connected --> InGroup : joinGroup { grupoId }
+    InGroup --> InGroup : sendMessage → newMessage
+    InGroup --> InGroup : typing → userTyping
+    InGroup --> InGroup : stopTyping → userStoppedTyping
+    InGroup --> Connected : leaveGroup → userLeft
+    Connected --> [*] : disconnect
+```
+
+| Direction | Events |
+|---|---|
+| Client → Server | `joinGroup`, `leaveGroup`, `sendMessage`, `typing`, `stopTyping` |
+| Server → Client | `newMessage`, `userJoined`, `userLeft`, `userTyping`, `userStoppedTyping` |
+
+> `joinGroup` **must** precede `sendMessage`. The server validates group membership before allowing any action — the ordering is a server-enforced invariant, not a client convention.
+
+---
+
 
 ## Design Patterns & Best Practices
 

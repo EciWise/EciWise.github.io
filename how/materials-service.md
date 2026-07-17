@@ -17,44 +17,268 @@ The service handles three core domains:
 
 ---
 
-## Hexagonal Architecture
+## C4 — Level 1: System Context
 
 ```mermaid
 graph TB
-    subgraph Domain["Domain (core)"]
-        MS["MaterialService\nbusiness logic"]
+    subgraph Actors["Actors"]
+        EST["Estudiante\nuploads · searches · rates\ndownloads PDFs"]
+        TUT["Tutor\npublishes material"]
+        ADM["Administrador\ntoggles AI validation\nexports statistics"]
     end
 
-    subgraph Ports["Ports (interfaces)"]
-        SP["StoragePort\n«interface»"]
-        MBP["MessageBusPort\n«interface»"]
+    MAT["Materials Service\nWise Banco Material\nNestJS 11 · Node"]
+
+    subgraph Ecosystem["ECIWISE+ Ecosystem"]
+        FE["ECIWISE+ Frontend\nAngular SPA"]
+        AUTH["Auth Service\nissues the HS256 JWT"]
+        AISVC["AI Validation Service\nclassifies · approves PDFs"]
+        NOTIF["Notifications Service\nsends the emails"]
+        GAMIF["Gamification Service\nawards points"]
     end
 
-    subgraph StorageAdapters["Storage Adapters"]
-        AB["AzureBlobAdapter\n@azure/storage-blob"]
-        S3["S3Adapter\n@aws-sdk/client-s3"]
+    subgraph External["External / Infrastructure"]
+        STORE["Object Storage\nAzure Blob or AWS S3"]
+        BUS["Message Bus\nAzure Service Bus or RabbitMQ"]
+        PG[("PostgreSQL\nmateriales · tags · calificaciones")]
     end
 
-    subgraph BusAdapters["Message Bus Adapters"]
-        ASB["AzureServiceBusAdapter\n@azure/service-bus"]
-        RMQ["RabbitMQAdapter\namqplib"]
+    EST --> FE
+    TUT --> FE
+    ADM --> FE
+
+    FE -->|"REST + Bearer JWT"| MAT
+    AUTH -.->|"shared JWT_SECRET\nvalidated locally — no HTTP call"| MAT
+
+    MAT -->|"upload · download · delete blobs"| STORE
+    MAT -->|"Prisma"| PG
+    MAT -->|"material.process (request)"| BUS
+    BUS --> AISVC
+    AISVC -->|"material.responses (reply)"| BUS
+    BUS -->|"correlated reply"| MAT
+    MAT -->|"mail.envio.individual"| BUS
+    BUS --> NOTIF
+    MAT -->|"eciwise.events / material.aprobado"| BUS
+    BUS --> GAMIF
+```
+
+### Actors
+
+| Actor | Interaction |
+|---|---|
+| Estudiante | Uploads PDFs, searches and filters, rates 1–5 with comments, downloads |
+| Tutor | Publishes material for their subjects; same surface as a student |
+| Administrador | Toggles AI validation at runtime, exports statistics to PDF |
+
+### Neighbouring systems
+
+| System | Relationship |
+|---|---|
+| Auth Service | Issues the JWT; Materials validates it **offline** with the shared secret |
+| AI Validation Service | Request–reply over the bus: approves or rejects each upload |
+| Notifications Service | Receives `mail.envio.individual` and sends the confirmation email |
+| Gamification Service | Subscribes to `material.aprobado` to award points to the author |
+| Object Storage / Message Bus | Chosen at boot by env var — see [Provider Selection](#provider-selection) |
+
+---
+
+## C4 — Level 2: Containers
+
+Materials is a **single NestJS process** whose storage and messaging are pluggable.
+
+```mermaid
+graph TB
+    FE["ECIWISE+ Frontend\nAngular SPA"]
+
+    subgraph MatSystem["Materials Service"]
+        API["REST API\nNestJS 11 · Express\nhelmet · CORS · ThrottlerGuard\nglobal JwtAuthGuard · Swagger /api"]
+        STOREAD["Storage Adapter\nAzureBlobAdapter or S3Adapter\nselected by STORAGE_PROVIDER"]
+        BUSAD["Message Bus Adapter\nAzureServiceBusAdapter or RabbitMQAdapter\nselected by MESSAGE_BUS_PROVIDER"]
     end
 
     subgraph Infra["Infrastructure"]
-        CM["CommonModule\nfactory: env var → adapter"]
-        DB["PostgreSQL\nvia Prisma"]
+        STORE["Object Storage\nAzure Blob · AWS S3"]
+        BUS["Message Bus\nAzure Service Bus · RabbitMQ"]
+        PG[("PostgreSQL\nPrisma 6 + @prisma/adapter-pg")]
     end
 
-    MS -->|uses| SP
-    MS -->|uses| MBP
-    SP -.->|implemented by| AB
-    SP -.->|implemented by| S3
-    MBP -.->|implemented by| ASB
-    MBP -.->|implemented by| RMQ
-    CM -->|provides| SP
-    CM -->|provides| MBP
-    MS -->|persists| DB
+    AISVC["AI Validation Service"]
+    NOTIF["Notifications Service"]
+    GAMIF["Gamification Service"]
+
+    FE -->|"HTTPS / REST\nBearer JWT"| API
+    API -->|"StoragePort"| STOREAD
+    API -->|"MessageBusPort"| BUSAD
+    API -->|"reads / writes"| PG
+    STOREAD --> STORE
+    BUSAD --> BUS
+    BUS <--> AISVC
+    BUS --> NOTIF
+    BUS --> GAMIF
 ```
+
+| Container | Technology | Responsibility |
+|---|---|---|
+| REST API | NestJS 11, Express | 22 material endpoints + PDF export, guards, validation, Swagger |
+| Storage adapter | `@azure/storage-blob` / `@aws-sdk/client-s3` | Upload, download, delete, exists |
+| Message bus adapter | `@azure/service-bus` / `amqplib` | `send` (point-to-point) and `publish` (topic) |
+| Database | PostgreSQL + Prisma | Materials, tags, ratings, mirrored users |
+| Object storage | Azure Blob / S3 | The PDF blobs themselves — never stored in the database |
+
+Rate limiting is applied globally by `ThrottlerGuard` in three tiers: **5 req/s**, **20 req/10 s**, and **60 req/min**.
+
+---
+
+## C4 — Level 3: Components
+
+```mermaid
+graph TB
+    subgraph AppModule["AppModule"]
+        THROTTLE["ThrottlerGuard\nAPP_GUARD · 3 tiers"]
+        JWTG["JwtAuthGuard\nAPP_GUARD · global"]
+    end
+
+    subgraph AuthMod["AuthModule"]
+        GUARD["JwtGuard\nHS256 · @nestjs/jwt"]
+        CU["@CurrentUser()\ndecorator"]
+    end
+
+    subgraph MaterialMod["MaterialModule"]
+        MC["MaterialController\n22 REST endpoints"]
+        MS["MaterialService\nupload · dedup · search\nratings · statistics"]
+        IAV["IaValidationService\nruntime on/off switch"]
+    end
+
+    subgraph PdfMod["PdfExportModule"]
+        PC["PdfExportController"]
+        PS["PdfExportService\npdfkit"]
+    end
+
+    subgraph CommonMod["CommonModule — adapter factory"]
+        SPORT["STORAGE_PORT\n«interface»"]
+        MPORT["MESSAGE_BUS_PORT\n«interface»"]
+    end
+
+    subgraph PrismaMod["PrismaModule"]
+        PSVC["PrismaService"]
+    end
+
+    JWTG --> GUARD
+    MC --> MS
+    MC --> IAV
+    MC --> CU
+    MS --> SPORT
+    MS --> MPORT
+    MS --> PSVC
+    MS -.->|"asks before sending to AI"| IAV
+    PC --> PS
+    PS --> PSVC
+```
+
+| Component | Role |
+|---|---|
+| `MaterialController` | 22 endpoints: upload, search, filter, rate, download, preview, statistics |
+| `MaterialService` | The domain core — hashing/dedup, AI request–reply, persistence, events |
+| `IaValidationService` | Hot switch for AI validation (`PATCH /material/ia-validation`), no restart |
+| `JwtAuthGuard` | Registered as `APP_GUARD`, so every route is authenticated by default |
+| `CommonModule` | Factory that reads `STORAGE_PROVIDER` / `MESSAGE_BUS_PROVIDER` and binds the ports |
+| `PdfExportService` | Renders the statistics dashboards to PDF with `pdfkit` |
+
+> The AI switch **only** gates the `material.process` request. Publishing `material.aprobado` to gamification is independent and is never affected by the flag.
+
+---
+
+## C4 — Level 4: Code
+
+The hexagonal core: `MaterialService` depends on two interfaces and never imports a cloud SDK. `CommonModule` decides which implementation is bound at boot, so swapping Azure for AWS is an environment change, not a code change.
+
+```mermaid
+classDiagram
+    class MaterialService {
+        -StoragePort storage
+        -MessageBusPort messageBus
+        -PrismaService prisma
+        -IaValidationService iaValidation
+        -Map pendingRequests
+        +onModuleInit() void
+        +validateMaterial(file, dto, userId)
+        +guardarMaterial(dto)
+        +guardarTags(materialId, tags)
+        +enviarNotificacion(response, userId, filename, template)
+        +rateMaterial(materialId, userId, dto)
+        +downloadMaterial(materialId)
+        +searchMaterialsByName(name)
+        -calculateHashAndExtension(file)
+        -listenForResponses() void
+        -waitForResponse(correlationId) Promise~RespuestaIADto~
+        -emitirMaterialAprobado(userId, materialId)
+    }
+
+    class StoragePort {
+        <<interface>>
+        +upload(buffer, name, contentType) Promise~string~
+        +download(fileUrl) Promise~DownloadResult~
+        +delete(fileUrl) Promise~boolean~
+        +exists(fileUrl) Promise~boolean~
+    }
+
+    class MessageBusPort {
+        <<interface>>
+        +send(queue, body, options) Promise~void~
+        +publish(exchange, routingKey, body, options) Promise~void~
+        +subscribe(queue, onMessage, onError) void
+        +close() Promise~void~
+    }
+
+    class BaseBusService {
+        <<abstract>>
+        #Logger logger
+    }
+
+    class AzureBlobAdapter {
+        +upload() Promise~string~
+    }
+    class S3Adapter {
+        +upload() Promise~string~
+    }
+    class AzureServiceBusAdapter
+    class RabbitMQAdapter {
+        +onModuleInit() Promise~void~
+        +onModuleDestroy() Promise~void~
+    }
+
+    class IaValidationService {
+        -boolean enabled
+        +isEnabled() boolean
+        +setEnabled(value) boolean
+    }
+
+    MaterialService ..> StoragePort : STORAGE_PORT token
+    MaterialService ..> MessageBusPort : MESSAGE_BUS_PORT token
+    MaterialService --> IaValidationService
+
+    StoragePort <|.. AzureBlobAdapter
+    StoragePort <|.. S3Adapter
+    MessageBusPort <|.. BaseBusService
+    BaseBusService <|-- AzureServiceBusAdapter
+    BaseBusService <|-- RabbitMQAdapter
+```
+
+### Ports and their adapters
+
+| Port | Token | Adapters | Selected by |
+|---|---|---|---|
+| `StoragePort` | `STORAGE_PORT` | `AzureBlobAdapter`, `S3Adapter` | `STORAGE_PROVIDER` (`azure` \| `s3`) |
+| `MessageBusPort` | `MESSAGE_BUS_PORT` | `AzureServiceBusAdapter`, `RabbitMQAdapter` | `MESSAGE_BUS_PROVIDER` (`azure` \| `rabbitmq`) |
+
+### Message contracts
+
+| Destination | Kind | Direction | Purpose |
+|---|---|---|---|
+| `material.process` | queue (`send`) | out | Ask the AI to validate an uploaded PDF (carries `correlationId`) |
+| `material.responses` | queue (`subscribe`) | in | AI verdict, matched back by `correlationId` |
+| `mail.envio.individual` | queue (`send`) | out | Confirmation email for the author |
+| `eciwise.events` / `material.aprobado` | topic (`publish`) | out | Domain event so gamification awards points |
 
 ---
 
@@ -78,45 +302,6 @@ flowchart LR
     end
 
     note["Switching providers requires\nonly .env change + restart.\nNo code change, no recompilation."]
-```
-
----
-
-## System Architecture
-
-```mermaid
-graph TB
-    subgraph Clients["Clients"]
-        User["User (browser / app)"]
-        AI["AI Validation Service\n(external)"]
-    end
-
-    subgraph MaterialsService["Materials Service — NestJS 11"]
-        subgraph Controllers["Controllers"]
-            MC["MaterialController\n22 REST endpoints"]
-            PC["PdfExportController\nstats → PDF"]
-        end
-        JwtGuard2["JwtGuard\nHS256 validation"]
-        Svc["MaterialService\nbusiness logic"]
-        CommonMod["CommonModule\nadapter factory"]
-        Prisma["PrismaService"]
-    end
-
-    subgraph External2["External Providers"]
-        AzBlob["Azure Blob Storage\nor AWS S3"]
-        AzBus["Azure Service Bus\nor RabbitMQ"]
-        PG2[("PostgreSQL")]
-    end
-
-    User -->|"REST + Bearer JWT"| JwtGuard2
-    JwtGuard2 --> Controllers
-    Controllers --> Svc
-    Svc --> CommonMod
-    CommonMod -->|StoragePort| AzBlob
-    CommonMod -->|MessageBusPort| AzBus
-    AzBus <-->|"material.process / material.responses"| AI
-    Svc --> Prisma
-    Prisma --> PG2
 ```
 
 ---

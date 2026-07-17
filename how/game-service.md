@@ -18,31 +18,264 @@ The service handles four core concerns:
 
 ---
 
-## System Architecture
+## C4 — Level 1: System Context
 
 ```mermaid
-graph TD
-    Browser["Browser / Game Client"]
-    Fiber["Fiber v2\nHTTP Server"]
-    RateLimit["Rate Limiter\n20 conn / IP / min"]
-    JWTMw["JWT Middleware\nHMAC-SHA256"]
-    Handler["ws.GameHandler"]
-    Hub["game.Hub\nsync.RWMutex · WaitGroup"]
-    Room1["game.Room 1\nRun() goroutine · 30 fps"]
-    Room2["game.Room 2\nRun() goroutine · 30 fps"]
-    RoomN["game.Room N\nRun() goroutine · 30 fps"]
-    SGrid["SpatialGrid\n15×15 cells · O(N)"]
-    FGrid["FoodGrid\n15×15 cells · O(N)"]
+graph TB
+    subgraph Actors["Actors"]
+        EST["Estudiante\nplays · splits · ejects"]
+        OPS["Operations\npolls /health"]
+    end
 
-    Browser -->|"WSS /ws/game\n?token=JWT"| Fiber
-    Fiber --> RateLimit --> JWTMw --> Handler
-    Handler -->|"Register(client)"| Hub
-    Hub -->|"join chan"| Room1
-    Hub -->|"join chan"| Room2
-    Hub -->|"join chan"| RoomN
-    Room1 --- SGrid
-    Room1 --- FGrid
+    GAME["Game Service\nReal-time multiplayer arena\nGo 1.22 · Fiber v2"]
+
+    subgraph Ecosystem["ECIWISE+ Ecosystem"]
+        FE["ECIWISE+ Frontend\nAngular SPA · canvas client"]
+        AUTH["Auth Service\nissues the HS256 JWT"]
+    end
+
+    EST --> FE
+    FE -->|"WSS /ws/game?token=JWT\nbidirectional game frames"| GAME
+    FE -->|login| AUTH
+    AUTH -.->|"shared JWT_SECRET\nvalidated locally — no HTTP call"| GAME
+    OPS -->|"GET /health\nrooms · players"| GAME
 ```
+
+### Actors
+
+| Actor | Interaction |
+|---|---|
+| Estudiante | Connects over WebSocket, moves, splits, ejects mass, competes on the leaderboard |
+| Operations | Polls `/health` for room and player counts — the only unauthenticated route |
+
+### Neighbouring systems
+
+| System | Relationship |
+|---|---|
+| Auth Service | Issues the JWT. Game validates it locally with `golang-jwt` on the upgrade request |
+| Frontend | The only client; carries the token as a **query parameter** because browsers cannot set headers on a WebSocket handshake |
+
+Game is **fully in-memory and stateless across restarts**: no database, no message broker, no calls to any other service. A restart drops every room — matches are ephemeral by design.
+
+---
+
+## C4 — Level 2: Containers
+
+```mermaid
+graph TB
+    FE["ECIWISE+ Frontend\nAngular · canvas"]
+
+    subgraph GameSystem["Game Service — single Go process"]
+        HTTP["Fiber v2 HTTP server\nrecover · logger · CORS\nReadTimeout 15s · IdleTimeout 60s"]
+        MW["Middleware chain\nrate limiter → upgrade check → JWT"]
+        WSL["WebSocket layer\ngofiber/websocket v2\nGameHandler per connection"]
+        HUB["game.Hub\nroom registry · RWMutex · WaitGroup"]
+        ROOMS["game.Room goroutines\none Run() loop each · 30 fps"]
+    end
+
+    FE <-->|"WSS frames (JSON)"| HTTP
+    HTTP --> MW
+    MW --> WSL
+    WSL -->|"Register / Unregister"| HUB
+    HUB -->|"join · leave channels"| ROOMS
+    ROOMS -->|"state broadcast"| WSL
+```
+
+| Container | Technology | Responsibility |
+|---|---|---|
+| HTTP server | Fiber v2 (fasthttp) | `/health` plus the WebSocket upgrade routes |
+| Middleware chain | Fiber middleware | Rate limit → upgrade check → JWT, cheapest rejection first |
+| WebSocket layer | `gofiber/websocket` | One `ReadPump` + one `WritePump` goroutine per client |
+| Hub | Go stdlib | Room registry, player/colour counters, graceful drain |
+| Rooms | Go goroutines | The simulation itself — one loop per room, 30 ticks/s |
+
+There is **no persistence container**. All state lives in the room goroutines' stacks and heaps.
+
+Two route prefixes are registered — `/ws/game` and `/game/ws/game` — so the service works both when exposed directly and when mounted behind a `/game` path prefix at the gateway.
+
+---
+
+## C4 — Level 3: Components
+
+```mermaid
+graph TB
+    subgraph WsPkg["package ws"]
+        JWTMW["JWTMiddleware\nreads ?token= · HMAC-SHA256\nstores claims in Locals"]
+        GH["GameHandler\nper-connection lifecycle"]
+    end
+
+    subgraph ConfigPkg["package config"]
+        CFG["Config\nPort · JWTSecret · FrontendURL\nWorld size · TickRateMs\nMaxPlayersPerRoom · FoodCount"]
+    end
+
+    subgraph GamePkg["package game"]
+        HUB["Hub\nfindOrCreateRoom · Register\nUnregister · Shutdown · onRoomEmpty"]
+        ROOM["Room\nRun() — owns ALL mutable state\njoin · leave · input channels"]
+        CLIENT["Client\nReadPump · WritePump\nsend chan (buffer 64)"]
+        PLAYER["Player + Cell\nsplit · merge · eject · powerups"]
+        SGRID["SpatialGrid\n15x15 · Insert · QueryRadius"]
+        FGRID["FoodGrid\n15x15 · Insert · QueryRadius"]
+        FOOD["Food · Virus · PowerUp"]
+        MSG["Message types\nMsgError · MovePayload\nPlayerSnapshot"]
+        CLAIMS["JWTClaims\nsub · email · rol · nombre"]
+    end
+
+    CFG --> HUB
+    JWTMW --> CLAIMS
+    JWTMW --> GH
+    GH -->|"NewClient + Register"| HUB
+    GH -->|"go WritePump / ReadPump"| CLIENT
+    HUB -->|"owns"| ROOM
+    ROOM -->|"join / leave / input chans"| CLIENT
+    ROOM --> PLAYER
+    ROOM --> SGRID
+    ROOM --> FGRID
+    ROOM --> FOOD
+    CLIENT --> MSG
+    CLIENT --> CLAIMS
+    PLAYER --> SGRID
+```
+
+| Component | Role |
+|---|---|
+| `ws.JWTMiddleware` | Validates the token **before** the upgrade; puts `*game.JWTClaims` in Fiber `Locals` |
+| `ws.GameHandler` | Registers the client, starts `WritePump` as a goroutine, runs `ReadPump` inline, unregisters on return |
+| `game.Hub` | Finds or creates a room per mode, tracks counts atomically, drains on shutdown |
+| `game.Room` | The actor: its `Run()` goroutine exclusively owns the world state |
+| `game.Client` | Socket I/O only — never touches world state directly |
+| `game.SpatialGrid` / `FoodGrid` | 15×15 uniform bucketing that turns collision checks from O(N²) into ~O(N) |
+
+### Game modes
+
+| Mode | Query value | Timed |
+|---|---|---|
+| Classic | `classic` (default) | no |
+| Pomodoro | `pomodoro` | yes |
+| Battle Royale | `battleroyale` | yes |
+
+`ParseMode` normalises anything unrecognised to `classic`, so a malformed query never rejects a connection.
+
+---
+
+## C4 — Level 4: Code
+
+```mermaid
+classDiagram
+    class Hub {
+        -sync.RWMutex mu
+        -map~string,Room~ rooms
+        -sync.WaitGroup wg
+        -atomic.Int32 totalPlayers
+        -atomic.Int32 colorCounter
+        -Config cfg
+        +Register(c, mode) void
+        +Unregister(c) void
+        +Shutdown() void
+        +RoomCount() int
+        +PlayerCount() int
+        +ColorIndex() int
+        -findOrCreateRoom(mode) Room
+        -createRoom(mode) Room
+        -onRoomEmpty(id) void
+    }
+
+    class Room {
+        +string id
+        +GameMode mode
+        -chan join
+        -chan leave
+        -chan clientInput input
+        +Run() void
+    }
+
+    class Client {
+        -string playerID
+        -Player player
+        -Conn conn
+        -JWTClaims claims
+        -Room room
+        -chan send
+        -sync.Once closeOnce
+        +SendJSON(v) void
+        +ReadPump() void
+        +WritePump() void
+        -closeConn() void
+    }
+
+    class Player {
+        +string ID
+        +string Name
+        +string Color
+        +bool Sprinting
+        +Spawn(worldW, worldH, owner) void
+        +UpdateCells(dt, worldW, worldH, now) void
+        +Split(now) void
+        +Eject(nextID, worldW, worldH) []Food
+        +Largest() Cell
+        +TotalScore() int
+        +Snapshots(now, out) []PlayerSnapshot
+        +IsSprinting() bool
+        +HasShield(now) bool
+        -resolveCells(dt, now) void
+        -mergeDelay(radius) Duration
+        -speedFor(radius, now) float64
+    }
+
+    class Cell {
+        +int ID
+        +float64 X
+        +float64 Y
+        +float64 Radius
+    }
+
+    class SpatialGrid {
+        +Clear() void
+        +Insert(c, x, y) void
+        +QueryRadius(x, y, radius) []Cell
+    }
+
+    class FoodGrid {
+        +Clear() void
+        +Insert(f, x, y) void
+        +QueryRadius(x, y, radius) []Food
+    }
+
+    class JWTClaims {
+        +string Sub
+        +string Email
+        +string Rol
+        +string Nombre
+        +string Apellido
+        +DisplayName() string
+    }
+
+    Hub "1" --> "*" Room : owns
+    Room "1" --> "*" Client : join/leave chans
+    Client "1" --> "1" Player
+    Client --> JWTClaims
+    Player "1" --> "*" Cell
+    Room --> SpatialGrid
+    Room --> FoodGrid
+```
+
+### The concurrency contract
+
+The design is **CSP / actor**, and the invariant is worth stating explicitly because it is what makes the server safe without locks on the hot path:
+
+> All mutable world state lives exclusively inside `Room.Run()`. External goroutines never touch it — they communicate only through the `join`, `leave` and `input` channels.
+
+Consequences visible in the code:
+
+| Mechanism | Why |
+|---|---|
+| `Hub.Register` sets `client.room` **before** either pump starts | `ReadPump`'s deferred cleanup dereferences it |
+| `Client.send` is buffered (64) and frames are **dropped** when full | A slow client must never block the 30 fps game loop |
+| `closeOnce sync.Once` | `ReadPump` and `WritePump` can both reach cleanup; the socket closes once |
+| `snapshotPool sync.Pool` | Recycles `[]PlayerSnapshot` arrays to cut per-tick heap allocation |
+| `Hub.wg` (`WaitGroup`) | `Shutdown()` waits for every room goroutine to finish before Fiber stops |
+| `atomic.Int32` counters | `/health` reads player/room counts without taking the hub lock |
+
+Tuning constants live in `game/constants.go` — `InitialRadius` 22, `FoodRadius` 8, `MinEatRatio` 1.1 (a blob must be 10 % larger to absorb another), `BaseSpeed` 200 u/s decaying by `speed = BaseSpeed / (1 + radius/120)`, mass decay of 1.5 % every 5 ticks, and a 10-player leaderboard.
 
 ---
 

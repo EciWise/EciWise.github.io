@@ -877,6 +877,183 @@ The REST API, LLM Adapter, Search Engine, Service Bus Listener, and Persistence 
 
 ---
 
+## C4 — Level 4: Code
+
+The hexagon in code. Ports are split by direction: `domain/ports/input/` are the **driving** contracts the routes call, `domain/ports/output/` are the **driven** contracts the use cases depend on. Use cases sit between them and import no SDK.
+
+```mermaid
+classDiagram
+    class IChatPort {
+        <<interface>>
+        +chat(query, context)
+        +getRecommendations(query)
+        +navigate(query)
+        +stream(query, context)
+    }
+
+    class ISocraticPort {
+        <<interface>>
+        +socratic(query, session)
+    }
+
+    class IQuizPort {
+        <<interface>>
+        +startQuiz(params)
+        +answerQuestion(sessionId, answer)
+        +getResult(sessionId)
+        +getAnalytics(filters)
+    }
+
+    class ChatUseCase {
+        -ILLMPort llm
+        -IDocumentRepositoryPort documents
+        +chat(query, context)
+        +getRecommendations(query)
+        +navigate(query)
+        +stream(query, context)
+    }
+
+    class SocraticUseCase {
+        -ILLMPort llm
+        +socratic(query, session)
+    }
+
+    class QuizUseCase {
+        -ILLMPort llm
+        -IDocumentRepositoryPort documents
+        -SessionService sessions
+        +startQuiz(params)
+        +answerQuestion(sessionId, answer)
+        +getResult(sessionId)
+        +getAnalytics(filters)
+    }
+
+    class ILLMPort {
+        <<interface>>
+        +callLLM(prompt, options)
+        +callLLMStream(prompt, options)
+        +analyzeDocumentText(text)
+        +generateQuiz(context, params)
+        +evaluateAnswer(question, answer)
+        +socraticChat(query, history)
+    }
+
+    class IDocumentRepositoryPort {
+        <<interface>>
+        +searchRelevantDocuments(query)
+        +findChunks(documentId)
+        +saveSummary(summary)
+    }
+
+    class IEmbeddingPort {
+        <<interface>>
+        +getEmbedding(text)
+    }
+
+    class GeminiService {
+        +callLLM(prompt, options)
+        +callLLMStream(prompt, options)
+        +analyzeDocumentText(text)
+        +generateQuiz(context, params)
+        +evaluateAnswer(question, answer)
+        +socraticChat(query, history)
+        +searchRelevantDocuments(query)
+    }
+
+    class EmbeddingService {
+        +getEmbedding(text) float[768]
+    }
+
+    class AdvancedSearchService {
+        +vectorSearch(query)
+        +fullTextSearch(query)
+        +fuzzySearch(query)
+        +semanticSearch(query)
+        +combineScores(results)
+    }
+
+    class PrismaService {
+        <<singleton>>
+    }
+
+    class SessionService {
+        +create(data)
+        +get(id)
+        +update(id, data)
+        +delete(id)
+        +cleanup()
+    }
+
+    class ServiceBusService {
+        +startListening()
+        +sender
+    }
+
+    class BlobStorageService
+
+    IChatPort <|.. ChatUseCase
+    ISocraticPort <|.. SocraticUseCase
+    IQuizPort <|.. QuizUseCase
+
+    ChatUseCase ..> ILLMPort
+    ChatUseCase ..> IDocumentRepositoryPort
+    SocraticUseCase ..> ILLMPort
+    QuizUseCase ..> ILLMPort
+    QuizUseCase ..> IDocumentRepositoryPort
+    QuizUseCase --> SessionService
+
+    ILLMPort <|.. GeminiService
+    IEmbeddingPort <|.. GeminiService
+    IEmbeddingPort <|.. EmbeddingService
+    IDocumentRepositoryPort <|.. PrismaService
+
+    GeminiService --> AdvancedSearchService
+    GeminiService --> EmbeddingService
+    AdvancedSearchService --> EmbeddingService
+    AdvancedSearchService --> PrismaService
+    SessionService --> PrismaService
+    ServiceBusService --> GeminiService
+    ServiceBusService --> BlobStorageService
+    ServiceBusService --> PrismaService
+```
+
+### Ports and their adapters
+
+| Port | Direction | Adapter | Notes |
+|---|---|---|---|
+| `IChatPort` | input | `ChatUseCase` | RAG chat, recommendations, navigation, streaming |
+| `ISocraticPort` | input | `SocraticUseCase` | Socratic dialogue |
+| `IQuizPort` | input | `QuizUseCase` | Generation, evaluation, analytics |
+| `ILLMPort` | output | `GeminiService` | Multi-provider: Gemini · Groq · Ollama |
+| `IEmbeddingPort` | output | `GeminiService`, `EmbeddingService` | Gemini · OpenAI · Ollama · Jina — 768 dims |
+| `IDocumentRepositoryPort` | output | `PrismaService` | Summary · DocumentChunk · Session · ChatHistory · QuizResult |
+
+`GeminiService` is the one class worth watching: it satisfies **two output ports at once** (`ILLMPort` and `IEmbeddingPort`) and additionally reaches into `AdvancedSearchService`. That is why the class is named after a provider but is not tied to one — the provider is a runtime choice behind the port, and swapping Gemini for Groq or a local Ollama never touches a use case.
+
+### Why the search weights are what they are
+
+`AdvancedSearchService.combineScores` blends four independent retrieval methods rather than trusting any single one:
+
+| Method | Weight | Strength | Failure it covers |
+|---|---|---|---|
+| Vector (pgvector cosine) | 40 % | Meaning, paraphrase | Blind to exact rare terms |
+| Full-text (`to_tsquery` Spanish) | 30 % | Exact terms, stemming | Blind to paraphrase |
+| Fuzzy (Fuse.js, threshold 0.4) | 20 % | Typos, partial names | Noisy on long prose |
+| Semantic (synonym expansion → re-embed) | 10 % | Domain jargon (`ia` → `inteligencia artificial`) | Cost of a second embedding |
+
+Results below a **0.1 score threshold** are dropped. Every method has a documented fallback — vector search degrades to keyword search when `pgvector` is unavailable, and full-text degrades to `ILIKE` when the indexed `search_text` column does not exist. The service is designed to return *worse* results rather than *no* results when an extension or column is missing.
+
+### Resilience utilities
+
+| Utility | Role |
+|---|---|
+| `utils/retry.js` | Exponential-backoff retry around LLM calls — providers rate-limit and fail transiently |
+| `utils/textChunker.js` | Splits extracted PDF text before embedding; chunk size drives retrieval quality |
+| `utils/sysInstructions.js` | All system prompts in one place, versioned with the code rather than scattered |
+| `utils/logger.js` | Winston structured logging |
+
+---
+
 ## Design Patterns & Best Practices
 
 ### 1. Hexagonal Architecture (Ports & Adapters)
