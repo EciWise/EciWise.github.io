@@ -1424,3 +1424,326 @@ graph TB
 
 - **Good:** The domain never imports a cloud SDK — moving from Azure Blob to S3 is an environment variable, and the same is true for the broker. Local development can point at S3-compatible storage without touching code. Conditional Joi validation means credentials for the *unselected* provider need not exist. The dual MIME + magic-byte check makes a spoofed content type useless, and the size limit is enforced twice (framework and controller) so neither alone is a single point of failure.
 - **Accepted cost:** Two storage SDKs ship in the image even though one is active. The port is a lowest-common-denominator abstraction: provider-specific features (Azure lifecycle policies, S3 storage classes) are not exposed and would need a port change to reach. Magic-byte checking requires the file to be buffered in memory before validation, which is fine at the current size ceiling but would need streaming validation for substantially larger files.
+
+---
+
+## ADR-019 — Node.js / Express.js for the AI RAG Service
+
+**Status:** Accepted
+
+### Context
+
+The ECIWise platform is deliberately polyglot — each microservice uses the runtime that best fits its problem domain and its team's expertise ([ADR-001](#adr-001--microservice-architecture--event-driven-architecture), [ADR-003](#adr-003--architecture-pattern-per-service-hexagonal-for-complex-domains-layered-for-simple-ones)). The AI RAG service needed a runtime for a workload that is fundamentally **I/O-bound**: every user request triggers 1–5 external HTTP calls to LLM APIs and embedding providers, plus pgvector similarity queries against PostgreSQL. There is no CPU-intensive computation, no WebSocket broadcasting, and no real-time tick loop.
+
+Two primary options were evaluated:
+
+| Criterion | NestJS (TypeScript) | Express.js (TypeScript) |
+|-----------|--------------------|-----------------------|
+| DI container | Built-in, auto-wired | Manual — constructor injection |
+| Learning curve | Steep — decorators, modules, providers | Flat — standard Node.js HTTP |
+| Boot speed | Slower (metadata scanning, module tree) | Faster — minimal framework overhead |
+| Hexagonal architecture | Natural via NestJS modules + providers | Achievable via manual DI in route files |
+| Streaming support | Requires `@nestjs/platform-express` adapter | Native `res.write()` for SSE |
+| Ecosystem fit | Shares language with `wise_auth`, `tutoring`, `materials` | Shares language with frontend toolchain (npm, ESM) |
+| Community familiarity | Team had limited NestJS experience for this service | Team was productive with Express from sprint 1 |
+
+The service was the **first TypeScript microservice built** in the project, created before the team standardized on NestJS for subsequent services (`wise_auth`, `tutoring`, `materials`, `notifications`). By the time NestJS became the default, the AI service was stable and working.
+
+### Decision
+
+**Use Node.js 22 with Express.js 4 and native ESM modules** for the AI RAG service. Hexagonal architecture (Ports & Adapters) is implemented through:
+
+- **Input ports**: `IChatPort`, `ISocraticPort`, `IQuizPort` — defined as JSDoc `@interface` contracts in `src/domain/ports/input/`.
+- **Output ports**: `ILLMPort`, `IDocumentRepositoryPort`, `IEmbeddingPort`, `IMessageBusPort` — defined in `src/domain/ports/output/`.
+- **Dependency injection**: manual constructor wiring at the route level (`chat.routes.js`, `quiz.routes.js`, `socratic.routes.js`), passing adapter instances into use-case constructors.
+
+```mermaid
+graph TB
+  subgraph "NestJS (5 services)" 
+    NEST["wise_auth · tutoring · materials · notifications · community"]
+    NEST_MOD["NestJS Modules\nauto-wired DI\nDecorators: @Injectable, @Controller"]
+  end
+
+  subgraph "Express.js (AI RAG service)"
+    EXP["AI RAG Service"]
+    EXP_ROUTE["Route files\nchat.routes.js · quiz.routes.js"]
+    EXP_UC["Use Cases\nChatUseCase · SocraticUseCase · QuizUseCase"]
+    EXP_PORTS["Ports (JSDoc interfaces)\nIChatPort · IQuizPort · ILLMPort · etc."]
+  end
+
+  NEST --> NEST_MOD
+  EXP --> EXP_ROUTE
+  EXP_ROUTE --> EXP_UC
+  EXP_UC --> EXP_PORTS
+```
+
+The domain layer (`src/domain/`) does not import any Express or infrastructure library. Use cases depend only on port interfaces. Adapters (`GeminiService`, `PrismaService`, `EmbeddingService`, `ServiceBusService`) are wired as concrete implementations at the boundary.
+
+### Consequences
+
+- **Good:** Fast startup, flat learning curve, minimal boilerplate. Streaming SSE responses (`/api/chat/stream`) work natively with Express's `res.write()`. The service was production-ready within weeks of initial development.
+- **Accepted cost:** No auto-wired DI container — adding a new port requires manually passing the adapter through route → use-case constructors. This is manageable at the current service size (~15 files) but would become tedious if the service grows to 50+ files. The team accepted this trade-off because the service's scope is well-bounded (chat, quiz, socratic, document analysis).
+
+---
+
+## ADR-020 — pgvector as Vector Database (not Qdrant)
+
+**Status:** Accepted
+
+### Context
+
+[ADR-009](#adr-009--vector-database-in-the-ai-service-for-semantic-search-and-rag) analyzed the vector database landscape and concluded that a dedicated vector store (Qdrant) would eventually be needed as the platform scales. At the time of that analysis, the platform's document corpus was expected to grow to hundreds of thousands of embeddings.
+
+However, the **current production reality** is different:
+
+| Factor | Current state | Threshold for Qdrant migration |
+|--------|--------------|-------------------------------|
+| Document count | ~50–200 academic PDFs | 10,000+ documents |
+| Embeddings per doc | ~10–30 chunks | Unchanged |
+| Total embeddings | ~500–6,000 | 100,000+ |
+| Query latency (pgvector HNSW) | < 50 ms | > 200 ms unacceptable |
+| Infrastructure overhead | Zero — PostgreSQL already deployed | Justified only at scale |
+
+The AI service already owns a PostgreSQL instance with the `pgvector` extension. Adding Qdrant would introduce a second database to operate, monitor, back up, and secure — overhead that is not justified at current volume.
+
+### Decision
+
+**Keep pgvector as the vector database for the AI service.** The `DocumentChunk.embedding` column stores `vector(768)` embeddings. An HNSW index (`m=16, ef_construction=64`) provides sub-50 ms cosine similarity search. The vector search operator (`<=>`) is used via Prisma `$queryRaw` because Prisma's query builder does not natively support pgvector types.
+
+```mermaid
+graph TB
+  subgraph "AI Service (Node.js)"
+    EMB["EmbeddingService\n(text-embedding-004 → float[768])"]
+    SEARCH["AdvancedSearchService\nvector + FTS + fuzzy + semantic"]
+    GEM["GeminiService\nsearchRelevantDocuments()"]
+  end
+
+  subgraph "PostgreSQL + pgvector"
+    EXT["CREATE EXTENSION vector"]
+    TBL["DocumentChunk.embedding\ncolumn: vector(768)"]
+    IDX["HNSW index\nm=16, ef_construction=64\nvector_cosine_ops"]
+  end
+
+  EMB -->|"INSERT ... ::vector"| TBL
+  SEARCH -->|"SELECT ... <=> $1::vector"| TBL
+  GEM -->|"SELECT ... <=> $1::vector"| TBL
+  TBL --- IDX
+  IDX --- EXT
+```
+
+The migration to Qdrant (per ADR-009) remains a **documented future option**. The trigger criteria are:
+
+1. Total embeddings exceed 100,000.
+2. Query latency consistently exceeds 200 ms.
+3. Multi-collection search (materials + sessions + student profiles) is needed.
+
+When those thresholds are reached, the `IDocumentRepositoryPort` and `IEmbeddingPort` abstractions already exist — migrating to Qdrant requires only a new adapter, not a rewrite of use cases.
+
+### Consequences
+
+- **Good:** Zero additional infrastructure. PostgreSQL is already deployed, backed up, and monitored. The pgvector HNSW index handles current volume with sub-50 ms latency. No new operational cost or complexity.
+- **Accepted cost:** pgvector does not scale as efficiently as purpose-built vector databases for collections exceeding millions of vectors. If the platform reaches that scale, a migration will be required. The port abstractions mitigate this cost — the migration path is an adapter swap, not a rewrite.
+
+---
+
+## ADR-021 — Multi-Provider LLM and Embedding Abstraction
+
+**Status:** Accepted
+
+### Context
+
+The AI service calls external LLM APIs for chat responses, document classification, quiz generation, and answer evaluation. It also calls embedding APIs for vector search. Locking into a single provider creates three risks:
+
+1. **Vendor lock-in** — a price increase or API deprecation forces a code rewrite.
+2. **Development friction** — cloud LLM APIs cost money per call; developers need a free or local alternative for iteration.
+3. **Availability** — a provider outage blocks all AI features with no fallback.
+
+The platform also runs in different environments: local development, CI/CD tests, and Azure production. Each environment has different budget and latency constraints.
+
+### Decision
+
+**Abstract both LLM and embedding providers behind unified interfaces** with runtime selection via environment variables. The `ILLMPort` and `IEmbeddingPort` interfaces define the contracts. A single adapter (`GeminiService`) implements both ports and dispatches to the correct provider based on config.
+
+```mermaid
+graph LR
+  ENV["ENV VARS\nLLM_PROVIDER\nEMBEDDING_PROVIDER"]
+  
+  subgraph "Config Resolution"
+    CFG["config.llm.provider\nconfig.embedding.provider\n(defaults cascade)"]
+  end
+
+  subgraph "Adapters"
+    GEM["GeminiService\n(callLLM, callLLMStream)\n(ILLMPort)"]
+    EMB["EmbeddingService\n(getEmbedding)\n(IEmbeddingPort)"]
+  end
+
+  subgraph "Providers"
+    GP["Google Gemini\nREST API v1beta"]
+    OP["OpenAI\n/chat/completions"]
+    GQ["Groq\nOpenAI-compatible"]
+    OL["Ollama\n/api/generate"]
+  end
+
+  ENV --> CFG
+  CFG --> GEM
+  CFG --> EMB
+  GEM --> GP & OP & GQ & OL
+  EMB --> GP & OP & OL
+```
+
+**Provider matrix:**
+
+| Provider | LLM | Embeddings | Protocol | Free tier |
+|----------|-----|-----------|----------|-----------|
+| Gemini | `gemini-2.0-flash` | `text-embedding-004` | Gemini REST API v1beta | Yes (RPM limits) |
+| OpenAI | `gpt-4o-mini` | `text-embedding-3-small` | OpenAI-compatible `/chat/completions` | Pay-per-token |
+| Groq | `llama-3.1-8b-instant` | Not supported | OpenAI-compatible `/chat/completions` | Yes (free tier) |
+| Ollama | `llama3.1` | `nomic-embed-text` | Ollama `/api/generate` | Free (local) |
+
+**Embedding provider fallback:** `EMBEDDING_PROVIDER` → `LLM_PROVIDER` → `'gemini'`. If Groq is selected as the LLM provider, embeddings fall back to Gemini because Groq does not support an embedding API.
+
+Switching providers requires **zero code changes** — one environment variable swap.
+
+### Consequences
+
+- **Good:** Developers can use Ollama locally (no API costs), Groq for fast CI tests (free tier), and Gemini or OpenAI in production. Provider outages can be mitigated at deploy time by switching env vars. The `callLLM` and `callLLMStream` interfaces are identical across providers.
+- **Accepted cost:** Each provider has quirks (Gemini uses `responseSchema` for JSON mode; Groq/OpenAI use `response_format: { type: "json_object" }`). The adapter contains provider-specific branching logic (~30 lines per provider in `callLLM`). Adding a new provider requires adding a `case` block, not a new class — simpler but less extensible than a full Strategy pattern with separate classes.
+
+---
+
+## ADR-022 — Provider-Agnostic Message Bus (Azure Service Bus + RabbitMQ)
+
+**Status:** Accepted
+
+### Context
+
+The AI service receives document analysis requests asynchronously from the ECIWise backend. The platform's message broker strategy ([ADR-002](#adr-002--rabbitmq-as-the-event-broker-azure-service-bus-kept-as-a-contingency-alternative)) chose RabbitMQ as the primary broker with Azure Service Bus as a contingency.
+
+The AI service needs to consume from and publish to a message bus, but the choice of broker depends on the deployment environment:
+
+| Environment | Broker | Reason |
+|-------------|--------|--------|
+| Local development | RabbitMQ (Docker) | Free, full control over topology |
+| CI/CD tests | Azure Service Bus (emulator) or mock | Matches production contract |
+| Azure production (current) | Azure Service Bus | Managed, integrated with Azure App Service |
+| Azure production (future) | RabbitMQ (self-hosted) | Consistent with ADR-002 |
+
+Hard-coding a broker SDK into the service would force a rewrite to switch. This violates the hexagonal architecture principle of swappable adapters.
+
+### Decision
+
+**Implement the message bus as an output port (`IMessageBusPort`) with two driven adapters** and a **factory function** (`createMessageBus()`) that selects the adapter at startup based on the `MESSAGE_BUS_PROVIDER` environment variable.
+
+```mermaid
+graph TB
+  subgraph "Domain Port"
+    PORT["IMessageBusPort\nsend · subscribe · close"]
+  end
+
+  subgraph "Factory"
+    FACT["createMessageBus()\nsrc/adapters/messageBus/index.js\nreads MESSAGE_BUS_PROVIDER"]
+  end
+
+  subgraph "Adapters"
+    AZURE["AzureServiceBusAdapter\n@ServiceBusClient\nsrc/adapters/messageBus/\nazureServiceBus.adapter.js"]
+    RABBIT["RabbitMqAdapter\namqplib\nsrc/adapters/messageBus/\nrabbitMq.adapter.js"]
+  end
+
+  subgraph "External Brokers"
+    ASB_EXT["Azure Service Bus\n(material.process / material.responses)"]
+    RMQ_EXT["RabbitMQ\n(material.process / material.responses)"]
+  end
+
+  subgraph "Consumer"
+    SB["ServiceBusService\n(subscribes to material.process\npublishes to material.responses)"]
+  end
+
+  FACT -->|"MESSAGE_BUS_PROVIDER=azure"| AZURE
+  FACT -->|"MESSAGE_BUS_PROVIDER=rabbitmq"| RABBIT
+  AZURE -.->|"implements"| PORT
+  RABBIT -.->|"implements"| PORT
+  AZURE --> ASB_EXT
+  RABBIT --> RMQ_EXT
+  SB --> PORT
+```
+
+**Adapter normalisation:** Both adapters normalise the message contract so that `ServiceBusService` sees a uniform interface regardless of broker:
+
+| Concern | Azure Service Bus | RabbitMQ |
+|---------|-------------------|----------|
+| `subject` | Top-level `msg.subject` property | `msg.properties.headers.subject` |
+| `correlationId` | Top-level `msg.correlationId` | `msg.properties.correlationId` |
+| Ack (success) | `completeMessage(msg)` | `channel.ack(msg)` |
+| Nack (failure) | `deadLetterMessage(msg)` | `channel.nack(msg, false, false)` |
+
+The factory validates required configuration at boot and throws immediately if the selected provider's credentials are missing, preventing silent failures at runtime.
+
+### Consequences
+
+- **Good:** Switching brokers is a single environment variable change (`MESSAGE_BUS_PROVIDER=rabbitmq`). Local development uses RabbitMQ (free, Docker-based); production can use Azure Service Bus (managed) or RabbitMQ (self-hosted). Both adapters are < 160 lines each and independently testable.
+- **Accepted cost:** The AMQP protocol (RabbitMQ) and the Azure Service Bus protocol have different message formats, delivery semantics, and connection management. The normalisation layer in each adapter handles these differences, but edge cases (e.g., message auto-renew, prefetch counts) may behave differently between brokers. The team monitors both adapters in staging before switching production traffic.
+
+---
+
+## ADR-023 — Hybrid Search Strategy (Vector + Full-Text + Fuzzy + Semantic)
+
+**Status:** Accepted
+
+### Context
+
+The RAG pipeline depends on retrieving the most relevant documents for a user query. No single search method covers all cases:
+
+| Method | Strength | Weakness |
+|--------|----------|----------|
+| Vector search (pgvector cosine) | Understands meaning, not just keywords | Fails if no embeddings exist; misses exact terminology |
+| Full-text search (PostgreSQL `to_tsquery`) | Fast, index-backed, exact keyword matching | Cannot understand synonyms; language-dependent |
+| Fuzzy search (Fuse.js) | Tolerates typos and partial matches | No semantic understanding; slow on large corpora |
+| Semantic search (synonym expansion) | Bridges vocabulary gaps ("ia" → "inteligencia artificial") | Limited by synonym dictionary size; adds embedding latency |
+
+A student might search for `"progrmacion"` (typo), `"ia"` (abbreviation), or `"transformada de Fourier"` (precise technical term). No single method handles all three optimally.
+
+### Decision
+
+**Combine all four search methods with configurable weights**, running them in parallel and merging results via a weighted score combiner. Each method returns a ranked list of documents with a normalised score (0–1). The combiner computes a final weighted score per document and returns results above a configurable threshold.
+
+```mermaid
+flowchart LR
+  Q["🔍 User Query"] 
+
+  Q --> V["Vector Search\nweight: 0.40\npgvector cosine distance\non DocumentChunk embeddings"]
+  Q --> FTS["Full-Text Search\nweight: 0.30\nto_tsquery('spanish', ...)\nILIKE fallback"]
+  Q --> FZ["Fuzzy Search\nweight: 0.20\nFuse.js · threshold 0.4\nmateria · tema · tags · fileName"]
+  Q --> SEM["Semantic Search\nweight: 0.10\nsynonymMap expansion\nre-embedding → vector search"]
+
+  V --> SC["📊 Score Combiner\ncombineScores()\nscore ≥ 0.1 threshold"]
+  FTS --> SC
+  FZ --> SC
+  SEM --> SC
+
+  SC --> R["✅ Ranked Results\ntop documents for RAG context"]
+```
+
+**Fallback strategy per method:**
+
+| Method | Primary | Fallback |
+|--------|---------|----------|
+| Vector | pgvector cosine `<=>` | Keyword ILIKE on Summary fields |
+| Full-text | `to_tsquery('spanish', ...)` | ILIKE on materia, tema, tags, summary |
+| Fuzzy | Fuse.js with normalised scores | Empty result (no fallback) |
+| Semantic | Synonym expansion + embedding | Original query embedding (skip expansion) |
+
+**Score normalisation:** Each method returns scores in different ranges. Before combining, all scores are min-max normalised to [0, 1] across the result set to prevent any single method from dominating.
+
+**When each method fires:**
+
+| Scenario | Most effective method | Example |
+|----------|----------------------|---------|
+| Precise technical query | Vector (40%) | "transformada de Fourier" |
+| Exact keyword match | FTS (30%) | "cálculo diferencial" |
+| Typo in search | Fuzzy (20%) | "progrmacion" → "programación" |
+| Abbreviation / slang | Semantic (10%) | "ia" → "inteligencia artificial, machine learning" |
+
+### Consequences
+
+- **Good:** No single search failure blocks document retrieval. If pgvector is unavailable, FTS and fuzzy still return results. If FTS indexes are missing, ILIKE activates automatically. The weight configuration is tunable per deployment without code changes.
+- **Accepted cost:** Four parallel searches add latency compared to a single search. In practice, vector and FTS queries execute in < 30 ms (HNSW + GIN indexes), fuzzy search loads up to 1000 docs into memory for Fuse.js (< 50 ms), and semantic search adds one extra embedding call (~200 ms). Total p95 latency is < 400 ms, which is acceptable for the RAG pipeline where the LLM call itself takes 2–5 seconds. The score combiner adds ~1 ms of computation.

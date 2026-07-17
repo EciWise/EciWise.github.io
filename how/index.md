@@ -13,7 +13,7 @@ Technical guides and architecture diagrams for the ECIWise frontend and each bac
 
 ## Services
 
-- [AI Service](./ai-service.md) — AI-based academic recommendations and assistance.
+- [AI Service](./ai-service.md) — RAG-based academic chat, Socratic tutoring, adaptive quizzes, and document analysis pipeline.
 - [Auth Service](./auth-service.md) — Authentication, OAuth 2.0 with Google, and JWT issuance.
 - [Community Service](./community-service.md) — Forums, community, and student communication.
 - [Game Service](./game-service.md) — Real-time multiplayer game server (WebSocket, Go).
