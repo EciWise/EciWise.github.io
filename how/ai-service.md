@@ -7,16 +7,16 @@ title: AI Service
 
 ## Overview
 
-`ECIWISE+ RAG Service` is the artificial intelligence microservice of the ECIWise platform. It provides students and tutors with intelligent academic support through Retrieval-Augmented Generation (RAG): document analysis, contextual academic chat, adaptive quiz generation and evaluation, and a Socratic tutoring assistant.
+`ECIWISE+ RAG Service` is the artificial intelligence microservice of the ECIWise platform. Built with **Node.js 22 and Express.js 4** ([ADR-019](/docs/architecture-decisions/#adr-019--nodejs--expressjs-for-the-ai-rag-service)), it provides students and tutors with intelligent academic support through Retrieval-Augmented Generation (RAG): document analysis, contextual academic chat, adaptive quiz generation and evaluation, and a Socratic tutoring assistant.
 
 The service handles four core capabilities:
 
 - **RAG Chat** — answers academic queries by retrieving semantically relevant documents from the indexed repository and generating a grounded response via an LLM.
 - **Socratic Method** — guides students toward self-discovery using a chain of questions rather than direct answers, grounded in available documents.
-- **Adaptive Quiz** — generates mixed multiple-choice and open-ended quizzes from a given topic, evaluates student answers using the LLM, and persists learning analytics per student.
-- **Document Analysis Pipeline** — asynchronously classifies PDF documents uploaded by users (subject, topic, tags, summary), generates text-chunk embeddings for vector search, and publishes results back through Azure Service Bus.
+- **Adaptive Quiz** — generates mixed multiple-choice and open-ended quizzes from a given topic, auto-verifies arithmetic questions, evaluates student answers using the LLM, and persists learning analytics per student.
+- **Document Analysis Pipeline** — asynchronously classifies PDF documents uploaded by users (subject, topic, tags, summary), generates text-chunk embeddings for vector search, and publishes results back through a provider-agnostic message bus.
 
-The service supports multiple LLM backends (Google Gemini, Groq, Ollama) and multiple embedding providers, all switchable through environment variables without changing code.
+The service supports four LLM backends (**Google Gemini**, **OpenAI**, **Groq**, **Ollama**) and four embedding providers (**Gemini**, **OpenAI**, **Ollama**, **Jina**), all switchable through environment variables without changing code ([ADR-021](/docs/architecture-decisions/#adr-021--multi-provider-llm-and-embedding-abstraction)). The message bus is provider-agnostic as well, supporting both **Azure Service Bus** and **RabbitMQ** via a factory-adapter pattern ([ADR-022](/docs/architecture-decisions/#adr-022--provider-agnostic-message-bus-azure-service-bus--rabbitmq)).
 
 ---
 
@@ -94,10 +94,11 @@ The service receives requests from the ECIWise frontend through a shared JWT con
 
 1. The student starts a quiz: `POST /api/quiz/start` with a topic, difficulty (`easy`, `medium`, `hard`), and number of questions (3–15).
 2. `QuizUseCase` retrieves relevant documents, constructs a structured prompt with 60% multiple-choice and 40% open-ended questions, and calls the LLM.
-3. A `Session` record is created in PostgreSQL with the full question set (with answers hidden from the student).
-4. Questions are served one at a time via `POST /api/quiz/answer`. Multiple-choice answers are graded deterministically; open-ended answers are evaluated by the LLM using a rubric (score 0–10, feedback in ≤3 sentences).
-5. When the last question is answered, the final score, percentage, and performance label are returned. The result is asynchronously persisted to `QuizResult` if the student is authenticated.
-6. `GET /api/quiz/analytics/:studentId` returns topic-level learning analytics: average percentage per topic, weak topics (< 60%), strong topics (≥ 75%), and trend (improving / stable / declining).
+3. **Arithmetic auto-verification**: after the LLM generates questions, `evaluateSimpleArithmetic()` parses arithmetic expressions (e.g., "5 + 3", "12 / 4") and verifies that the LLM's `correctAnswer` matches the computed result. Invalid questions are regenerated via `regenerateQuestion()`.
+4. A `Session` record is created in PostgreSQL with the full question set (with answers hidden from the student).
+5. Questions are served one at a time via `POST /api/quiz/answer`. Multiple-choice answers are graded deterministically. **Partial scoring**: answers with a score ≥ 4 receive partial credit (`score / 10`), while scores below 4 receive 0. Open-ended answers are evaluated by the LLM, which considers **mathematical equivalences** (e.g., `sen` = `sin`, order of terms, notation variations).
+6. When the last question is answered, the final score, percentage, and performance label are returned. The result is asynchronously persisted to `QuizResult` if the student is authenticated.
+7. `GET /api/quiz/analytics/:studentId` returns topic-level learning analytics: average percentage per topic, weak topics (< 60%), strong topics (≥ 75%), and trend (improving / stable / declining).
 
 ---
 
@@ -122,8 +123,8 @@ graph TB
     end
 
     subgraph "External Services"
-        LLM["LLM Provider<br/>Gemini · Groq · Ollama"]
-        SB["Azure Service Bus<br/>material.process / material.responses"]
+        LLM["LLM Provider<br/>Gemini · OpenAI · Groq · Ollama"]
+        MBUS["Message Bus<br/>Azure Service Bus / RabbitMQ<br/>material.process / material.responses"]
         BLOBST["Azure Blob Storage"]
         PG[("PostgreSQL + pgvector")]
         AUTH["Auth Service<br/>(JWT issuer)"]
@@ -136,7 +137,7 @@ graph TB
     SVC --> LLM
     SVC --> DB
     DB --> PG
-    BUS --> SB
+    BUS --> MBUS
     BUS --> BLOB
     BLOB --> BLOBST
     SESSION --> DB
@@ -171,22 +172,26 @@ graph TB
         PORT_LLM["ILLMPort"]
         PORT_REPO["IDocumentRepositoryPort"]
         PORT_EMB["IEmbeddingPort"]
+        PORT_BUS["IMessageBusPort"]
     end
 
     subgraph "Outbound Adapters"
-        GEM["GeminiService<br/>Gemini / Groq / Ollama<br/>callLLM · callLLMStream · analyzeDocumentText<br/>generateQuiz · evaluateAnswer · socraticChat"]
+        GEM["GeminiService<br/>Gemini / OpenAI / Groq / Ollama<br/>callLLM · callLLMStream · analyzeDocumentText<br/>generateQuiz · evaluateAnswer · socraticChat"]
         ADV["AdvancedSearchService<br/>vectorSearch · fullTextSearch<br/>fuzzySearch · semanticSearch · combineScores"]
         EMB["EmbeddingService<br/>Gemini / OpenAI / Ollama / Jina<br/>getEmbedding (768 dims)"]
         PRISMA["PrismaService<br/>Summary · DocumentChunk · Session<br/>ChatHistory · QuizResult · Synonym"]
         SESSION["SessionService<br/>create · get · update · delete · cleanup"]
         BLOB_SVC["BlobStorageService<br/>Azure Blob SDK fallback"]
-        SB_OUT["ServiceBusService.sender<br/>material.responses queue"]
+        AZURE_AD["AzureServiceBusAdapter<br/>ServiceBusClient · sender · receiver"]
+        RABBIT_AD["RabbitMqAdapter<br/>amqplib · connection · channel"]
+        MB_FACTORY["createMessageBus()<br/>Factory — selects adapter<br/>based on MESSAGE_BUS_PROVIDER"]
     end
 
     subgraph "External"
-        LLM_EXT["LLM Provider<br/>Gemini API · Groq API · Ollama"]
+        LLM_EXT["LLM Provider<br/>Gemini API · OpenAI API · Groq API · Ollama"]
         PG_EXT[("PostgreSQL + pgvector")]
         SB_EXT["Azure Service Bus"]
+        RMQ_EXT["RabbitMQ"]
         BLOB_EXT["Azure Blob Storage"]
     end
 
@@ -201,7 +206,8 @@ graph TB
     SB_IN --> GEM
     SB_IN --> BLOB_SVC
     SB_IN --> PRISMA
-    SB_IN --> SB_OUT
+    SB_IN --> AZURE_AD
+    SB_IN --> RABBIT_AD
 
     UC_CHAT --> PORT_LLM & PORT_REPO
     UC_SOC --> PORT_LLM
@@ -210,6 +216,10 @@ graph TB
     PORT_LLM --> GEM
     PORT_REPO --> PRISMA
     PORT_EMB --> EMB
+    PORT_BUS --> MB_FACTORY
+
+    MB_FACTORY -->|"MESSAGE_BUS_PROVIDER=azure"| AZURE_AD
+    MB_FACTORY -->|"MESSAGE_BUS_PROVIDER=rabbitmq"| RABBIT_AD
 
     GEM --> ADV
     GEM --> EMB
@@ -220,7 +230,8 @@ graph TB
     PRISMA --> PG_EXT
     SESSION --> PRISMA
     UC_QUIZ --> SESSION
-    SB_OUT --> SB_EXT
+    AZURE_AD --> SB_EXT
+    RABBIT_AD --> RMQ_EXT
     BLOB_SVC --> BLOB_EXT
 </div>
 
@@ -231,11 +242,11 @@ graph TB
 | Runtime | Node.js 22.x (ESM native modules) |
 | Framework | Express.js 4.x |
 | LLM (default) | Google Gemini 2.0 Flash / Flash-Lite |
-| ORM | Prisma 6.x |
-| Database | PostgreSQL 13+ with `pgvector` extension |
-| Messaging | Azure Service Bus 7.x |
+| ORM | Prisma 6.0.1 |
+| Database | PostgreSQL 13+ with `pgvector` extension ([ADR-020](/docs/architecture-decisions/#adr-020--pgvector-as-vector-database-not-qdrant)) |
+| Messaging | Azure Service Bus 7.x / RabbitMQ (amqplib 0.10.x) ([ADR-022](/docs/architecture-decisions/#adr-022--provider-agnostic-message-bus-azure-service-bus--rabbitmq)) |
 | Storage | Azure Blob Storage 12.x |
-| Embeddings | Gemini `text-embedding-004` (768 dimensions) |
+| Embeddings | Gemini `text-embedding-004` (768 dimensions) / OpenAI / Ollama / Jina ([ADR-021](/docs/architecture-decisions/#adr-021--multi-provider-llm-and-embedding-abstraction)) |
 | Testing | Jest 30.x |
 | API Docs | Swagger UI Express |
 
@@ -243,6 +254,11 @@ graph TB
 
 ```text
 src/
+├── adapters/
+│   └── messageBus/
+│       ├── index.js                  # Factory: createMessageBus()
+│       ├── azureServiceBus.adapter.js
+│       └── rabbitMq.adapter.js
 ├── application/
 │   └── use-cases/
 │       ├── ChatUseCase.js        # RAG chat, recommendations, navigation, streaming
@@ -257,7 +273,8 @@ src/
 │       └── output/
 │           ├── ILLMPort.js
 │           ├── IDocumentRepositoryPort.js
-│           └── IEmbeddingPort.js
+│           ├── IEmbeddingPort.js
+│           └── IMessageBusPort.js
 ├── middleware/
 │   ├── auth.middleware.js        # JWT validation (HS256)
 │   ├── topicGuard.middleware.js  # Classifies query as academic / off-topic
@@ -279,7 +296,7 @@ src/
 │   ├── gemini.service.js         # ILLMPort + IEmbeddingPort implementation (multi-provider)
 │   ├── embedding.service.js      # Embedding generation (Gemini / OpenAI / Ollama / Jina)
 │   ├── advancedSearch.service.js # Hybrid search: vector + FTS + fuzzy + semantic
-│   ├── serviceBus.service.js     # Azure Service Bus message handler
+│   ├── serviceBus.service.js     # Message bus handler (Azure SB / RabbitMQ)
 │   ├── blobStorage.service.js    # Azure Blob Storage operations
 │   ├── session.service.js        # Quiz session lifecycle
 │   └── prisma.service.js         # Prisma client singleton
@@ -300,10 +317,12 @@ prisma/
 | Dependency | Purpose |
 |---|---|
 | Express.js 4.x | HTTP application and routing |
-| Prisma 6.x | ORM and generated database client |
+| Prisma 6.0.1 | ORM and generated database client |
 | `@azure/service-bus` 7.x | Azure Service Bus SDK |
 | `@azure/storage-blob` 12.x | Azure Blob Storage SDK |
+| `amqplib` 0.10.x | RabbitMQ AMQP client |
 | `pdf-parse` | PDF text extraction |
+| `multer` | Multipart file upload handling |
 | `fuse.js` | Client-side fuzzy search |
 | `zod` 3.x | Runtime request schema validation |
 | `jsonwebtoken` | JWT verification |
@@ -311,7 +330,6 @@ prisma/
 | `express-rate-limit` | Rate limiting |
 | `swagger-ui-express` | Swagger UI |
 | `winston` | Structured logging |
-| `nodemon` | Dev hot-reload |
 | `jest` 30.x | Unit testing |
 
 ---
@@ -408,7 +426,7 @@ erDiagram
 
 ### Summary
 
-Stores the result of the LLM document classification step. Created when a PDF passes analysis; `docId` starts as `PENDING_<correlationId>` until the backend confirms the real document ID.
+Stores the result of the LLM document classification step. Created when a PDF passes analysis; `docId` starts as `PENDING_<correlationId>` until the backend confirms the real document ID. A `search_text` TSVECTOR column is maintained by a database trigger for full-text search ([ADR-023](/docs/architecture-decisions/#adr-023--hybrid-search-strategy-vector--full-text--fuzzy--semantic)).
 
 | Field | Notes |
 |---|---|
@@ -419,6 +437,7 @@ Stores the result of the LLM document classification step. Created when a PDF pa
 | `tema` | Specific topic extracted by LLM |
 | `tags` | JSON string array of 3–5 keywords |
 | `summary` | LLM-generated academic summary |
+| `search_text` | `TSVECTOR` — auto-populated by trigger for full-text search |
 
 ### DocumentChunk
 
@@ -473,6 +492,10 @@ Static synonym dictionary for semantic search expansion. Each term maps to an ar
 | BR-09 — Simulation routes disabled in production | Implemented | `if (nodeEnv !== 'production')` guard in `server.js` |
 | BR-10 — Multiple-choice grading is deterministic | Implemented | String comparison; LLM is only called for open-ended answers |
 | BR-11 — Document chunk embeddings are generated asynchronously | Implemented | `createDocumentChunks` is fire-and-forget; errors are logged but do not fail the analysis response |
+| BR-12 — Message bus is provider-agnostic | Implemented | `createMessageBus()` factory selects Azure SB or RabbitMQ based on `MESSAGE_BUS_PROVIDER` env var ([ADR-022](/docs/architecture-decisions/#adr-022--provider-agnostic-message-bus-azure-service-bus--rabbitmq)) |
+| BR-13 — Arithmetic questions are auto-verified during generation | Implemented | `evaluateSimpleArithmetic()` + `safeEval()` verify correct answers match computed results; invalid questions are regenerated |
+| BR-14 — Hybrid search compensates single-method failures | Implemented | Four search methods (vector, FTS, fuzzy, semantic) with individual fallbacks; combined via weighted scores ([ADR-023](/docs/architecture-decisions/#adr-023--hybrid-search-strategy-vector--full-text--fuzzy--semantic)) |
+| BR-15 — LLM and embedding providers are switchable at deploy time | Implemented | `LLM_PROVIDER` and `EMBEDDING_PROVIDER` env vars select the active provider without code changes ([ADR-021](/docs/architecture-decisions/#adr-021--multi-provider-llm-and-embedding-abstraction)) |
 
 ---
 
@@ -674,42 +697,65 @@ When `AdvancedSearchService` is not called explicitly (e.g., inside `GeminiServi
 
 The ECIWise Auth service issues HS256 JWTs. The AI service validates them locally with the shared `JWT_SECRET`. There is no runtime HTTP call to the Auth service for each request.
 
-### Azure Service Bus Integration
+### Message Bus Integration (Provider-Agnostic)
+
+The AI service receives document analysis requests asynchronously through a message bus. The broker is selected at startup via the `MESSAGE_BUS_PROVIDER` environment variable — either **Azure Service Bus** or **RabbitMQ** ([ADR-022](/docs/architecture-decisions/#adr-022--provider-agnostic-message-bus-azure-service-bus--rabbitmq)).
 
 <div class="mermaid">
 sequenceDiagram
     participant FE as Frontend/Backend
-    participant SB as Azure Service Bus
+    participant MB as Message Bus<br/>(Azure SB / RabbitMQ)
     participant AI as AI Service
     participant LLM as LLM Provider
     participant DB as PostgreSQL
 
-    FE->>SB: Publish message {action: analysis, fileUrl, fileName, correlationId}
-    SB->>AI: Deliver message (material.process queue)
+    FE->>MB: Publish message {action: analysis, fileUrl, fileName, correlationId}
+    MB->>AI: Deliver message (material.process queue)
     AI->>AI: downloadFile(fileUrl)
     AI->>AI: pdf-parse → extract text
     AI->>LLM: analyzeDocumentText(text, fileName)
     LLM-->>AI: {valid, materia, tema, tags, summary}
     AI->>DB: Summary.create({correlationId, docId: PENDING_..., ...})
     AI->>AI: createDocumentChunks (async, fire-and-forget)
-    AI->>SB: Publish response {valid, materia, tema, tags, summary} to material.responses
-    SB-->>FE: Deliver analysis result
-    FE->>SB: Publish {action: save, correlationId, docId}
-    SB->>AI: Deliver save message
+    AI->>MB: Publish response to material.responses
+    MB-->>FE: Deliver analysis result
+    FE->>MB: Publish {action: save, correlationId, docId}
+    MB->>AI: Deliver save message
     AI->>DB: Summary.update({docId: realId})
 </div>
 
+**Adapter selection** (`src/adapters/messageBus/index.js`):
+
+<div class="mermaid">
+graph TB
+    FACT["createMessageBus()"] 
+    FACT -->|"MESSAGE_BUS_PROVIDER=azure"| AZURE["AzureServiceBusAdapter<br/>@azure/service-bus"]
+    FACT -->|"MESSAGE_BUS_PROVIDER=rabbitmq"| RABBIT["RabbitMqAdapter<br/>amqplib"]
+    AZURE --> PORT["IMessageBusPort<br/>send · subscribe · close"]
+    RABBIT --> PORT
+</div>
+
+Both adapters normalise the message contract so that `ServiceBusService` sees a uniform interface regardless of broker:
+
+| Concern | Azure Service Bus | RabbitMQ |
+|---------|-------------------|----------|
+| Subject | Top-level `msg.subject` property | `msg.properties.headers.subject` |
+| Correlation ID | Top-level `msg.correlationId` | `msg.properties.correlationId` |
+| Ack (success) | `completeMessage(msg)` | `channel.ack(msg)` |
+| Nack (failure) | `deadLetterMessage(msg)` | `channel.nack(msg, false, false)` |
+
 Messages that fail processing after 3 attempts with exponential backoff are moved to the dead-letter queue with a `MaxRetriesExceeded` reason.
 
-The Service Bus integration is optional: if `SERVICE_BUS_CONNECTION_STRING` is not set, the listener is disabled and the service starts normally (degraded mode for document processing only).
+The message bus integration is optional: if neither `SERVICE_BUS_CONNECTION_STRING` nor `RABBITMQ_URL` is set, the listener is disabled and the service starts normally (degraded mode for document processing only).
 
 ### LLM Provider Abstraction
 
-`GeminiService` implements all LLM operations and supports three backends transparently:
+`GeminiService` implements all LLM operations and supports four backends transparently ([ADR-021](/docs/architecture-decisions/#adr-021--multi-provider-llm-and-embedding-abstraction)):
 
 | Provider | Protocol | Notes |
 |---|---|---|
 | `gemini` (default) | Gemini REST API (v1beta) | Supports structured JSON output via `responseSchema` |
+| `openai` | OpenAI-compatible `/chat/completions` | Works with any OpenAI-compatible API (Together, Anyscale, etc.) |
 | `groq` | OpenAI-compatible `/chat/completions` | Fast inference, no native embedding API |
 | `ollama` | Ollama `/api/generate` and `/api/chat` | Local deployment, no cloud cost |
 
@@ -737,9 +783,9 @@ graph TB
         AUTH["Auth Service<br/>(JWT issuer — HS256)"]
         FE["ECIWise Frontend<br/>(Angular SPA)"]
         BE["ECIWise Backend"]
-        SB["Azure Service Bus<br/>material.process / material.responses"]
+        SB["Message Bus<br/>Azure Service Bus / RabbitMQ<br/>material.process / material.responses"]
         BLOB["Azure Blob Storage<br/>(PDF repository)"]
-        LLM["LLM Provider<br/>Gemini · Groq · Ollama"]
+        LLM["LLM Provider<br/>Gemini · OpenAI · Groq · Ollama"]
         PG[("PostgreSQL + pgvector<br/>summaries · embeddings<br/>sessions · quiz results")]
     end
 
@@ -790,16 +836,17 @@ graph TB
 
     subgraph "ECIWISE+ AI Service (single Node.js process)"
         API["REST API<br/>Node.js 22 · Express.js 4<br/>JWT auth · rate-limit · Zod validation · Swagger"]
-        LLMSVC["LLM Adapter<br/>GeminiService (multi-provider)<br/>chat · socratic · quiz · analysis · embeddings · streaming"]
+        LLMSVC["LLM Adapter<br/>GeminiService (multi-provider: Gemini / OpenAI / Groq / Ollama)<br/>chat · socratic · quiz · analysis · embeddings · streaming"]
         SEARCH["Search Engine<br/>AdvancedSearchService + EmbeddingService<br/>vector · FTS · fuzzy · semantic"]
-        BUS["Service Bus Listener<br/>ServiceBusService<br/>receive analysis · publish responses"]
+        BUS["Message Bus Listener<br/>ServiceBusService<br/>receive analysis · publish responses<br/>(Azure SB / RabbitMQ via factory)"]
         PRISMA["Persistence Adapter<br/>Prisma 6 + pgvector<br/>Summary · DocumentChunk · Session · ChatHistory · QuizResult"]
     end
 
     PG[("PostgreSQL 13+<br/>pgvector extension")]
     SB["Azure Service Bus<br/>material.process / material.responses"]
+    RMQ["RabbitMQ<br/>material.process / material.responses"]
     BLOB["Azure Blob Storage<br/>PDF files"]
-    LLM["LLM API<br/>Gemini / Groq / Ollama"]
+    LLM["LLM API<br/>Gemini / OpenAI / Groq / Ollama"]
 
     USER -->|HTTPS| FE
     FE -->|"JSON/HTTPS + Bearer JWT"| API
@@ -809,6 +856,7 @@ graph TB
     LLMSVC -->|"HTTPS (30s timeout)"| LLM
     SEARCH --> PRISMA
     BUS -->|AMQP| SB
+    BUS -->|AMQP| RMQ
     BUS -->|HTTPS| BLOB
     BUS --> LLMSVC
     BUS --> PRISMA
@@ -820,9 +868,9 @@ graph TB
 | Container | Technology | Responsibility |
 |---|---|---|
 | REST API | Express.js 4 | Auth, validation, routing, rate limiting, Swagger docs |
-| LLM Adapter | GeminiService (ESM) | Multi-provider LLM calls, streaming, embeddings |
-| Search Engine | AdvancedSearchService | Hybrid document retrieval for RAG context |
-| Service Bus Listener | ServiceBusService | Async document processing pipeline |
+| LLM Adapter | GeminiService (ESM) | Multi-provider LLM calls (Gemini / OpenAI / Groq / Ollama), streaming, embeddings |
+| Search Engine | AdvancedSearchService | Hybrid document retrieval (vector + FTS + fuzzy + semantic) for RAG context |
+| Message Bus Listener | ServiceBusService | Async document processing pipeline (Azure SB / RabbitMQ via factory) |
 | Persistence Adapter | Prisma 6 | All database reads and writes |
 
 The REST API, LLM Adapter, Search Engine, Service Bus Listener, and Persistence Adapter all run in the same Node.js process. They are logical containers, not independent deployments.
@@ -833,11 +881,11 @@ The REST API, LLM Adapter, Search Engine, Service Bus Listener, and Persistence 
 
 ### 1. Hexagonal Architecture (Ports & Adapters)
 
-Input ports (`IChatPort`, `ISocraticPort`, `IQuizPort`) define what use cases expose. Output ports (`ILLMPort`, `IDocumentRepositoryPort`, `IEmbeddingPort`) define what adapters must implement. Use cases depend only on abstractions; `GeminiService` and `PrismaService` are adapters wired in at the route level.
+Input ports (`IChatPort`, `ISocraticPort`, `IQuizPort`) define what use cases expose. Output ports (`ILLMPort`, `IDocumentRepositoryPort`, `IEmbeddingPort`, `IMessageBusPort`) define what adapters must implement. Use cases depend only on abstractions; `GeminiService`, `PrismaService`, `EmbeddingService`, and the message bus adapters are wired in at the route level ([ADR-019](/docs/architecture-decisions/#adr-019--nodejs--expressjs-for-the-ai-rag-service)).
 
 ### 2. Multi-provider LLM Abstraction
 
-`GeminiService` implements a unified `callLLM({ model, prompt, messages, systemPrompt, responseMimeType, responseSchema })` interface that dispatches to the correct provider based on `LLM_PROVIDER`. Switching from Gemini to Groq or Ollama requires only an environment variable change. The same applies to streaming via `callLLMStream`.
+`GeminiService` implements a unified `callLLM({ model, prompt, messages, systemPrompt, responseMimeType, responseSchema })` interface that dispatches to the correct provider based on `LLM_PROVIDER`. Switching from Gemini to Groq, OpenAI, or Ollama requires only an environment variable change. The same applies to streaming via `callLLMStream` ([ADR-021](/docs/architecture-decisions/#adr-021--multi-provider-llm-and-embedding-abstraction)).
 
 ### 3. RAG (Retrieval-Augmented Generation)
 
@@ -845,31 +893,39 @@ The service never answers academic questions from LLM parametric memory alone. E
 
 ### 4. Hybrid Search
 
-Four retrieval methods with configurable weights prevent any single method from being a single point of failure. If pgvector is unavailable, full-text and fuzzy search continue to work. If FTS indexes are missing, ILIKE fallback activates automatically.
+Four retrieval methods with configurable weights prevent any single method from being a single point of failure. If pgvector is unavailable, full-text and fuzzy search continue to work. If FTS indexes are missing, ILIKE fallback activates automatically ([ADR-023](/docs/architecture-decisions/#adr-023--hybrid-search-strategy-vector--full-text--fuzzy--semantic)).
 
-### 5. Fire-and-Forget Async Embeddings
+### 5. Provider-Agnostic Message Bus (Factory + Adapter)
 
-Chunk embedding generation is intentionally decoupled from the document analysis response. The Service Bus message is completed and the result returned to the backend immediately after the `Summary` is created. Embedding generation runs asynchronously and its failure does not block the analysis pipeline.
+The `createMessageBus()` factory reads `MESSAGE_BUS_PROVIDER` at startup and instantiates either `AzureServiceBusAdapter` or `RabbitMqAdapter`, both implementing `IMessageBusPort`. `ServiceBusService` consumes the port interface and is broker-agnostic. Both adapters normalise the message contract (subject, correlationId, ack/nack) so the business logic never touches broker-specific APIs ([ADR-022](/docs/architecture-decisions/#adr-022--provider-agnostic-message-bus-azure-service-bus--rabbitmq)).
 
-### 6. Retry with Exponential Backoff
+### 6. Safe Arithmetic Auto-Grading
+
+During quiz generation, `evaluateSimpleArithmetic()` parses arithmetic expressions (e.g., "5 + 3 * 2") found in multiple-choice questions and verifies that the LLM's `correctAnswer` matches the computed result. The `safeEval()` recursive-descent parser handles PEMDAS order of operations without using `eval()` or `Function()`. Invalid questions are automatically regenerated.
+
+### 7. Fire-and-Forget Async Embeddings
+
+Chunk embedding generation is intentionally decoupled from the document analysis response. The message bus message is completed and the result returned to the backend immediately after the `Summary` is created. Embedding generation runs asynchronously and its failure does not block the analysis pipeline.
+
+### 8. Retry with Exponential Backoff
 
 `withRetry` wraps every LLM call with up to 3 attempts. The delay doubles between attempts. This handles transient network errors without user impact.
 
-### 7. Topic Guard
+### 9. Topic Guard
 
 `topicGuard` middleware calls the LLM to classify incoming queries before routing them to the main use case. Off-topic queries (recipes, sports, entertainment) are blocked at the middleware layer with a fixed refusal message. This is applied to `/api/chat` and `/api/socratic`.
 
-### 8. Zod Schema Validation at the Boundary
+### 10. Zod Schema Validation at the Boundary
 
 All incoming JSON bodies are validated by Zod schemas before any business logic runs. Invalid requests fail fast at the `validate` middleware with a structured error listing field-level issues.
 
-### 9. Session-based Quiz State
+### 11. Session-based Quiz State
 
 Quiz state is persisted to PostgreSQL `Session` rows rather than held in-process memory. This allows the service to be restarted or scaled horizontally without losing quiz progress. Sessions expire automatically after 2 hours; a cleanup routine removes expired rows at startup.
 
-### 10. Dead-Letter Queue Handling
+### 12. Dead-Letter Queue Handling
 
-Service Bus messages that fail processing after the configured retry count are moved to the dead-letter queue with a `deadLetterReason` of `MaxRetriesExceeded`. This prevents poison messages from blocking the queue and makes failures observable.
+Message bus messages that fail processing after the configured retry count are moved to the dead-letter queue with a `deadLetterReason` of `MaxRetriesExceeded`. This prevents poison messages from blocking the queue and makes failures observable.
 
 ---
 
@@ -883,19 +939,23 @@ Service Bus messages that fail processing after the configured retry count are m
 | `NODE_ENV` | No | `development` | Runtime mode (`production` enables strict auth and disables simulation routes) |
 | `DATABASE_URL` | Yes | — | PostgreSQL connection string (`postgresql://`) |
 | `JWT_SECRET` | Yes | — | Shared HMAC secret (HS256) with the Auth service |
-| `LLM_PROVIDER` | No | `gemini` | LLM backend: `gemini`, `groq`, or `ollama` |
+| `LLM_PROVIDER` | No | `gemini` | LLM backend: `gemini`, `openai`, `groq`, or `ollama` ([ADR-021](/docs/architecture-decisions/#adr-021--multi-provider-llm-and-embedding-abstraction)) |
 | `GOOGLE_GEMINI_API_KEY` | If `gemini` | — | Gemini API key |
-| `LLM_API_KEY` | If `groq` | — | Groq API key |
+| `LLM_API_KEY` | If `groq` or `openai` | — | Groq / OpenAI API key |
 | `LLM_BASE_URL` | If `ollama` | `http://localhost:11434` | Ollama base URL |
 | `LLM_CHAT_MODEL` | No | `gemini-2.0-flash` | Model for chat, socratic, recommendations |
 | `LLM_ANALYSIS_MODEL` | No | `gemini-2.0-flash-lite` | Model for document analysis and quiz evaluation |
 | `EMBEDDING_PROVIDER` | No | Same as `LLM_PROVIDER` | Embedding backend (`gemini`, `openai`, `ollama`, `jina`) |
 | `EMBEDDING_MODEL` | No | `text-embedding-004` | Embedding model name |
 | `EMBEDDING_DIMENSIONS` | No | `768` | Output vector dimensions |
-| `SERVICE_BUS_CONNECTION_STRING` | No | — | Azure Service Bus — omit to disable queue listener |
+| `EMBEDDING_API_KEY` | No | Falls back to `LLM_API_KEY` | API key for embedding provider |
+| `EMBEDDING_BASE_URL` | No | Falls back to `LLM_BASE_URL` | Base URL for embedding provider |
+| `MESSAGE_BUS_PROVIDER` | No | `azure` | Message bus backend: `azure` or `rabbitmq` ([ADR-022](/docs/architecture-decisions/#adr-022--provider-agnostic-message-bus-azure-service-bus--rabbitmq)) |
+| `SERVICE_BUS_CONNECTION_STRING` | If `azure` | — | Azure Service Bus — omit to disable queue listener |
 | `SERVICE_BUS_INPUT_QUEUE` | No | `material.process` | Input queue name |
 | `SERVICE_BUS_OUTPUT_QUEUE` | No | `material.responses` | Output queue name |
 | `SERVICE_BUS_MAX_RETRIES` | No | `3` | Max attempts before dead-lettering |
+| `RABBITMQ_URL` | If `rabbitmq` | — | RabbitMQ AMQP connection URL (e.g., `amqp://user:pass@localhost:5672`) |
 | `AZURE_STORAGE_CONNECTION_STRING` | No | — | Azure Blob Storage — omit to disable SDK fallback |
 | `AZURE_STORAGE_CONTAINER_NAME` | No | `academic-documents` | Blob container |
 | `MAX_FILE_SIZE_MB` | No | `10` | Max upload size |
@@ -970,7 +1030,8 @@ DATABASE_URL=postgresql://...?sslmode=require
 JWT_SECRET=<shared secret>
 LLM_PROVIDER=gemini
 GOOGLE_GEMINI_API_KEY=AIzaSy...
-SERVICE_BUS_CONNECTION_STRING=Endpoint=sb://...
+MESSAGE_BUS_PROVIDER=rabbitmq
+RABBITMQ_URL=amqp://user:pass@rabbitmq-host:5672
 AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;...
 SCM_DO_BUILD_DURING_DEPLOYMENT=true
 ```
@@ -1019,6 +1080,21 @@ Sessions are persisted in PostgreSQL and survive restarts. If sessions appear mi
 - LLM system prompts: `src/utils/sysInstructions.js`
 - Search strategy: `src/services/advancedSearch.service.js`
 - Document pipeline: `src/services/serviceBus.service.js`
+- Prediction workers (dropout / performance): [AI Predictions](./ia-predictions.md)
+
+### Related Architecture Decision Records
+
+| ADR | Title |
+|-----|-------|
+| [ADR-001](/docs/architecture-decisions/#adr-001--microservice-architecture--event-driven-architecture) | Microservice Architecture + Event-Driven Architecture |
+| [ADR-007](/docs/architecture-decisions/#adr-007--two-ai-models-dropout-prediction-and-performance-prediction) | Two AI Models: Dropout Prediction and Performance Prediction |
+| [ADR-009](/docs/architecture-decisions/#adr-009--vector-database-in-the-ai-service-for-semantic-search-and-rag) | Vector Database in the AI Service (future Qdrant consideration) |
+| [ADR-014](/docs/architecture-decisions/#adr-014--jwt-hs256-as-the-cross-service-token-format) | JWT (HS256) as the Cross-Service Token Format |
+| [ADR-019](/docs/architecture-decisions/#adr-019--nodejs--expressjs-for-the-ai-rag-service) | Node.js / Express.js for the AI RAG Service |
+| [ADR-020](/docs/architecture-decisions/#adr-020--pgvector-as-vector-database-not-qdrant) | pgvector as Vector Database (not Qdrant) |
+| [ADR-021](/docs/architecture-decisions/#adr-021--multi-provider-llm-and-embedding-abstraction) | Multi-Provider LLM and Embedding Abstraction |
+| [ADR-022](/docs/architecture-decisions/#adr-022--provider-agnostic-message-bus-azure-service-bus--rabbitmq) | Provider-Agnostic Message Bus (Azure SB + RabbitMQ) |
+| [ADR-023](/docs/architecture-decisions/#adr-023--hybrid-search-strategy-vector--full-text--fuzzy--semantic) | Hybrid Search Strategy (Vector + FTS + Fuzzy + Semantic) |
 
 <script type="module">
   import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';

@@ -294,9 +294,10 @@ Every service validates the JWT **locally** — the arrows from `FE` carry ident
 | `study` | Spring Boot · JPA | Layered | Flashcards, Kahoot-style quiz, study history |
 | `talk` | Spring Boot · WebSocket · Redis · MinIO | Layered | Real-time chat, conversations, reactions, attachments |
 | `game` | Go · WebSocket | Event-driven goroutines | Real-time multiplayer game server (in-memory) |
+| [`AI RAG`](/how/ai-service/) | Node.js 22 · Express.js 4 · Prisma · pgvector | Hexagonal | RAG chat, Socratic tutoring, adaptive quizzes, document analysis pipeline ([ADR-019](/docs/architecture-decisions/#adr-019--nodejs--expressjs-for-the-ai-rag-service)) |
 | `community` | NestJS | — | Forums, threads, replies, moderation |
-| `AI dropout` | Python · RabbitMQ | Worker | Dropout risk prediction (22-feature model) |
-| `AI performance` | Python · RabbitMQ | Worker | Academic performance prediction (11-feature model) |
+| `AI dropout` | Python · RabbitMQ | Worker | Dropout risk prediction (22-feature model) ([ADR-007](/docs/architecture-decisions/#adr-007--two-ai-models-dropout-prediction-and-performance-prediction)) |
+| `AI performance` | Python · RabbitMQ | Worker | Academic performance prediction (11-feature model) ([ADR-007](/docs/architecture-decisions/#adr-007--two-ai-models-dropout-prediction-and-performance-prediction)) |
 
 ---
 
